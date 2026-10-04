@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarPlus, Clock, MapPin, Phone, User, Video } from "lucide-react";
+import { CalendarClock, CalendarPlus, Clock, MapPin, Phone, User, Video } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { buttonClass } from "@/components/ui/button-class";
-import { Badge, statusTone } from "@/components/ui/misc";
+import { Badge, Notice, statusTone } from "@/components/ui/misc";
 import { LogoMark } from "@/components/app/logo";
 import { formatDate, formatMoney, formatTime, STATUS_LABEL, timeZoneLabel } from "@/lib/format";
 import { CancelBooking } from "./cancel";
@@ -62,6 +62,7 @@ export default async function ManageBookingPage(props: PageProps<"/booking/[toke
             </>
           ) : (
             <>
+              {sp.moved === "1" && !cancelled && <div className="mx-auto mb-3 max-w-xs"><Notice tone="green">Your booking has been moved.</Notice></div>}
               <h1 className="text-[28px] font-bold">{cancelled ? "Booking cancelled" : "Your booking"}</h1>
               <p className="mt-1 text-[15px] text-label-2">with {b.org.name}</p>
             </>
@@ -99,6 +100,11 @@ export default async function ManageBookingPage(props: PageProps<"/booking/[toke
             <a href={`/booking/${token}/ics`} className={buttonClass("glass", "lg", true, "w-full")}>
               <CalendarPlus className="size-5 text-accent" /> Add to Calendar
             </a>
+          )}
+          {canCancel && b.status === "confirmed" && (
+            <Link href={`/booking/${token}/reschedule`} className={buttonClass("glass", "lg", true, "w-full")}>
+              <CalendarClock className="size-5 text-accent" /> Reschedule
+            </Link>
           )}
           {canCancel && <CancelBooking token={token} />}
           {!canCancel && !cancelled && b.status === "confirmed" && (

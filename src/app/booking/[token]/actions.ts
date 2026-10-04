@@ -3,6 +3,15 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { notifyBooking } from "@/lib/notify";
 
+export async function rescheduleBooking(token: string, startsAt: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("reschedule_booking_by_token", { p_token: token, p_starts_at: startsAt });
+  if (error) return { error: error.message };
+  await notifyBooking((data as { id: string }).id, "rescheduled");
+  revalidatePath(`/booking/${token}`);
+  return { ok: true as const };
+}
+
 export async function cancelBooking(token: string, reason: string) {
   const supabase = await createClient();
   const { error } = await supabase.rpc("cancel_booking_by_token", { p_token: token, p_reason: reason.slice(0, 500) });

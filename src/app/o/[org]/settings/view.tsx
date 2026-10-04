@@ -91,7 +91,7 @@ export function SettingsView({
                   {[5, 10, 15, 20, 30, 60].map((d) => <option key={d} value={d}>Every {d} minutes</option>)}
                 </Select>
               </Field>
-              <Field label="Free cancellation until">
+              <Field label="Customers can cancel or reschedule until">
                 <Select name="cancellation_window_hours" defaultValue={org.cancellation_window_hours}>
                   {[[0, "Any time"], [2, "2 hours before"], [12, "12 hours before"], [24, "24 hours before"], [48, "48 hours before"], [72, "3 days before"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </Select>
