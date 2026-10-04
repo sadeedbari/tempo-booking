@@ -8,7 +8,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Avatar } from "@/components/ui/misc";
 import { cn } from "@/lib/utils";
 import { addDaysToKey, dayKey, formatTime, startOfDayInZone, todayKey, weekdayOfKey } from "@/lib/format";
-import type { AvailabilityRule, Booking, Customer, Membership, Organization, Service, TimeOff } from "@/lib/types";
+import type { AvailabilityRule, Booking, Customer, Location, Membership, Organization, Service, TimeOff } from "@/lib/types";
 import { NewBookingSheet } from "@/components/app/new-booking-sheet";
 import { BookingSheet } from "@/components/app/booking-sheet";
 
@@ -27,6 +27,7 @@ interface Props {
   rules: AvailabilityRule[];
   timeOff: TimeOff[];
   customers: Customer[];
+  locations: Location[];
   welcome?: boolean;
 }
 
@@ -63,8 +64,14 @@ function layout<T extends { start: number; end: number }>(items: T[]) {
   return out;
 }
 
-export function CalendarView(p: Props) {
+export function CalendarView(props: Props) {
   const router = useRouter();
+  const [locationFilter, setLocationFilter] = useState<string>("all");
+  // With a location chosen, only that location's bookings are shown.
+  const p = useMemo(
+    () => (locationFilter === "all" ? props : { ...props, bookings: props.bookings.filter((b) => b.location_id === locationFilter) }),
+    [props, locationFilter],
+  );
   const tz = p.org.timezone;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [staffFilter, setStaffFilter] = useState<string>("all");
@@ -173,6 +180,24 @@ export function CalendarView(p: Props) {
           <Plus className="size-4" strokeWidth={2.5} /> New
         </Button>
       </div>
+
+      {/* Location filter */}
+      {p.locations.length > 1 && (
+        <div className="scrollbar-none -mx-1 mb-3 flex gap-2 overflow-x-auto px-1">
+          {[{ id: "all", name: "All locations" }, ...p.locations].map((l) => (
+            <button
+              key={l.id}
+              onClick={() => setLocationFilter(l.id)}
+              className={cn(
+                "flex h-8 shrink-0 items-center rounded-full px-3.5 text-[13px] font-medium transition",
+                locationFilter === l.id ? "bg-accent text-white" : "bg-surface text-label-2 hairline hover:text-label",
+              )}
+            >
+              {l.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Staff filter */}
       {bookable.length > 1 && (
@@ -336,6 +361,8 @@ export function CalendarView(p: Props) {
         org={p.org}
         defaultStart={newAt?.start}
         defaultMemberId={newAt?.memberId}
+        locations={p.locations}
+        defaultLocationId={locationFilter === "all" ? undefined : locationFilter}
         members={bookable}
         services={p.services.filter((s) => s.active)}
         customers={p.customers}
@@ -348,6 +375,7 @@ export function CalendarView(p: Props) {
         members={bookable}
         service={selected?.service_id ? serviceById.get(selected.service_id) : undefined}
         member={selected ? memberById.get(selected.member_id) : undefined}
+        location={selected?.location_id ? p.locations.find((l) => l.id === selected.location_id) : undefined}
       />
     </div>
   );

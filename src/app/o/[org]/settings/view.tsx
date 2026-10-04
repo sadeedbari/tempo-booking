@@ -7,13 +7,14 @@ import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { PALETTE } from "@/lib/utils";
 import { allTimeZones, CURRENCIES } from "@/lib/timezones";
-import type { Organization } from "@/lib/types";
+import type { Location, Membership, Organization } from "@/lib/types";
+import { LocationsSection } from "./locations";
 import { connectStripe, deleteOrg, updateOrg } from "../actions";
 
 export function SettingsView({
-  slug, org, isAdmin, isOwner, features, stripeStatus,
+  slug, org, isAdmin, isOwner, features, stripeStatus, locations, locationStaff, members,
 }: {
-  slug: string; org: Organization; isAdmin: boolean; isOwner: boolean;
+  slug: string; org: Organization; locations: Location[]; locationStaff: Record<string, string[]>; members: Membership[]; isAdmin: boolean; isOwner: boolean;
   features: { payments: boolean; email: boolean; sms: boolean }; stripeStatus?: string;
 }) {
   const toast = useToast();
@@ -109,6 +110,8 @@ export function SettingsView({
             <Button type="submit" pill size="lg" loading={pending} className="shadow-lg">Save changes</Button>
           </div>
         </form>
+
+        <LocationsSection slug={slug} locations={locations} staffMap={locationStaff} members={members.filter((m) => m.bookable)} />
 
         <Section title="Payments" description="Take deposits when customers book. Funds go straight to your Stripe account.">
           <div className="flex flex-wrap items-center gap-4 rounded-[16px] bg-surface p-5 shadow-sm hairline">

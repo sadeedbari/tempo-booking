@@ -10,7 +10,7 @@ import { Avatar, Notice } from "@/components/ui/misc";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { formatDuration, formatMoney, todayKey } from "@/lib/format";
-import type { Customer, Membership, Organization, Service } from "@/lib/types";
+import type { Customer, Location, Membership, Organization, Service } from "@/lib/types";
 import { createManualBooking } from "@/app/o/[org]/actions";
 import { joinInZone, splitInZone, TIME_OPTIONS } from "./datetime";
 
@@ -21,6 +21,8 @@ interface NewProps {
   org: Organization;
   defaultStart?: string;
   defaultMemberId?: string;
+  locations: Location[];
+  defaultLocationId?: string;
   members: Membership[];
   services: Service[];
   customers: Customer[];
@@ -32,7 +34,7 @@ export function NewBookingSheet(props: NewProps) {
   return <NewBookingSheetInner key={`${props.defaultStart}-${props.defaultMemberId}`} {...props} />;
 }
 
-function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultMemberId, members, services, customers }: NewProps) {
+function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultMemberId, locations, defaultLocationId, members, services, customers }: NewProps) {
   const tz = org.timezone;
   const toast = useToast();
   const initial = defaultStart ? splitInZone(defaultStart, tz) : { date: todayKey(tz), time: "09:00" };
@@ -42,6 +44,7 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
   const [memberId, setMemberId] = useState(
     defaultMemberId && members.some((m) => m.id === defaultMemberId) ? defaultMemberId : members[0]?.id ?? "",
   );
+  const [locationId, setLocationId] = useState(defaultLocationId ?? locations[0]?.id ?? "");
   const [date, setDate] = useState(initial.date);
   const [time, setTime] = useState(initial.time);
   const [mode, setMode] = useState<"existing" | "new">(customers.length ? "existing" : "new");
@@ -57,6 +60,7 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
     setError(null);
     formData.set("service_id", serviceId);
     formData.set("member_id", memberId);
+    formData.set("location_id", locationId);
     formData.set("starts_at", joinInZone(date, time, tz));
     if (mode === "existing") formData.set("customer_id", customerId);
     start(async () => {
@@ -104,6 +108,14 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
             </Select>
           </Field>
         </div>
+
+        {locations.length > 1 && (
+          <Field label="Location">
+            <Select value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+              {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </Select>
+          </Field>
+        )}
 
         <div className="space-y-2">
           <span className="px-1 text-[13px] font-medium text-label-2">With</span>

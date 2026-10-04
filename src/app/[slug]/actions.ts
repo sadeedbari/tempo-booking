@@ -21,6 +21,7 @@ export async function book(input: {
   slug: string;
   serviceId: string;
   memberId: string | null;
+  locationId: string | null;
   startsAt: string;
   name: string;
   email: string;
@@ -37,6 +38,7 @@ export async function book(input: {
     p_email: input.email.slice(0, 200),
     p_phone: input.phone.slice(0, 40),
     p_notes: input.notes.slice(0, 1000),
+    p_location: input.locationId,
   });
   if (error) return { ok: false, error: error.message };
   const b = data as { id: string; manage_token: string; status: string };

@@ -1,13 +1,13 @@
 "use client";
 import { useState, useTransition } from "react";
-import { CalendarClock, Mail, Phone, StickyNote, User, CreditCard, CheckCircle2, UserX, XCircle } from "lucide-react";
+import { CalendarClock, Mail, MapPin, Phone, StickyNote, User, CreditCard, CheckCircle2, UserX, XCircle } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
 import { Badge, Notice, statusTone } from "@/components/ui/misc";
 import { useToast } from "@/components/ui/toast";
 import { formatDate, formatMoney, formatTime, STATUS_LABEL } from "@/lib/format";
-import type { Booking, BookingStatus, Membership, Organization, Service } from "@/lib/types";
+import type { Booking, BookingStatus, Location, Membership, Organization, Service } from "@/lib/types";
 import { rescheduleBooking, setBookingStatus } from "@/app/o/[org]/actions";
 import { joinInZone, splitInZone, TIME_OPTIONS } from "./datetime";
 
@@ -19,6 +19,7 @@ interface SheetProps {
   members: Membership[];
   service?: Service;
   member?: Membership;
+  location?: Location;
 }
 
 export function BookingSheet(props: SheetProps) {
@@ -27,7 +28,7 @@ export function BookingSheet(props: SheetProps) {
   return <BookingSheetInner key={props.booking.id} {...props} booking={props.booking} />;
 }
 
-function BookingSheetInner({ booking, onClose, slug, org, members, service, member }: SheetProps & { booking: Booking }) {
+function BookingSheetInner({ booking, onClose, slug, org, members, service, member, location }: SheetProps & { booking: Booking }) {
   const tz = org.timezone;
   const toast = useToast();
   const initial = splitInZone(booking.starts_at, tz);
@@ -75,6 +76,7 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
       <div className="space-y-5">
         <div className="overflow-hidden rounded-[14px] bg-surface hairline divide-y divide-separator">
           <Row icon={<CalendarClock />} label={formatDate(booking.starts_at, tz)} sub={`${formatTime(booking.starts_at, tz)} – ${formatTime(booking.ends_at, tz)}${member ? ` · with ${member.display_name}` : ""}`} />
+          {location && <Row icon={<MapPin />} label={location.name} sub={location.address} />}
           <Row icon={<User />} label={booking.customer?.name ?? "Customer"} />
           {booking.customer?.email && <Row icon={<Mail />} label={<a className="text-accent" href={`mailto:${booking.customer.email}`}>{booking.customer.email}</a>} />}
           {booking.customer?.phone && <Row icon={<Phone />} label={<a className="text-accent" href={`tel:${booking.customer.phone}`}>{booking.customer.phone}</a>} />}

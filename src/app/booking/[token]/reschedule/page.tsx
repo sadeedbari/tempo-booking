@@ -7,7 +7,7 @@ import { ReschedulePicker } from "./picker";
 export const metadata: Metadata = { title: "Reschedule your booking", robots: { index: false } };
 
 type Booking = {
-  status: string; starts_at: string; service_id: string | null; member_id: string | null; service_name: string;
+  status: string; starts_at: string; service_id: string | null; member_id: string | null; location_id: string | null; service_name: string;
   org: { slug: string; cancellation_window_hours: number };
 };
 
@@ -25,7 +25,7 @@ export default async function ReschedulePage(props: PageProps<"/booking/[token]/
   const service = orgData?.services.find((s) => s.id === b.service_id);
   if (!orgData || !service) redirect(`/booking/${token}`);
 
-  return <ReschedulePicker token={token} data={orgData} service={service} currentStart={b.starts_at} currentMemberId={b.member_id} />;
+  return <ReschedulePicker token={token} data={orgData} service={service} currentStart={b.starts_at} currentMemberId={b.member_id} locationId={b.location_id} />;
 }
 
 function canReschedule(b: Booking) {

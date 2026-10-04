@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/auth";
 import { addDaysToKey, startOfDayInZone, todayKey, weekdayOfKey } from "@/lib/format";
-import type { AvailabilityRule, Booking, Customer, Service, TimeOff } from "@/lib/types";
+import type { AvailabilityRule, Booking, Customer, Location, Service, TimeOff } from "@/lib/types";
 import { CalendarView } from "./calendar-view";
 
 export const metadata: Metadata = { title: "Calendar" };
@@ -21,7 +21,7 @@ export default async function CalendarPage(props: PageProps<"/o/[org]/calendar">
   const rangeEnd = addDaysToKey(rangeStart, view === "week" ? 7 : 1);
 
   const supabase = await createClient();
-  const [bookings, services, rules, timeOff, customers] = await Promise.all([
+  const [bookings, services, rules, timeOff, customers, locations] = await Promise.all([
     supabase
       .from("bookings")
       .select("*, customer:customers(id, name, email, phone)")
@@ -39,6 +39,7 @@ export default async function CalendarPage(props: PageProps<"/o/[org]/calendar">
       .lt("starts_at", startOfDayInZone(rangeEnd, tz).toISOString())
       .gt("ends_at", startOfDayInZone(rangeStart, tz).toISOString()),
     supabase.from("customers").select("id, name, email, phone").eq("org_id", org.id).order("name").limit(500),
+    supabase.from("locations").select("*").eq("org_id", org.id).eq("active", true).order("position").order("created_at"),
   ]);
 
   return (
@@ -55,6 +56,7 @@ export default async function CalendarPage(props: PageProps<"/o/[org]/calendar">
       rules={(rules.data ?? []) as AvailabilityRule[]}
       timeOff={(timeOff.data ?? []) as TimeOff[]}
       customers={(customers.data ?? []) as Customer[]}
+      locations={(locations.data ?? []) as Location[]}
       welcome={sp.welcome === "1"}
     />
   );

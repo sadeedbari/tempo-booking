@@ -15,7 +15,7 @@ type PublicBooking = {
   id: string; status: string; starts_at: string; ends_at: string; service_name: string;
   price_cents: number; deposit_cents: number; currency: string; payment_status: string; notes: string | null;
   customer_name: string; customer_email: string; staff_name: string | null;
-  location_type: string | null; location_detail: string | null;
+  location_type: string | null; location_detail: string | null; location_name: string | null; location_address: string | null;
   org: { name: string; slug: string; timezone: string; address: string | null; phone: string | null; accent_color: string; cancellation_window_hours: number };
 };
 
@@ -39,7 +39,7 @@ export default async function ManageBookingPage(props: PageProps<"/booking/[toke
       ? { icon: Video, text: b.location_detail || "Video call — link to follow" }
       : b.location_type === "phone"
         ? { icon: Phone, text: "Phone call" }
-        : { icon: MapPin, text: b.location_detail || b.org.address || "" };
+        : { icon: MapPin, text: [b.location_name, b.location_address || b.location_detail || b.org.address].filter(Boolean).join(" — ") };
 
   return (
     <div className="relative flex min-h-dvh flex-col items-center px-4 py-12" style={{ ["--accent" as string]: accent, ["--accent-soft" as string]: `${accent}1a` }}>

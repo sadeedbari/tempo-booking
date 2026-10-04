@@ -22,7 +22,7 @@ export default async function Preview(props: PageProps<"/preview/[page]">) {
     </div>
   );
   if (page === "calendar")
-    return shell(<CalendarView slug="lumen" org={org} view={sp.view === "week" ? "week" : "day"} date={day} rangeStart={day} members={members} meId="m1" bookings={bookings(day)} services={services} rules={rules} timeOff={[]} customers={customers} />);
+    return shell(<CalendarView slug="lumen" org={org} view={sp.view === "week" ? "week" : "day"} date={day} rangeStart={day} members={members} meId="m1" bookings={bookings(day)} services={services} rules={rules} timeOff={[]} customers={customers} locations={[]} />);
   if (page === "services") return shell(<ServicesView slug="lumen" org={org} services={services} staffMap={{}} members={members} canEdit />);
   if (page === "team") return shell(<TeamView slug="lumen" members={members} me={members[0]} isAdmin invites={[]} emails={{}} />);
   if (page === "availability") return shell(<AvailabilityView slug="lumen" org={org} members={members} memberId="m1" rules={rules.filter((r) => r.member_id === "m1")} timeOff={[]} />);

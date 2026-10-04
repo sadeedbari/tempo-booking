@@ -18,7 +18,7 @@ import { eligibleMembers, slotsForDay, type Slot } from "@/lib/slots";
 import type { BusyInterval, PublicOrg, PublicService } from "@/lib/types";
 import { book, getBusy } from "@/app/[slug]/actions";
 
-type Step = "service" | "staff" | "time" | "details";
+type Step = "location" | "service" | "staff" | "time" | "details";
 const LOC = { in_person: { icon: MapPin, label: "In person" }, video: { icon: Video, label: "Video call" }, phone: { icon: Phone, label: "Phone call" } };
 const WINDOW = 14; // days of availability fetched at a time
 const noop = () => () => {};
@@ -36,12 +36,16 @@ export function BookingFlow({
   fetchBusy?: typeof getBusy;
 }) {
   const router = useRouter();
-  const { org, services, staff, availability } = data;
+  const { org, services, staff, availability, locations } = data;
+  const multiLocation = locations.length > 1;
   const tz = org.timezone;
   const accent = org.accent_color || "#007AFF";
   const allStaffIds = staff.map((s) => s.id);
 
-  const eligibleFor = (s: PublicService | null) => (s ? eligibleMembers(s.staff_ids, allStaffIds) : allStaffIds);
+  const [locationId, setLocationId] = useState<string | null>(locations.length === 1 ? locations[0].id : null);
+  const location = locations.find((l) => l.id === locationId) ?? null;
+  const locationStaff = location ? eligibleMembers(location.staff_ids, allStaffIds) : allStaffIds;
+  const eligibleFor = (s: PublicService | null) => (s ? eligibleMembers(s.staff_ids, locationStaff) : locationStaff);
   // When only one person can perform a service, skip the "who" step.
   const stepAfterService = (s: PublicService) => (eligibleFor(s).length > 1 ? "staff" : "time");
 
@@ -51,7 +55,7 @@ export function BookingFlow({
     const el = eligibleFor(preselected);
     return preselected && el.length === 1 ? el[0] : null;
   }); // null = any
-  const [step, setStep] = useState<Step>(preselected ? stepAfterService(preselected) : "service");
+  const [step, setStep] = useState<Step>(multiLocation ? "location" : preselected ? stepAfterService(preselected) : "service");
   const [pickedDay, setDay] = useState<string | null>(null);
   const [windowStart, setWindowStart] = useState<string>(todayKey(tz));
   const [reload, setReload] = useState(0);
@@ -63,6 +67,18 @@ export function BookingFlow({
 
   const eligible = useMemo(() => eligibleFor(service), [service, allStaffIds]); // eslint-disable-line react-hooks/exhaustive-deps
   const eligibleStaff = staff.filter((s) => eligible.includes(s.id));
+
+  function chooseLocation(id: string) {
+    const l = locations.find((x) => x.id === id)!;
+    const staffHere = eligibleMembers(l.staff_ids, allStaffIds);
+    const el = service ? eligibleMembers(service.staff_ids, staffHere) : staffHere;
+    setLocationId(id);
+    setSlot(null);
+    setDay(null);
+    setBusyCache({});
+    setMemberId(service && el.length === 1 ? el[0] : null);
+    setStep(service ? (el.length > 1 ? "staff" : "time") : "service");
+  }
 
   function chooseService(s: PublicService) {
     const el = eligibleFor(s);
@@ -134,7 +150,9 @@ export function BookingFlow({
     if (step === "details") setStep("time");
     else if (step === "time") setStep(eligibleStaff.length > 1 ? "staff" : "service");
     else if (step === "staff") setStep("service");
+    else if (step === "service" && multiLocation) setStep("location");
   };
+  const n = multiLocation ? 1 : 0; // step numbering offset
 
   function submit(fd: FormData) {
     if (!service || !slot) return;
@@ -145,6 +163,7 @@ export function BookingFlow({
         slug: org.slug,
         serviceId: service.id,
         memberId: memberId ?? (slot.memberIds.length === 1 ? slot.memberIds[0] : null),
+        locationId,
         startsAt: slot.start,
         name: String(fd.get("name") || ""),
         email: String(fd.get("email") || ""),
@@ -193,8 +212,15 @@ export function BookingFlow({
           </div>
           {org.description && <p className="mt-4 text-[14px] leading-relaxed text-label-2">{org.description}</p>}
 
-          {service && (
+          {(service || location) && (
             <div className="mt-6 space-y-3 border-t border-separator pt-5 animate-fade">
+              {location && multiLocation && (
+                <SummaryRow icon={MapPin}>
+                  <span className="font-medium text-label">{location.name}</span>
+                  {location.address && <><br />{location.address}</>}
+                </SummaryRow>
+              )}
+              {service && (<>
               <div className="flex items-start gap-3">
                 <span className="mt-1.5 size-2.5 shrink-0 rounded-full" style={{ background: service.color }} />
                 <div>
@@ -214,22 +240,45 @@ export function BookingFlow({
                 </SummaryRow>
               )}
               <SummaryRow icon={Globe}>{tz.replace(/_/g, " ")} ({timeZoneLabel(tz)})</SummaryRow>
+              </>)}
             </div>
           )}
         </aside>
 
         {/* Steps */}
         <main className="min-w-0 rounded-[24px] bg-surface p-5 shadow-md hairline sm:p-7">
-          {step !== "service" && (
+          {(step !== "service" || multiLocation) && step !== "location" && (
             <button onClick={back} className="mb-4 -ml-1 inline-flex items-center gap-1 text-[15px] font-medium text-accent">
               <ArrowLeft className="size-4" /> Back
             </button>
           )}
           {paymentCancelled && step === "service" && <div className="mb-4"><Notice tone="blue">Payment was cancelled, so your booking wasn&apos;t completed. Pick a time to try again.</Notice></div>}
 
+          {step === "location" && (
+            <div key="location" className="animate-rise">
+              <StepTitle n={1} title="Choose a location" />
+              <div className="space-y-2.5">
+                {locations.map((l) => (
+                  <button
+                    key={l.id}
+                    onClick={() => chooseLocation(l.id)}
+                    className="group flex w-full items-center gap-4 rounded-[16px] bg-surface-2/60 p-4 text-left transition hover:bg-surface-2 active:scale-[0.99]"
+                  >
+                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-accent-soft text-accent"><MapPin className="size-5" /></span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[16px] font-semibold">{l.name}</div>
+                      {l.address && <div className="mt-0.5 text-[14px] text-label-2">{l.address}</div>}
+                    </div>
+                    <ChevronRight className="size-5 text-label-4 transition group-hover:translate-x-0.5 group-hover:text-label-3" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {step === "service" && (
             <div key="service" className="animate-rise">
-              <StepTitle n={1} title="Choose a service" />
+              <StepTitle n={1 + n} title="Choose a service" />
               {services.length === 0 ? (
                 <p className="py-10 text-center text-label-2">No services are available to book right now.</p>
               ) : (
@@ -265,7 +314,7 @@ export function BookingFlow({
 
           {step === "staff" && eligibleStaff.length > 1 && (
             <div key="staff" className="animate-rise">
-              <StepTitle n={2} title="Who would you like?" />
+              <StepTitle n={2 + n} title="Who would you like?" />
               <div className="grid gap-3 sm:grid-cols-2">
                 <StaffCard name="Any available" subtitle="Earliest availability" onClick={() => { setMemberId(null); setStep("time"); }} any accent={accent} />
                 {eligibleStaff.map((m) => (
@@ -277,7 +326,7 @@ export function BookingFlow({
 
           {step === "time" && (
             <div key="time" className="animate-rise">
-              <StepTitle n={eligibleStaff.length > 1 ? 3 : 2} title="Pick a time" />
+              <StepTitle n={(eligibleStaff.length > 1 ? 3 : 2) + n} title="Pick a time" />
               <div className="mb-4 flex items-center justify-between">
                 <div className="text-[17px] font-semibold">
                   {new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${day}T12:00:00Z`))}
@@ -356,7 +405,7 @@ export function BookingFlow({
 
           {step === "details" && service && slot && (
             <div key="details" className="animate-rise">
-              <StepTitle n={eligibleStaff.length > 1 ? 4 : 3} title="Your details" />
+              <StepTitle n={(eligibleStaff.length > 1 ? 4 : 3) + n} title="Your details" />
               <form action={submit} className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Full name" className="sm:col-span-2"><Input name="name" autoComplete="name" required autoFocus /></Field>

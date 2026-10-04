@@ -16,15 +16,19 @@ import { rescheduleBooking } from "../actions";
 const WINDOW = 14;
 
 export function ReschedulePicker({
-  token, data, service, currentStart, currentMemberId,
+  token, data, service, currentStart, currentMemberId, locationId,
 }: {
-  token: string; data: PublicOrg; service: PublicService; currentStart: string; currentMemberId: string | null;
+  token: string; data: PublicOrg; service: PublicService; currentStart: string; currentMemberId: string | null; locationId: string | null;
 }) {
   const router = useRouter();
   const { org, staff, availability } = data;
   const tz = org.timezone;
   const accent = org.accent_color || "#007AFF";
-  const eligible = useMemo(() => eligibleMembers(service.staff_ids, staff.map((s) => s.id)), [service, staff]);
+  const eligible = useMemo(() => {
+    const all = staff.map((s) => s.id);
+    const loc = data.locations.find((l) => l.id === locationId);
+    return eligibleMembers(service.staff_ids, loc ? eligibleMembers(loc.staff_ids, all) : all);
+  }, [service, staff, data.locations, locationId]);
 
   const [windowStart, setWindowStart] = useState(todayKey(tz));
   const [reload, setReload] = useState(0);

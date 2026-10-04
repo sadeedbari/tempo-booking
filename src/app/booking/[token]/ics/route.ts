@@ -12,7 +12,7 @@ export async function GET(_: Request, ctx: RouteContext<"/booking/[token]/ics">)
   const supabase = await createClient();
   const { data } = await supabase.rpc("get_booking_by_token", { p_token: token });
   if (!data) return new Response("Not found", { status: 404 });
-  const b = data as { id: string; starts_at: string; ends_at: string; service_name: string; staff_name: string | null; location_detail: string | null; org: { name: string; address: string | null } };
+  const b = data as { id: string; starts_at: string; ends_at: string; service_name: string; staff_name: string | null; location_detail: string | null; location_name: string | null; location_address: string | null; org: { name: string; address: string | null } };
   const body = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -26,7 +26,7 @@ export async function GET(_: Request, ctx: RouteContext<"/booking/[token]/ics">)
     `DTEND:${ics(new Date(b.ends_at))}`,
     `SUMMARY:${esc(`${b.service_name} — ${b.org.name}`)}`,
     `DESCRIPTION:${esc(`${b.staff_name ? `With ${b.staff_name}. ` : ""}Manage: ${new URL(`/booking/${token}`, _.url).toString()}`)}`,
-    ...(b.location_detail || b.org.address ? [`LOCATION:${esc(b.location_detail || b.org.address || "")}`] : []),
+    ...(b.location_address || b.location_detail || b.org.address ? [`LOCATION:${esc([b.location_name, b.location_address || b.location_detail || b.org.address].filter(Boolean).join(", "))}`] : []),
     "BEGIN:VALARM",
     "TRIGGER:-PT1H",
     "ACTION:DISPLAY",

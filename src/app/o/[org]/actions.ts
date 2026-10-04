@@ -128,6 +128,7 @@ export async function deleteService(slug: string, id: string): Promise<ActionRes
 const manualBookingSchema = z.object({
   service_id: z.string().uuid({ message: "Choose a service" }),
   member_id: z.string().uuid({ message: "Choose a team member" }),
+  location_id: z.string().uuid().optional().or(z.literal("")),
   starts_at: z.string().min(10),
   customer_id: z.string().uuid().optional().or(z.literal("")),
   customer_name: z.string().trim().max(120).optional(),
@@ -175,6 +176,7 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
         org_id: org.id,
         service_id: service.id,
         member_id: v.member_id,
+        location_id: v.location_id || null,
         customer_id: customerId,
         starts_at: start.toISOString(),
         ends_at: end.toISOString(),
@@ -238,6 +240,64 @@ export async function rescheduleBooking(slug: string, id: string, startsAt: stri
       .eq("org_id", org.id);
     if (error) return { error: friendly(error) };
     await notifyBooking(id, "rescheduled");
+    refresh(slug);
+    return { ok: true };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+/* ───────────────────────────── Locations ───────────────────────────── */
+
+const locationSchema = z.object({
+  id: z.string().uuid().optional().or(z.literal("")),
+  name: z.string().trim().min(1, "Give the location a name").max(80),
+  address: z.string().trim().max(300).optional(),
+  phone: z.string().trim().max(40).optional(),
+  active: z.boolean(),
+});
+
+export async function saveLocation(slug: string, formData: FormData): Promise<ActionResult> {
+  try {
+    const { org } = await ctxFor(slug, true);
+    const parsed = locationSchema.safeParse({ ...Object.fromEntries(formData), active: formData.get("active") === "on" });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const v = parsed.data;
+    const supabase = await createClient();
+    const row = { org_id: org.id, name: v.name, address: v.address || null, phone: v.phone || null, active: v.active };
+
+    let id = v.id || "";
+    if (id) {
+      const { error } = await supabase.from("locations").update(row).eq("id", id).eq("org_id", org.id);
+      if (error) return { error: friendly(error) };
+    } else {
+      const { count } = await supabase.from("locations").select("id", { count: "exact", head: true }).eq("org_id", org.id);
+      const { data, error } = await supabase.from("locations").insert({ ...row, position: count ?? 0 }).select("id").single();
+      if (error) return { error: friendly(error) };
+      id = data.id;
+    }
+
+    // Staff who work here — empty means everyone.
+    const staff = formData.getAll("staff").map(String);
+    await supabase.from("member_locations").delete().eq("location_id", id);
+    if (staff.length) {
+      const { error } = await supabase.from("member_locations").insert(staff.map((member_id) => ({ location_id: id, member_id })));
+      if (error) return { error: friendly(error) };
+    }
+
+    refresh(slug);
+    return { ok: true, id };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+export async function deleteLocation(slug: string, id: string): Promise<ActionResult> {
+  try {
+    const { org } = await ctxFor(slug, true);
+    const supabase = await createClient();
+    const { error } = await supabase.from("locations").delete().eq("id", id).eq("org_id", org.id);
+    if (error) return { error: friendly(error) };
     refresh(slug);
     return { ok: true };
   } catch (e) {

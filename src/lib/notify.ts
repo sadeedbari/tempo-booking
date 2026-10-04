@@ -17,6 +17,7 @@ interface BookingForEmail {
   currency: string;
   payment_status: string;
   manage_token: string;
+  location: { name: string; address: string | null } | null;
   customer: { name: string; email: string; phone: string | null } | null;
   member: { display_name: string } | null;
   service: { location_type: string; location_detail: string | null; duration_minutes: number } | null;
@@ -29,7 +30,7 @@ async function loadBooking(bookingId: string): Promise<BookingForEmail | null> {
   const { data } = await admin
     .from("bookings")
     .select(
-      "id, starts_at, ends_at, status, service_name, price_cents, deposit_cents, currency, payment_status, manage_token, customer:customers(name, email, phone), member:memberships(display_name), service:services(location_type, location_detail, duration_minutes), org:organizations(name, slug, timezone, address, phone, accent_color)",
+      "id, starts_at, ends_at, status, service_name, price_cents, deposit_cents, currency, payment_status, manage_token, customer:customers(name, email, phone), location:locations(name, address), member:memberships(display_name), service:services(location_type, location_detail, duration_minutes), org:organizations(name, slug, timezone, address, phone, accent_color)",
     )
     .eq("id", bookingId)
     .single();
@@ -62,7 +63,7 @@ export function renderEmail(kind: Kind, b: BookingForEmail) {
       ? b.service.location_detail || "Video call — link to follow"
       : b.service?.location_type === "phone"
         ? "Phone call"
-        : b.org.address || "";
+        : b.location ? [b.location.name, b.location.address].filter(Boolean).join(", ") : b.org.address || "";
   const rows: [string, string][] = [
     ["When", when],
     ["Service", `${b.service_name}${b.service ? ` · ${formatDuration(b.service.duration_minutes)}` : ""}`],

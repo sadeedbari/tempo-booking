@@ -25,6 +25,16 @@ export interface Organization {
   stripe_charges_enabled: boolean;
 }
 
+export interface Location {
+  id: string;
+  org_id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  active: boolean;
+  position: number;
+}
+
 export interface Membership {
   id: string;
   org_id: string;
@@ -86,6 +96,7 @@ export interface Booking {
   org_id: string;
   service_id: string | null;
   member_id: string;
+  location_id: string | null;
   customer_id: string | null;
   starts_at: string;
   ends_at: string;
@@ -138,6 +149,15 @@ export interface PublicStaff {
   avatar_url: string | null;
 }
 
+export interface PublicLocation {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  /** Staff who work here; empty = everyone. */
+  staff_ids: string[];
+}
+
 export interface PublicOrg {
   org: Pick<
     Organization,
@@ -147,6 +167,7 @@ export interface PublicOrg {
   > & { payments_enabled: boolean };
   services: PublicService[];
   staff: PublicStaff[];
+  locations: PublicLocation[];
   availability: AvailabilityRule[];
 }
 
