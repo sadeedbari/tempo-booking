@@ -2,9 +2,14 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { notifyBooking } from "@/lib/notify";
+import { refreshExternalBusy } from "@/lib/calendar/sync";
 
 export async function rescheduleBooking(token: string, startsAt: string) {
+  const t = new Date(startsAt).getTime();
   const supabase = await createClient();
+  const { data: bk } = await supabase.rpc("get_booking_by_token", { p_token: token });
+  const orgId = (bk as { org?: { id: string } } | null)?.org?.id;
+  if (orgId) await refreshExternalBusy(orgId, new Date(t - 86_400_000).toISOString(), new Date(t + 2 * 86_400_000).toISOString());
   const { data, error } = await supabase.rpc("reschedule_booking_by_token", { p_token: token, p_starts_at: startsAt });
   if (error) return { error: error.message };
   await notifyBooking((data as { id: string }).id, "rescheduled");

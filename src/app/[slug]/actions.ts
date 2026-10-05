@@ -4,9 +4,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyBooking } from "@/lib/notify";
 import { getStripe } from "@/lib/stripe";
 import { env } from "@/lib/env";
+import { refreshExternalBusy } from "@/lib/calendar/sync";
 import type { BusyInterval } from "@/lib/types";
 
 export async function getBusy(orgId: string, from: string, to: string): Promise<BusyInterval[]> {
+  await refreshExternalBusy(orgId, from, to);
   const supabase = await createClient();
   const { data } = await supabase.rpc("get_public_busy", { p_org: orgId, p_from: from, p_to: to });
   return (data ?? []) as BusyInterval[];
@@ -28,6 +30,9 @@ export async function book(input: {
   phone: string;
   notes: string;
 }): Promise<BookResult> {
+  // Pull the latest personal-calendar events so a just-added event blocks this slot.
+  const slotStart = new Date(input.startsAt).getTime();
+  await refreshExternalBusy(input.orgId, new Date(slotStart - 86_400_000).toISOString(), new Date(slotStart + 2 * 86_400_000).toISOString());
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("create_public_booking", {
     p_org: input.orgId,

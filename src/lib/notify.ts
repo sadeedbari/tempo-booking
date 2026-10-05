@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { env, features } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateTime, formatMoney, formatDuration } from "@/lib/format";
+import { syncBookingCalendar } from "@/lib/calendar/sync";
 
 type Kind = "confirmation" | "cancellation" | "reminder" | "rescheduled";
 
@@ -105,6 +106,7 @@ async function sendSms(to: string, body: string) {
  * notification must not break the booking itself.
  */
 export async function notifyBooking(bookingId: string, kind: Kind) {
+  await syncBookingCalendar(bookingId);
   try {
     const b = await loadBooking(bookingId);
     if (!b?.customer) return;

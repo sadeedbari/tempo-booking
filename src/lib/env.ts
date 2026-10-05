@@ -12,10 +12,14 @@ export const env = {
   twilioToken: process.env.TWILIO_AUTH_TOKEN,
   twilioFrom: process.env.TWILIO_FROM_NUMBER,
   cronSecret: process.env.CRON_SECRET,
+  googleClientId: process.env.GOOGLE_CLIENT_ID,
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  tokenEncryptionKey: process.env.TOKEN_ENCRYPTION_KEY,
 };
 
 export const features = {
   payments: Boolean(env.stripeSecretKey),
   email: Boolean(env.resendApiKey),
   sms: Boolean(env.twilioSid && env.twilioToken && env.twilioFrom),
+  calendar: Boolean(env.googleClientId && env.googleClientSecret && env.tokenEncryptionKey),
 };

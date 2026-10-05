@@ -5,6 +5,9 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/auth";
 import { notifyBooking, sendInviteEmail } from "@/lib/notify";
+import { syncBookingCalendar } from "@/lib/calendar/sync";
+import { decrypt } from "@/lib/calendar/crypto";
+import { revoke } from "@/lib/calendar/google";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
@@ -195,6 +198,7 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
     if (error) return { error: friendly(error) };
 
     if (v.notify) await notifyBooking(booking.id, "confirmation");
+    else await syncBookingCalendar(booking.id);
     refresh(slug);
     return { ok: true, id: booking.id };
   } catch (e) {
@@ -211,6 +215,7 @@ export async function setBookingStatus(slug: string, id: string, status: Booking
     const { error } = await supabase.from("bookings").update(patch).eq("id", id).eq("org_id", org.id);
     if (error) return { error: friendly(error) };
     if (status === "cancelled" && notify) await notifyBooking(id, "cancellation");
+    else await syncBookingCalendar(id);
     refresh(slug);
     return { ok: true };
   } catch (e) {
@@ -298,6 +303,26 @@ export async function deleteLocation(slug: string, id: string): Promise<ActionRe
     const supabase = await createClient();
     const { error } = await supabase.from("locations").delete().eq("id", id).eq("org_id", org.id);
     if (error) return { error: friendly(error) };
+    refresh(slug);
+    return { ok: true };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+/* ───────────────────────────── Calendar sync ───────────────────────────── */
+
+/** Disconnects the signed-in member's own calendar. Events already created stay on their calendar. */
+export async function disconnectCalendar(slug: string): Promise<ActionResult> {
+  try {
+    const { me } = await ctxFor(slug);
+    const admin = createAdminClient();
+    const { data: conn } = await admin.from("calendar_connections").select("id, refresh_token_enc").eq("member_id", me.id).maybeSingle();
+    if (conn) {
+      await revoke(decrypt(conn.refresh_token_enc));
+      const { error } = await admin.from("calendar_connections").delete().eq("id", conn.id);
+      if (error) return { error: friendly(error) };
+    }
     refresh(slug);
     return { ok: true };
   } catch (e) {
