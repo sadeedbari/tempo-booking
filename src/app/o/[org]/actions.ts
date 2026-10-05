@@ -7,7 +7,7 @@ import { getOrgContext } from "@/lib/auth";
 import { notifyBooking, sendInviteEmail } from "@/lib/notify";
 import { syncBookingCalendar } from "@/lib/calendar/sync";
 import { decrypt } from "@/lib/calendar/crypto";
-import { revoke } from "@/lib/calendar/google";
+import { getProvider } from "@/lib/calendar/providers";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
@@ -312,14 +312,14 @@ export async function deleteLocation(slug: string, id: string): Promise<ActionRe
 
 /* ───────────────────────────── Calendar sync ───────────────────────────── */
 
-/** Disconnects the signed-in member's own calendar. Events already created stay on their calendar. */
-export async function disconnectCalendar(slug: string): Promise<ActionResult> {
+/** Disconnects one of the signed-in member's own calendars. Events already created stay on their calendar. */
+export async function disconnectCalendar(slug: string, providerId: string): Promise<ActionResult> {
   try {
     const { me } = await ctxFor(slug);
     const admin = createAdminClient();
-    const { data: conn } = await admin.from("calendar_connections").select("id, refresh_token_enc").eq("member_id", me.id).maybeSingle();
+    const { data: conn } = await admin.from("calendar_connections").select("id, refresh_token_enc").eq("member_id", me.id).eq("provider", providerId).maybeSingle();
     if (conn) {
-      await revoke(decrypt(conn.refresh_token_enc));
+      await getProvider(providerId)?.revoke?.(decrypt(conn.refresh_token_enc));
       const { error } = await admin.from("calendar_connections").delete().eq("id", conn.id);
       if (error) return { error: friendly(error) };
     }

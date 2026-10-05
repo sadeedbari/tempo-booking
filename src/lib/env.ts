@@ -14,6 +14,10 @@ export const env = {
   cronSecret: process.env.CRON_SECRET,
   googleClientId: process.env.GOOGLE_CLIENT_ID,
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  microsoftClientId: process.env.MICROSOFT_CLIENT_ID,
+  microsoftClientSecret: process.env.MICROSOFT_CLIENT_SECRET,
+  // "common" accepts both work/school and personal Microsoft accounts.
+  microsoftTenant: process.env.MICROSOFT_TENANT || "common",
   tokenEncryptionKey: process.env.TOKEN_ENCRYPTION_KEY,
 };
 
@@ -21,5 +25,5 @@ export const features = {
   payments: Boolean(env.stripeSecretKey),
   email: Boolean(env.resendApiKey),
   sms: Boolean(env.twilioSid && env.twilioToken && env.twilioFrom),
-  calendar: Boolean(env.googleClientId && env.googleClientSecret && env.tokenEncryptionKey),
+  calendar: Boolean(env.tokenEncryptionKey && ((env.googleClientId && env.googleClientSecret) || (env.microsoftClientId && env.microsoftClientSecret))),
 };

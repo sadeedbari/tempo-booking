@@ -1,4 +1,4 @@
--- Tempo — two-way calendar sync (Google first; provider column allows Outlook later).
+-- Tempo — two-way calendar sync with Google Calendar and Outlook (Microsoft 365 / outlook.com).
 -- calendar_connections holds encrypted OAuth tokens and is reachable only by the
 -- service role (RLS on, no policies). external_busy mirrors the events on each
 -- connected personal calendar so they block online booking slots.
@@ -7,7 +7,7 @@ create table public.calendar_connections (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references public.organizations (id) on delete cascade,
   member_id uuid not null references public.memberships (id) on delete cascade,
-  provider text not null default 'google' check (provider in ('google')),
+  provider text not null check (provider in ('google', 'microsoft')),
   external_email text,
   calendar_id text not null default 'primary',
   refresh_token_enc text not null,
@@ -35,9 +35,15 @@ create index external_busy_member_time_idx on public.external_busy (member_id, s
 create index external_busy_org_time_idx on public.external_busy (org_id, starts_at);
 alter table public.external_busy enable row level security;
 
-alter table public.bookings
-  add column calendar_connection_id uuid references public.calendar_connections (id) on delete set null,
-  add column calendar_event_id text;
+-- The event Tempo created for a booking on each connected calendar.
+create table public.booking_calendar_events (
+  booking_id uuid not null references public.bookings (id) on delete cascade,
+  connection_id uuid not null references public.calendar_connections (id) on delete cascade,
+  event_id text not null,
+  primary key (booking_id, connection_id)
+);
+create index booking_calendar_events_connection_idx on public.booking_calendar_events (connection_id);
+alter table public.booking_calendar_events enable row level security;
 
 create or replace function public.get_public_busy(p_org uuid, p_from timestamptz, p_to timestamptz)
 returns table (member_id uuid, starts_at timestamptz, ends_at timestamptz)

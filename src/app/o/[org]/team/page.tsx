@@ -4,6 +4,7 @@ import { getOrgContext } from "@/lib/auth";
 import type { Invitation } from "@/lib/types";
 import { features } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { availableProviders } from "@/lib/calendar/providers";
 import { CalendarCard } from "./calendar-card";
 import { TeamView } from "./view";
 
@@ -23,16 +24,17 @@ export default async function TeamPage(props: PageProps<"/o/[org]/team">) {
   const emails = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.email]));
 
   // Tokens never leave the server: only the connected address and state are read.
-  let connection: { email: string | null; needsReauth: boolean } | null = null;
+  const providers = availableProviders();
+  const connections: Record<string, { email: string | null; needsReauth: boolean }> = {};
   if (features.calendar) {
-    const { data } = await createAdminClient().from("calendar_connections").select("external_email, status").eq("member_id", me.id).maybeSingle();
-    if (data) connection = { email: data.external_email, needsReauth: data.status !== "active" };
+    const { data } = await createAdminClient().from("calendar_connections").select("provider, external_email, status").eq("member_id", me.id);
+    (data ?? []).forEach((c) => (connections[c.provider] = { email: c.external_email, needsReauth: c.status !== "active" }));
   }
   return (
     <>
       <TeamView slug={slug} members={members} me={me} isAdmin={isAdmin} invites={(invites ?? []) as Invitation[]} emails={emails} />
       <div className="mt-10">
-        <CalendarCard slug={slug} available={features.calendar} connection={connection} result={typeof sp.calendar === "string" ? sp.calendar : undefined} />
+        <CalendarCard slug={slug} providers={providers} connections={connections} result={typeof sp.calendar === "string" ? sp.calendar : undefined} />
       </div>
     </>
   );
