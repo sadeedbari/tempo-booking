@@ -59,6 +59,14 @@ export function AvailabilityView({
         actions={<Button pill onClick={save} loading={pending} disabled={!dirty}>Save changes</Button>}
       />
 
+      {org.schedule_mode === "shifts" && (
+        <div className="mb-6">
+          <Notice tone="blue">
+            Online booking currently follows the schedule your admin builds, not these weekly hours. Time off below still blocks bookings.
+          </Notice>
+        </div>
+      )}
+
       {members.length > 1 && (
         <div className="scrollbar-none -mx-1 mb-6 flex gap-2 overflow-x-auto px-1">
           {members.map((m) => (

@@ -57,3 +57,19 @@ test("merges staff availability", () => {
   assert.deepEqual(at1030?.memberIds.sort(), ["a", "b"]);
   assert.equal(r.at(-1)?.start, "2026-11-02T16:00:00.000Z");
 });
+
+test("shifts replace weekly rules and respect the chosen location", () => {
+  const shifts = [
+    { member_id: "a", day: "2026-11-03", start_time: "13:00", end_time: "14:00", location_id: "north" },
+    { member_id: "a", day: "2026-11-03", start_time: "15:00", end_time: "16:00", location_id: null },
+  ];
+  // Tuesday has no weekly rule, so only the shifts can produce slots.
+  const north = slotsForDay("2026-11-03", { ...base, shifts, locationId: "north" });
+  assert.deepEqual(north.map((s) => s.start), [
+    "2026-11-03T18:00:00.000Z", "2026-11-03T18:30:00.000Z", "2026-11-03T20:00:00.000Z", "2026-11-03T20:30:00.000Z",
+  ]);
+  const south = slotsForDay("2026-11-03", { ...base, shifts, locationId: "south" });
+  assert.deepEqual(south.map((s) => s.start), ["2026-11-03T20:00:00.000Z", "2026-11-03T20:30:00.000Z"]);
+  // A day with no shift offers nothing, even where the weekly rule would have matched (Monday).
+  assert.deepEqual(slotsForDay("2026-11-02", { ...base, shifts }), []);
+});

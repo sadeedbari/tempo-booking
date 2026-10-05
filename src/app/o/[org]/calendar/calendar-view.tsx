@@ -8,7 +8,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Avatar } from "@/components/ui/misc";
 import { cn } from "@/lib/utils";
 import { addDaysToKey, dayKey, formatTime, startOfDayInZone, todayKey, weekdayOfKey } from "@/lib/format";
-import type { AvailabilityRule, Booking, Customer, Location, Membership, Organization, Service, TimeOff } from "@/lib/types";
+import type { AvailabilityRule, Booking, Customer, Location, Membership, Shift, Organization, Service, TimeOff } from "@/lib/types";
 import { NewBookingSheet } from "@/components/app/new-booking-sheet";
 import { BookingSheet } from "@/components/app/booking-sheet";
 
@@ -28,6 +28,8 @@ interface Props {
   timeOff: TimeOff[];
   customers: Customer[];
   locations: Location[];
+  /** Scheduled shifts for the visible range; only loaded when the business schedules by shifts. */
+  shifts: Shift[];
   welcome?: boolean;
 }
 
@@ -96,13 +98,14 @@ export function CalendarView(props: Props) {
   // Hours to show: from earliest availability to latest, padded, min 8am–6pm.
   const [startHour, endHour] = useMemo(() => {
     let lo = 8 * 60, hi = 18 * 60;
-    p.rules.forEach((r) => { lo = Math.min(lo, toMin(r.start_time)); hi = Math.max(hi, toMin(r.end_time)); });
+    const hoursSource = p.org.schedule_mode === "shifts" ? p.shifts : p.rules;
+    hoursSource.forEach((r) => { lo = Math.min(lo, toMin(r.start_time)); hi = Math.max(hi, toMin(r.end_time)); });
     p.bookings.forEach((b) => {
       lo = Math.min(lo, minutesInDay(b.starts_at, tz));
       hi = Math.max(hi, minutesInDay(b.ends_at, tz) || 24 * 60);
     });
     return [Math.max(0, Math.floor(lo / 60) - 1), Math.min(24, Math.ceil(hi / 60) + 1)];
-  }, [p.rules, p.bookings, tz]);
+  }, [p.rules, p.shifts, p.org.schedule_mode, p.bookings, tz]);
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
 
   // Columns: in day view, one per staff member; in week view, one per day.
@@ -263,7 +266,10 @@ export function CalendarView(props: Props) {
             {columns.map((c) => {
               const wd = weekdayOfKey(c.day);
               // Working hours shading (union over members in this column)
-              const working = p.rules.filter((r) => c.memberIds.includes(r.member_id) && r.weekday === wd);
+              const working =
+                p.org.schedule_mode === "shifts"
+                  ? p.shifts.filter((s) => c.memberIds.includes(s.member_id) && s.day === c.day)
+                  : p.rules.filter((r) => c.memberIds.includes(r.member_id) && r.weekday === wd);
               const colBookings = p.bookings.filter((b) => c.memberIds.includes(b.member_id) && dayKey(b.starts_at, tz) === c.day);
               const colOff = p.timeOff.filter((t) => c.memberIds.includes(t.member_id));
               const events = layout(

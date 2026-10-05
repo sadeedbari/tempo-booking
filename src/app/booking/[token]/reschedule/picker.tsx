@@ -9,8 +9,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { addDaysToKey, formatDate, formatTime, startOfDayInZone, timeZoneLabel, todayKey, weekdayOfKey } from "@/lib/format";
 import { eligibleMembers, slotsForDay, type Slot } from "@/lib/slots";
-import type { BusyInterval, PublicOrg, PublicService } from "@/lib/types";
-import { getBusy } from "@/app/[slug]/actions";
+import type { PublicOrg, PublicService } from "@/lib/types";
+import { getWindow, type AvailabilityWindow } from "@/app/[slug]/actions";
 import { rescheduleBooking } from "../actions";
 
 const WINDOW = 14;
@@ -32,7 +32,7 @@ export function ReschedulePicker({
 
   const [windowStart, setWindowStart] = useState(todayKey(tz));
   const [reload, setReload] = useState(0);
-  const [cache, setCache] = useState<Record<string, BusyInterval[]>>({});
+  const [cache, setCache] = useState<Record<string, AvailabilityWindow>>({});
   const [pickedDay, setDay] = useState<string | null>(null);
   const [slot, setSlot] = useState<Slot | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -43,14 +43,19 @@ export function ReschedulePicker({
   useEffect(() => {
     if (cache[key]) return;
     let live = true;
-    getBusy(org.id, startOfDayInZone(windowStart, tz).toISOString(), startOfDayInZone(addDaysToKey(windowStart, WINDOW + 1), tz).toISOString())
-      .then((b) => live && setCache((c) => ({ ...c, [key]: b })));
+    getWindow(
+      org.id,
+      startOfDayInZone(windowStart, tz).toISOString(),
+      startOfDayInZone(addDaysToKey(windowStart, WINDOW + 1), tz).toISOString(),
+      windowStart,
+      addDaysToKey(windowStart, WINDOW),
+    ).then((w) => live && setCache((c) => ({ ...c, [key]: w })));
     return () => { live = false; };
   }, [key, windowStart, org.id, tz, cache]);
 
   // This booking's own block must not make its neighbouring times look taken.
   const busy = useMemo(
-    () => raw?.filter((b) => !(b.member_id === currentMemberId && new Date(b.starts_at).getTime() === new Date(currentStart).getTime())) ?? null,
+    () => raw?.busy.filter((b) => !(b.member_id === currentMemberId && new Date(b.starts_at).getTime() === new Date(currentStart).getTime())) ?? null,
     [raw, currentMemberId, currentStart],
   );
 
@@ -59,8 +64,10 @@ export function ReschedulePicker({
       timeZone: tz, durationMinutes: service.duration_minutes, bufferAfterMinutes: service.buffer_after_minutes,
       intervalMinutes: org.slot_interval_minutes, minNoticeMinutes: org.min_notice_minutes, maxAdvanceDays: org.max_advance_days,
       memberIds: eligible, rules: availability, busy,
+      shifts: org.schedule_mode === "shifts" ? raw?.shifts : undefined,
+      locationId,
     },
-    [busy, tz, service, org, eligible, availability],
+    [busy, raw, tz, service, org, eligible, availability, locationId],
   );
   const days = useMemo(() => Array.from({ length: WINDOW }, (_, i) => addDaysToKey(windowStart, i)), [windowStart]);
   const hasSlots = useMemo(() => {

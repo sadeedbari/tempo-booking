@@ -12,7 +12,9 @@ import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
 import { RESERVED_SLUGS, slugify } from "@/lib/utils";
-import type { BookingStatus, OrgRole } from "@/lib/types";
+import { copyPairs, periodDays, type SchedulePeriod } from "@/lib/schedule";
+import { dayKey } from "@/lib/format";
+import type { BookingStatus, Organization, OrgRole } from "@/lib/types";
 
 export type ActionResult = { ok?: boolean; error?: string; id?: string };
 
@@ -143,7 +145,7 @@ const manualBookingSchema = z.object({
 
 export async function createManualBooking(slug: string, formData: FormData): Promise<ActionResult> {
   try {
-    const { org } = await ctxFor(slug);
+    const { org, isAdmin } = await ctxFor(slug);
     const parsed = manualBookingSchema.safeParse({ ...Object.fromEntries(formData), notify: formData.get("notify") === "on" });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const v = parsed.data;
@@ -172,6 +174,8 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
     if (isNaN(start.getTime())) return { error: "Pick a valid date and time." };
     const end = new Date(start.getTime() + service.duration_minutes * 60_000);
     const blocked = new Date(end.getTime() + service.buffer_after_minutes * 60_000);
+    const notScheduled = await assertScheduled(org, isAdmin, v.member_id, start, end, v.location_id || null);
+    if (notScheduled) return { error: notScheduled };
 
     const { data: booking, error } = await supabase
       .from("bookings")
@@ -225,13 +229,15 @@ export async function setBookingStatus(slug: string, id: string, status: Booking
 
 export async function rescheduleBooking(slug: string, id: string, startsAt: string, memberId: string): Promise<ActionResult> {
   try {
-    const { org } = await ctxFor(slug);
+    const { org, isAdmin } = await ctxFor(slug);
     const supabase = await createClient();
-    const { data: b } = await supabase.from("bookings").select("starts_at, ends_at, blocked_until").eq("id", id).eq("org_id", org.id).single();
+    const { data: b } = await supabase.from("bookings").select("starts_at, ends_at, blocked_until, location_id").eq("id", id).eq("org_id", org.id).single();
     if (!b) return { error: "Booking not found." };
     const duration = new Date(b.ends_at).getTime() - new Date(b.starts_at).getTime();
     const buffer = new Date(b.blocked_until).getTime() - new Date(b.ends_at).getTime();
     const start = new Date(startsAt);
+    const notScheduled = await assertScheduled(org, isAdmin, memberId, start, new Date(start.getTime() + duration), b.location_id);
+    if (notScheduled) return { error: notScheduled };
     const { error } = await supabase
       .from("bookings")
       .update({
@@ -323,6 +329,117 @@ export async function disconnectCalendar(slug: string, providerId: string): Prom
       const { error } = await admin.from("calendar_connections").delete().eq("id", conn.id);
       if (error) return { error: friendly(error) };
     }
+    refresh(slug);
+    return { ok: true };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+/* ───────────────────────────── Staff schedule (shifts) ───────────────────────────── */
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** In shifts mode, non-admins may only book inside a scheduled shift. Admins can override. */
+async function assertScheduled(
+  org: Organization,
+  isAdmin: boolean,
+  memberId: string,
+  start: Date,
+  end: Date,
+  locationId: string | null,
+): Promise<string | undefined> {
+  if (org.schedule_mode !== "shifts" || isAdmin) return undefined;
+  const day = dayKey(start, org.timezone);
+  if (dayKey(end, org.timezone) !== day) return "A booking can't run past midnight.";
+  const hhmm = (d: Date) =>
+    new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: org.timezone }).format(d);
+  const supabase = await createClient();
+  const { data } = await supabase.from("shifts").select("start_time, end_time, location_id").eq("member_id", memberId).eq("day", day);
+  const s = hhmm(start);
+  const e = hhmm(end);
+  const ok = (data ?? []).some(
+    (x) => x.start_time.slice(0, 5) <= s && x.end_time.slice(0, 5) >= e && (!locationId || !x.location_id || x.location_id === locationId),
+  );
+  return ok ? undefined : "That person isn't scheduled to work then. Ask an admin to add a shift first.";
+}
+
+const shiftsSchema = z
+  .array(z.object({ start: z.string().regex(HHMM), end: z.string().regex(HHMM), location_id: z.string().uuid().nullable() }))
+  .max(6);
+
+/** Replaces one person's shifts for one day (an empty list = day off). */
+export async function saveDayShifts(
+  slug: string,
+  memberId: string,
+  day: string,
+  shifts: { start: string; end: string; location_id: string | null }[],
+): Promise<ActionResult> {
+  try {
+    const { org } = await ctxFor(slug, true);
+    if (!DAY.test(day)) return { error: "Pick a valid day." };
+    const parsed = shiftsSchema.safeParse(shifts);
+    if (!parsed.success) return { error: "Check the shift times." };
+    const list = [...parsed.data].sort((a, b) => a.start.localeCompare(b.start));
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].end <= list[i].start) return { error: "Each shift must end after it starts." };
+      if (i > 0 && list[i].start < list[i - 1].end) return { error: "Shifts on the same day can't overlap." };
+    }
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("set_day_shifts", { p_org: org.id, p_member: memberId, p_day: day, p_shifts: list });
+    if (error) return { error: friendly(error) };
+    refresh(slug);
+    return { ok: true };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+/** Copies the previous week/month onto the period starting at `targetStart`. */
+export async function copySchedule(
+  slug: string,
+  period: SchedulePeriod,
+  targetStart: string,
+  replace: boolean,
+): Promise<ActionResult & { copied?: number }> {
+  try {
+    const { org } = await ctxFor(slug, true);
+    if (!DAY.test(targetStart)) return { error: "Pick a valid period." };
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("copy_shifts", { p_org: org.id, p_pairs: copyPairs(period, targetStart), p_replace: replace });
+    if (error) return { error: friendly(error) };
+    refresh(slug);
+    return { ok: true, copied: data as number };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+/** Seeds shifts for a period from everyone's recurring weekly hours (only for days with no shifts yet). */
+export async function fillFromWeeklyHours(slug: string, period: SchedulePeriod, start: string): Promise<ActionResult & { copied?: number }> {
+  try {
+    const { org } = await ctxFor(slug, true);
+    if (!DAY.test(start)) return { error: "Pick a valid period." };
+    const days = periodDays(period, start);
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("fill_shifts_from_weekly", { p_org: org.id, p_from: days[0], p_to: days[days.length - 1] });
+    if (error) return { error: friendly(error) };
+    refresh(slug);
+    return { ok: true, copied: data as number };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+/** Chooses whether online booking follows recurring weekly hours or the admin-built schedule. */
+export async function setScheduleMode(slug: string, mode: "availability" | "shifts"): Promise<ActionResult> {
+  try {
+    const { org } = await ctxFor(slug, true);
+    if (mode !== "availability" && mode !== "shifts") return { error: "Unknown mode." };
+    const supabase = await createClient();
+    const { error } = await supabase.from("organizations").update({ schedule_mode: mode }).eq("id", org.id);
+    if (error) return { error: friendly(error) };
     refresh(slug);
     return { ok: true };
   } catch (e) {
@@ -438,7 +555,8 @@ export async function saveAvailability(
   rules: { weekday: number; start_time: string; end_time: string }[],
 ): Promise<ActionResult> {
   try {
-    const { org } = await ctxFor(slug);
+    const { org, isAdmin } = await ctxFor(slug);
+    if (org.schedule_mode === "shifts" && !isAdmin) return { error: "Your hours are set by the schedule your admin builds." };
     for (const r of rules) {
       if (r.end_time <= r.start_time) return { error: "Each block must end after it starts." };
     }

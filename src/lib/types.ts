@@ -3,6 +3,8 @@ export type ServiceKind = "appointment" | "meeting";
 export type LocationType = "in_person" | "video" | "phone";
 export type BookingStatus = "pending_payment" | "confirmed" | "cancelled" | "completed" | "no_show";
 export type PaymentStatus = "none" | "pending" | "paid" | "refunded";
+/** "availability": each person's recurring weekly hours. "shifts": an admin-built dated schedule. */
+export type ScheduleMode = "availability" | "shifts";
 
 export interface Organization {
   id: string;
@@ -21,6 +23,7 @@ export interface Organization {
   slot_interval_minutes: number;
   cancellation_window_hours: number;
   reminder_hours_before: number;
+  schedule_mode: ScheduleMode;
   stripe_account_id: string | null;
   stripe_charges_enabled: boolean;
 }
@@ -72,6 +75,20 @@ export interface AvailabilityRule {
   start_time: string; // "HH:MM" or "HH:MM:SS"
   end_time: string;
 }
+
+/** A scheduled working block. `day` is the local date in the business time zone. */
+export interface Shift {
+  id: string;
+  org_id: string;
+  member_id: string;
+  location_id: string | null;
+  day: string; // YYYY-MM-DD
+  start_time: string; // "HH:MM" or "HH:MM:SS"
+  end_time: string;
+}
+
+/** Shift as exposed to the public booking page. */
+export type PublicShift = Pick<Shift, "member_id" | "day" | "start_time" | "end_time" | "location_id">;
 
 export interface TimeOff {
   id: string;
@@ -163,7 +180,7 @@ export interface PublicOrg {
     Organization,
     | "id" | "name" | "slug" | "description" | "timezone" | "currency" | "accent_color" | "logo_url"
     | "address" | "phone" | "website" | "min_notice_minutes" | "max_advance_days"
-    | "slot_interval_minutes" | "cancellation_window_hours"
+    | "slot_interval_minutes" | "cancellation_window_hours" | "schedule_mode"
   > & { payments_enabled: boolean };
   services: PublicService[];
   staff: PublicStaff[];

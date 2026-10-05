@@ -15,8 +15,8 @@ import {
   addDaysToKey, formatDate, formatDuration, formatMoney, formatTime, startOfDayInZone, timeZoneLabel, todayKey, weekdayOfKey,
 } from "@/lib/format";
 import { eligibleMembers, slotsForDay, type Slot } from "@/lib/slots";
-import type { BusyInterval, PublicOrg, PublicService } from "@/lib/types";
-import { book, getBusy } from "@/app/[slug]/actions";
+import type { PublicOrg, PublicService } from "@/lib/types";
+import { book, getWindow, type AvailabilityWindow } from "@/app/[slug]/actions";
 
 type Step = "location" | "service" | "staff" | "time" | "details";
 const LOC = { in_person: { icon: MapPin, label: "In person" }, video: { icon: Video, label: "Video call" }, phone: { icon: Phone, label: "Phone call" } };
@@ -27,13 +27,13 @@ export function BookingFlow({
   data,
   initialService,
   paymentCancelled,
-  fetchBusy = getBusy,
+  fetchWindow = getWindow,
 }: {
   data: PublicOrg;
   initialService?: string;
   paymentCancelled?: boolean;
   /** Override for previews/tests. */
-  fetchBusy?: typeof getBusy;
+  fetchWindow?: typeof getWindow;
 }) {
   const router = useRouter();
   const { org, services, staff, availability, locations } = data;
@@ -59,7 +59,7 @@ export function BookingFlow({
   const [pickedDay, setDay] = useState<string | null>(null);
   const [windowStart, setWindowStart] = useState<string>(todayKey(tz));
   const [reload, setReload] = useState(0);
-  const [busyCache, setBusyCache] = useState<Record<string, BusyInterval[]>>({});
+  const [busyCache, setBusyCache] = useState<Record<string, AvailabilityWindow>>({});
   const [slot, setSlot] = useState<Slot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -91,19 +91,22 @@ export function BookingFlow({
 
   // Busy times are fetched per two-week window and cached.
   const cacheKey = `${windowStart}:${reload}`;
-  const busy = busyCache[cacheKey] ?? null;
+  const win = busyCache[cacheKey] ?? null;
+  const busy = win?.busy ?? null;
   useEffect(() => {
     if (step !== "time" || busyCache[cacheKey]) return;
     let live = true;
-    fetchBusy(
+    fetchWindow(
       org.id,
       startOfDayInZone(windowStart, tz).toISOString(),
       startOfDayInZone(addDaysToKey(windowStart, WINDOW + 1), tz).toISOString(),
-    ).then((b) => live && setBusyCache((c) => ({ ...c, [cacheKey]: b })));
+      windowStart,
+      addDaysToKey(windowStart, WINDOW),
+    ).then((w) => live && setBusyCache((c) => ({ ...c, [cacheKey]: w })));
     return () => {
       live = false;
     };
-  }, [step, cacheKey, windowStart, org.id, tz, busyCache, fetchBusy]);
+  }, [step, cacheKey, windowStart, org.id, tz, busyCache, fetchWindow]);
 
   const slotOpts = useMemo(
     () =>
@@ -117,10 +120,12 @@ export function BookingFlow({
             maxAdvanceDays: org.max_advance_days,
             memberIds: memberId ? [memberId] : eligible,
             rules: availability,
+            shifts: org.schedule_mode === "shifts" ? win?.shifts : undefined,
+            locationId,
             busy,
           }
         : null,
-    [service, busy, tz, org, memberId, eligible, availability],
+    [service, busy, win, tz, org, memberId, eligible, availability, locationId],
   );
 
   const days = useMemo(() => Array.from({ length: WINDOW }, (_, i) => addDaysToKey(windowStart, i)), [windowStart]);

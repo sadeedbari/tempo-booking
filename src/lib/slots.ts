@@ -1,4 +1,4 @@
-import type { AvailabilityRule, BusyInterval } from "@/lib/types";
+import type { AvailabilityRule, BusyInterval, PublicShift } from "@/lib/types";
 import { addDaysToKey, startOfDayInZone, todayKey, weekdayOfKey } from "@/lib/format";
 
 export interface SlotOptions {
@@ -10,6 +10,10 @@ export interface SlotOptions {
   maxAdvanceDays: number;
   memberIds: string[];
   rules: AvailabilityRule[];
+  /** When set, the dated schedule replaces the recurring weekly rules. */
+  shifts?: PublicShift[];
+  /** Chosen location; shifts tied to a different location don't count. */
+  locationId?: string | null;
   busy: BusyInterval[];
   now?: Date;
 }
@@ -39,7 +43,14 @@ export function slotsForDay(day: string, o: SlotOptions): Slot[] {
   const byStart = new Map<number, string[]>();
 
   for (const memberId of o.memberIds) {
-    const rules = o.rules.filter((r) => r.member_id === memberId && r.weekday === weekday);
+    const rules: Pick<AvailabilityRule, "start_time" | "end_time">[] = o.shifts
+      ? o.shifts.filter(
+          (s) =>
+            s.member_id === memberId &&
+            s.day === day &&
+            (!o.locationId || !s.location_id || s.location_id === o.locationId),
+        )
+      : o.rules.filter((r) => r.member_id === memberId && r.weekday === weekday);
     const busy = o.busy
       .filter((b) => b.member_id === memberId)
       .map((b) => [new Date(b.starts_at).getTime(), new Date(b.ends_at).getTime()] as const);

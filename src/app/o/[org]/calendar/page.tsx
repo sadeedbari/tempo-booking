@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/auth";
 import { addDaysToKey, startOfDayInZone, todayKey, weekdayOfKey } from "@/lib/format";
-import type { AvailabilityRule, Booking, Customer, Location, Service, TimeOff } from "@/lib/types";
+import type { AvailabilityRule, Booking, Customer, Location, Service, Shift, TimeOff } from "@/lib/types";
 import { CalendarView } from "./calendar-view";
 
 export const metadata: Metadata = { title: "Calendar" };
@@ -21,7 +21,7 @@ export default async function CalendarPage(props: PageProps<"/o/[org]/calendar">
   const rangeEnd = addDaysToKey(rangeStart, view === "week" ? 7 : 1);
 
   const supabase = await createClient();
-  const [bookings, services, rules, timeOff, customers, locations] = await Promise.all([
+  const [bookings, services, rules, timeOff, customers, locations, shifts] = await Promise.all([
     supabase
       .from("bookings")
       .select("*, customer:customers(id, name, email, phone)")
@@ -40,6 +40,9 @@ export default async function CalendarPage(props: PageProps<"/o/[org]/calendar">
       .gt("ends_at", startOfDayInZone(rangeStart, tz).toISOString()),
     supabase.from("customers").select("id, name, email, phone").eq("org_id", org.id).order("name").limit(500),
     supabase.from("locations").select("*").eq("org_id", org.id).eq("active", true).order("position").order("created_at"),
+    org.schedule_mode === "shifts"
+      ? supabase.from("shifts").select("*").eq("org_id", org.id).gte("day", rangeStart).lt("day", rangeEnd)
+      : Promise.resolve({ data: [] as Shift[] }),
   ]);
 
   return (
@@ -57,6 +60,7 @@ export default async function CalendarPage(props: PageProps<"/o/[org]/calendar">
       timeOff={(timeOff.data ?? []) as TimeOff[]}
       customers={(customers.data ?? []) as Customer[]}
       locations={(locations.data ?? []) as Location[]}
+      shifts={(shifts.data ?? []) as Shift[]}
       welcome={sp.welcome === "1"}
     />
   );

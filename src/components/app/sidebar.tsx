@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  CalendarDays, ListChecks, Users2, Sparkles, Clock3, Settings, ExternalLink, ChevronsUpDown, Check, Plus, LogOut, Contact,
+  CalendarDays, CalendarRange, ListChecks, Users2, Sparkles, Clock3, Settings, ExternalLink, ChevronsUpDown, Check, Plus, LogOut, Contact,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoMark } from "./logo";
@@ -14,6 +14,7 @@ type OrgLite = { id: string; name: string; slug: string; accent_color: string; r
 const NAV = [
   { href: "calendar", label: "Calendar", icon: CalendarDays },
   { href: "bookings", label: "Bookings", icon: ListChecks },
+  { href: "schedule", label: "Schedule", icon: CalendarRange },
   { href: "customers", label: "Customers", icon: Contact },
   { href: "services", label: "Services", icon: Sparkles },
   { href: "team", label: "Team", icon: Users2 },
@@ -94,7 +95,7 @@ export function Sidebar({
 
       {/* Mobile tab bar */}
       <nav className="fixed inset-x-0 bottom-0 z-30 flex glass border-t border-separator pb-[env(safe-area-inset-bottom)] lg:hidden">
-        {NAV.filter((n) => ["calendar", "bookings", "services", "team", "settings"].includes(n.href)).map((item) => {
+        {NAV.filter((n) => ["calendar", "bookings", "schedule", "team", "settings"].includes(n.href)).map((item) => {
           const href = `${base}/${item.href}`;
           const active = pathname.startsWith(href);
           return (

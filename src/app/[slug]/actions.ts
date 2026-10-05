@@ -5,13 +5,23 @@ import { notifyBooking } from "@/lib/notify";
 import { getStripe } from "@/lib/stripe";
 import { env } from "@/lib/env";
 import { refreshExternalBusy } from "@/lib/calendar/sync";
-import type { BusyInterval } from "@/lib/types";
+import type { BusyInterval, PublicShift } from "@/lib/types";
 
-export async function getBusy(orgId: string, from: string, to: string): Promise<BusyInterval[]> {
+export interface AvailabilityWindow {
+  busy: BusyInterval[];
+  /** Scheduled shifts in the window; empty unless the business schedules by shifts. */
+  shifts: PublicShift[];
+}
+
+/** Busy times and (in shifts mode) scheduled shifts for [from, to]; days are local "YYYY-MM-DD" keys. */
+export async function getWindow(orgId: string, from: string, to: string, fromDay: string, toDay: string): Promise<AvailabilityWindow> {
   await refreshExternalBusy(orgId, from, to);
   const supabase = await createClient();
-  const { data } = await supabase.rpc("get_public_busy", { p_org: orgId, p_from: from, p_to: to });
-  return (data ?? []) as BusyInterval[];
+  const [busy, shifts] = await Promise.all([
+    supabase.rpc("get_public_busy", { p_org: orgId, p_from: from, p_to: to }),
+    supabase.rpc("get_public_shifts", { p_org: orgId, p_from: fromDay, p_to: toDay }),
+  ]);
+  return { busy: (busy.data ?? []) as BusyInterval[], shifts: (shifts.data ?? []) as PublicShift[] };
 }
 
 export type BookResult =
