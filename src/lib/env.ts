@@ -25,5 +25,6 @@ export const features = {
   payments: Boolean(env.stripeSecretKey),
   email: Boolean(env.resendApiKey),
   sms: Boolean(env.twilioSid && env.twilioToken && env.twilioFrom),
-  calendar: Boolean(env.tokenEncryptionKey && ((env.googleClientId && env.googleClientSecret) || (env.microsoftClientId && env.microsoftClientSecret))),
+  // Calendar sync stores tokens through the service-role client, so it needs that key too.
+  calendar: Boolean(env.supabaseServiceKey && env.tokenEncryptionKey && ((env.googleClientId && env.googleClientSecret) || (env.microsoftClientId && env.microsoftClientSecret))),
 };
