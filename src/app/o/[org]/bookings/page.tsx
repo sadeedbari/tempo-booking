@@ -19,7 +19,7 @@ export default async function BookingsPage(props: PageProps<"/o/[org]/bookings">
     .select("*, customer:customers(id, name, email, phone)")
     .eq("org_id", org.id)
     .limit(200);
-  if (tab === "upcoming") q = q.gte("starts_at", nowIso).in("status", ["confirmed", "pending_payment"]).order("starts_at");
+  if (tab === "upcoming") q = q.gte("starts_at", nowIso).in("status", ["confirmed", "pending_payment", "pending_approval"]).order("starts_at");
   if (tab === "past") q = q.lt("starts_at", nowIso).neq("status", "cancelled").order("starts_at", { ascending: false });
   if (tab === "cancelled") q = q.eq("status", "cancelled").order("starts_at", { ascending: false });
 

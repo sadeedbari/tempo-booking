@@ -58,6 +58,7 @@ export function statusTone(status: string): keyof typeof tones {
     case "completed":
       return "green";
     case "pending_payment":
+    case "pending_approval":
       return "orange";
     case "cancelled":
     case "no_show":

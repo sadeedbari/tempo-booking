@@ -74,6 +74,7 @@ export function timeZoneLabel(timeZone: string) {
 
 export const STATUS_LABEL: Record<string, string> = {
   pending_payment: "Awaiting payment",
+  pending_approval: "Awaiting approval",
   confirmed: "Confirmed",
   cancelled: "Cancelled",
   completed: "Completed",

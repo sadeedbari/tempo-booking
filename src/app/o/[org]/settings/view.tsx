@@ -92,6 +92,12 @@ export function SettingsView({
                   {[5, 10, 15, 20, 30, 60].map((d) => <option key={d} value={d}>Every {d} minutes</option>)}
                 </Select>
               </Field>
+              <Field label="New bookings are" hint="Manual: you approve or decline each online request.">
+                <Select name="booking_confirmation" defaultValue={org.booking_confirmation}>
+                  <option value="auto">Confirmed automatically</option>
+                  <option value="manual">Approved by me first</option>
+                </Select>
+              </Field>
               <Field label="Customers can cancel or reschedule until">
                 <Select name="cancellation_window_hours" defaultValue={org.cancellation_window_hours}>
                   {[[0, "Any time"], [2, "2 hours before"], [12, "12 hours before"], [24, "24 hours before"], [48, "48 hours before"], [72, "3 days before"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}

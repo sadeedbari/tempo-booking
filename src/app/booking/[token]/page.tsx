@@ -32,6 +32,7 @@ export default async function ManageBookingPage(props: PageProps<"/booking/[toke
   const fresh = sp.new === "1" || sp.paid === "1";
   const cancelled = b.status === "cancelled";
   const pendingPay = b.status === "pending_payment";
+  const awaiting = b.status === "pending_approval";
   const canCancel = isCancellable(b);
 
   const where =
@@ -49,21 +50,25 @@ export default async function ManageBookingPage(props: PageProps<"/booking/[toke
         <div className="mb-6 text-center">
           {fresh && !cancelled ? (
             <>
-              <div className="mx-auto mb-4 grid size-16 place-items-center rounded-full text-white shadow-lg" style={{ background: pendingPay ? "var(--orange)" : "var(--green)" }}>
+              <div className="mx-auto mb-4 grid size-16 place-items-center rounded-full text-white shadow-lg" style={{ background: pendingPay || awaiting ? "var(--orange)" : "var(--green)" }}>
                 <svg viewBox="0 0 24 24" className="size-8" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M5 12.5l4.5 4.5L19 7.5" style={{ strokeDasharray: 24, strokeDashoffset: 24, animation: "draw .5s .15s ease forwards" }} />
                 </svg>
                 <style>{`@keyframes draw{to{stroke-dashoffset:0}}`}</style>
               </div>
-              <h1 className="text-[28px] font-bold">{pendingPay ? "Almost there" : "You're booked!"}</h1>
+              <h1 className="text-[28px] font-bold">{pendingPay ? "Almost there" : awaiting ? "Request sent" : "You're booked!"}</h1>
               <p className="mt-1 text-[15px] text-label-2">
-                {pendingPay ? "We're confirming your payment. This page will update shortly." : `A confirmation is on its way to ${b.customer_email}.`}
+                {pendingPay
+                  ? "We're confirming your payment. This page will update shortly."
+                  : awaiting
+                    ? `${b.org.name} will review your request and email ${b.customer_email} once it's confirmed.`
+                    : `A confirmation is on its way to ${b.customer_email}.`}
               </p>
             </>
           ) : (
             <>
               {sp.moved === "1" && !cancelled && <div className="mx-auto mb-3 max-w-xs"><Notice tone="green">Your booking has been moved.</Notice></div>}
-              <h1 className="text-[28px] font-bold">{cancelled ? "Booking cancelled" : "Your booking"}</h1>
+              <h1 className="text-[28px] font-bold">{cancelled ? "Booking cancelled" : awaiting ? "Awaiting confirmation" : "Your booking"}</h1>
               <p className="mt-1 text-[15px] text-label-2">with {b.org.name}</p>
             </>
           )}
@@ -96,7 +101,7 @@ export default async function ManageBookingPage(props: PageProps<"/booking/[toke
         </div>
 
         <div className="mt-5 space-y-2.5">
-          {!cancelled && (
+          {!cancelled && !awaiting && (
             <a href={`/booking/${token}/ics`} className={buttonClass("glass", "lg", true, "w-full")}>
               <CalendarPlus className="size-5 text-accent" /> Add to Calendar
             </a>
@@ -126,6 +131,7 @@ export default async function ManageBookingPage(props: PageProps<"/booking/[toke
 }
 
 function isCancellable(b: PublicBooking) {
+  if (b.status === "pending_approval") return true; // a request can always be withdrawn
   if (b.status !== "confirmed" && b.status !== "pending_payment") return false;
   return new Date(b.starts_at).getTime() - Date.now() > b.org.cancellation_window_hours * 3600_000;
 }

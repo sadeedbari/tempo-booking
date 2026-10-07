@@ -26,10 +26,13 @@ export function Sidebar({
   org,
   orgs,
   me,
+  pendingApprovals = 0,
 }: {
   org: OrgLite;
   orgs: OrgLite[];
   me: { name: string; email: string; color: string };
+  /** Online booking requests waiting for approval. */
+  pendingApprovals?: number;
 }) {
   const pathname = usePathname();
   const base = `/o/${org.slug}`;
@@ -60,6 +63,11 @@ export function Sidebar({
               >
                 <item.icon className={cn("size-[18px]", active ? "text-white" : "text-accent")} strokeWidth={2} />
                 {item.label}
+                {item.href === "bookings" && pendingApprovals > 0 && (
+                  <span className={cn("ml-auto grid min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold leading-5", active ? "bg-white text-accent" : "bg-orange text-white")}>
+                    {pendingApprovals}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -100,7 +108,10 @@ export function Sidebar({
           const active = pathname.startsWith(href);
           return (
             <Link key={item.href} href={href} className={cn("flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium", active ? "text-accent" : "text-label-3")}>
-              <item.icon className="size-6" strokeWidth={active ? 2.2 : 1.8} />
+              <span className="relative">
+                <item.icon className="size-6" strokeWidth={active ? 2.2 : 1.8} />
+                {item.href === "bookings" && pendingApprovals > 0 && <span className="absolute -right-1.5 -top-1 size-2.5 rounded-full bg-orange" />}
+              </span>
               {item.label}
             </Link>
           );

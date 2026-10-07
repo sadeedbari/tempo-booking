@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyBooking } from "@/lib/notify";
 import { env } from "@/lib/env";
+import { refundDeposit } from "@/lib/bookings";
 
 /**
  * Run every 15–60 minutes (see vercel.json). Sends reminders for upcoming
@@ -19,6 +20,15 @@ export async function GET(request: Request) {
     .update({ status: "cancelled", cancelled_at: now.toISOString(), cancel_reason: "Payment not completed" })
     .eq("status", "pending_payment")
     .lt("created_at", new Date(now.getTime() - 30 * 60_000).toISOString());
+
+  // 1b. Requests nobody approved before their start time lapse, with the deposit refunded.
+  const { data: lapsed } = await admin.from("bookings").select("id").eq("status", "pending_approval").lt("starts_at", now.toISOString()).limit(200);
+  for (const b of lapsed ?? []) {
+    const refund = await refundDeposit(b.id);
+    if (!refund.ok) continue; // retry next run
+    await admin.from("bookings").update({ status: "cancelled", cancelled_at: now.toISOString(), cancel_reason: "Not confirmed in time" }).eq("id", b.id).eq("status", "pending_approval");
+    await notifyBooking(b.id, "declined");
+  }
 
   // 2. Reminders — look ahead up to the longest reminder window (48h).
   const { data: due } = await admin

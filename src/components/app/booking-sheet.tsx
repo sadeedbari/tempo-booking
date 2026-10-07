@@ -8,7 +8,7 @@ import { Badge, Notice, statusTone } from "@/components/ui/misc";
 import { useToast } from "@/components/ui/toast";
 import { formatDate, formatMoney, formatTime, STATUS_LABEL } from "@/lib/format";
 import type { Booking, BookingStatus, Location, Membership, Organization, Service } from "@/lib/types";
-import { rescheduleBooking, setBookingStatus } from "@/app/o/[org]/actions";
+import { approveBooking, declineBooking, rescheduleBooking, setBookingStatus } from "@/app/o/[org]/actions";
 import { joinInZone, splitInZone, TIME_OPTIONS } from "./datetime";
 
 interface SheetProps {
@@ -40,6 +40,8 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
   const [memberId, setMemberId] = useState(booking.member_id);
   const color = service?.color ?? member?.color ?? "#007AFF";
   const active = booking.status === "confirmed" || booking.status === "pending_payment";
+  const awaiting = booking.status === "pending_approval";
+  const [confirmDecline, setConfirmDecline] = useState(false);
 
   const act = (status: BookingStatus, msg: string) =>
     start(async () => {
@@ -47,6 +49,17 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
       if (r.error) setError(r.error);
       else {
         toast(msg);
+        onClose();
+      }
+    });
+
+  const decide = (approve: boolean) =>
+    start(async () => {
+      if (!approve && !confirmDecline) return setConfirmDecline(true);
+      const r = approve ? await approveBooking(slug, booking.id) : await declineBooking(slug, booking.id);
+      if (r.error) setError(r.error);
+      else {
+        toast(approve ? "Booking confirmed — customer notified" : "Request declined — customer notified");
         onClose();
       }
     });
@@ -87,6 +100,23 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
           />
           {booking.notes && <Row icon={<StickyNote />} label={booking.notes} />}
         </div>
+
+        {awaiting && (
+          <div className="space-y-2 rounded-[14px] bg-surface-2 p-4 animate-fade">
+            <p className="text-[14px] text-label-2">
+              This online request is holding the time slot until you respond.
+              {booking.payment_status === "paid" ? " The deposit is refunded automatically if you decline." : ""}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="destructive" onClick={() => decide(false)} disabled={pending}>
+                <XCircle className="size-4" /> {confirmDecline ? "Tap to confirm" : "Decline"}
+              </Button>
+              <Button onClick={() => decide(true)} loading={pending}>
+                <CheckCircle2 className="size-4" /> Approve
+              </Button>
+            </div>
+          </div>
+        )}
 
         {editing ? (
           <div className="space-y-3 rounded-[14px] bg-surface-2 p-4 animate-fade">

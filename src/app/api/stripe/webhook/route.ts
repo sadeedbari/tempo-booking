@@ -25,13 +25,15 @@ export async function POST(request: Request) {
       const session = event.data.object as Stripe.Checkout.Session;
       const bookingId = session.metadata?.booking_id;
       if (bookingId && session.payment_status === "paid") {
+        const { data: org } = await admin.from("bookings").select("org:organizations(booking_confirmation)").eq("id", bookingId).single();
+        const manual = (org?.org as unknown as { booking_confirmation: string } | null)?.booking_confirmation === "manual";
         const { data } = await admin
           .from("bookings")
-          .update({ status: "confirmed", payment_status: "paid" })
+          .update({ status: manual ? "pending_approval" : "confirmed", payment_status: "paid" })
           .eq("id", bookingId)
           .eq("status", "pending_payment")
           .select("id");
-        if (data?.length) await notifyBooking(bookingId, "confirmation");
+        if (data?.length) await notifyBooking(bookingId, manual ? "request" : "confirmation");
       }
       break;
     }

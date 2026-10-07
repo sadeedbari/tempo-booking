@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/auth";
 import { notifyBooking, sendInviteEmail } from "@/lib/notify";
 import { syncBookingCalendar } from "@/lib/calendar/sync";
+import { refundDeposit } from "@/lib/bookings";
 import { decrypt } from "@/lib/calendar/crypto";
 import { getProvider } from "@/lib/calendar/providers";
 import { getStripe } from "@/lib/stripe";
@@ -220,6 +221,45 @@ export async function setBookingStatus(slug: string, id: string, status: Booking
     if (error) return { error: friendly(error) };
     if (status === "cancelled" && notify) await notifyBooking(id, "cancellation");
     else await syncBookingCalendar(id);
+    refresh(slug);
+    return { ok: true };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+/** Accepts a booking request: it becomes confirmed and the customer is emailed. */
+export async function approveBooking(slug: string, id: string): Promise<ActionResult> {
+  try {
+    const { org } = await ctxFor(slug);
+    const supabase = await createClient();
+    const { data, error } = await supabase.from("bookings").update({ status: "confirmed" }).eq("id", id).eq("org_id", org.id).eq("status", "pending_approval").select("id");
+    if (error) return { error: friendly(error) };
+    if (!data?.length) return { error: "This request was already handled." };
+    await notifyBooking(id, "confirmation");
+    refresh(slug);
+    return { ok: true };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+/** Declines a booking request: the customer is emailed and any deposit is refunded. */
+export async function declineBooking(slug: string, id: string): Promise<ActionResult> {
+  try {
+    const { org } = await ctxFor(slug);
+    const supabase = await createClient();
+    const { data: b } = await supabase.from("bookings").select("id, status").eq("id", id).eq("org_id", org.id).single();
+    if (!b || b.status !== "pending_approval") return { error: "This request was already handled." };
+    const refund = await refundDeposit(id);
+    if (!refund.ok) return { error: refund.error };
+    const { error } = await supabase
+      .from("bookings")
+      .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: "Declined by the business" })
+      .eq("id", id)
+      .eq("org_id", org.id);
+    if (error) return { error: friendly(error) };
+    await notifyBooking(id, "declined");
     refresh(slug);
     return { ok: true };
   } catch (e) {
@@ -628,6 +668,7 @@ const orgSchema = z.object({
   slot_interval_minutes: z.coerce.number().int(),
   cancellation_window_hours: z.coerce.number().int().min(0).max(720),
   reminder_hours_before: z.coerce.number().int().min(0).max(168),
+  booking_confirmation: z.enum(["auto", "manual"]),
 });
 
 export async function updateOrg(slug: string, formData: FormData): Promise<ActionResult> {

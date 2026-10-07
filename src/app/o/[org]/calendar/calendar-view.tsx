@@ -326,7 +326,7 @@ export function CalendarView(props: Props) {
                     const svc = b.service_id ? serviceById.get(b.service_id) : undefined;
                     const color = svc?.color ?? memberById.get(b.member_id)?.color ?? "#007AFF";
                     const height = Math.max(22, ((end - start) / 60) * HOUR - 2);
-                    const pending = b.status === "pending_payment";
+                    const pending = b.status === "pending_payment" || b.status === "pending_approval";
                     return (
                       <button
                         key={b.id}

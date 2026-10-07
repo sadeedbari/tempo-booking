@@ -97,6 +97,6 @@ export async function book(input: {
     return { ok: true, token: b.manage_token, checkoutUrl: session.url ?? undefined };
   }
 
-  await notifyBooking(b.id, "confirmation");
+  await notifyBooking(b.id, b.status === "pending_approval" ? "request" : "confirmation");
   return { ok: true, token: b.manage_token };
 }

@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateTime, formatMoney, formatDuration } from "@/lib/format";
 import { syncBookingCalendar } from "@/lib/calendar/sync";
 
-type Kind = "confirmation" | "cancellation" | "reminder" | "rescheduled";
+type Kind = "confirmation" | "cancellation" | "reminder" | "rescheduled" | "request" | "declined";
 
 interface BookingForEmail {
   id: string;
@@ -43,6 +43,8 @@ const SUBJECT: Record<Kind, (b: BookingForEmail) => string> = {
   cancellation: (b) => `Cancelled: ${b.service_name} with ${b.org.name}`,
   reminder: (b) => `Reminder: ${b.service_name} ${b.org.name ? `at ${b.org.name}` : ""}`,
   rescheduled: (b) => `Updated: ${b.service_name} with ${b.org.name}`,
+  request: (b) => `Request received: ${b.service_name} with ${b.org.name}`,
+  declined: (b) => `Update on your request with ${b.org.name}`,
 };
 
 const HEADLINE: Record<Kind, string> = {
@@ -50,6 +52,8 @@ const HEADLINE: Record<Kind, string> = {
   cancellation: "Your booking was cancelled.",
   reminder: "See you soon.",
   rescheduled: "Your booking has changed.",
+  request: "Request received.",
+  declined: "Your request couldn't be accepted.",
 };
 
 function esc(s: string) {
@@ -79,11 +83,11 @@ export function renderEmail(kind: Kind, b: BookingForEmail) {
     <div style="font-size:15px;font-weight:600;color:#6e6e73;margin-bottom:12px">${esc(b.org.name)}</div>
     <div style="background:#fff;border-radius:20px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,.06)">
       <h1 style="margin:0 0 6px;font-size:26px;letter-spacing:-.02em">${HEADLINE[kind]}</h1>
-      <p style="margin:0 0 24px;color:#6e6e73;font-size:15px">Hi ${esc(b.customer?.name?.split(" ")[0] ?? "there")}, here are the details.</p>
+      <p style="margin:0 0 24px;color:#6e6e73;font-size:15px">Hi ${esc(b.customer?.name?.split(" ")[0] ?? "there")}, ${kind === "request" ? `${esc(b.org.name)} will review your request and email you once it's confirmed.` : kind === "declined" ? "unfortunately this time isn't available. Any deposit has been refunded. Please pick another time." : "here are the details."}</p>
       <table style="width:100%;border-collapse:collapse;font-size:15px">
         ${rows.map(([k, v]) => `<tr><td style="padding:10px 0;color:#6e6e73;border-top:1px solid #eee;width:90px">${k}</td><td style="padding:10px 0;border-top:1px solid #eee;font-weight:500">${esc(v)}</td></tr>`).join("")}
       </table>
-      ${kind !== "cancellation" ? `<a href="${manageUrl}" style="display:inline-block;margin-top:24px;background:${accent};color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:999px">Manage booking</a>` : `<a href="${env.appUrl}/${b.org.slug}" style="display:inline-block;margin-top:24px;background:${accent};color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:999px">Book again</a>`}
+      ${kind !== "cancellation" && kind !== "declined" ? `<a href="${manageUrl}" style="display:inline-block;margin-top:24px;background:${accent};color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:999px">Manage booking</a>` : `<a href="${env.appUrl}/${b.org.slug}" style="display:inline-block;margin-top:24px;background:${accent};color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:999px">Book again</a>`}
     </div>
     <p style="text-align:center;color:#86868b;font-size:12px;margin-top:20px">${b.org.phone ? `Questions? Call ${esc(b.org.phone)}. ` : ""}Sent by Tempo.</p>
   </div></body></html>`;

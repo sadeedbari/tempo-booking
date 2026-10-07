@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { notifyBooking } from "@/lib/notify";
 import { refreshExternalBusy } from "@/lib/calendar/sync";
+import { refundDeposit } from "@/lib/bookings";
 
 export async function rescheduleBooking(token: string, startsAt: string) {
   const t = new Date(startsAt).getTime();
@@ -19,8 +20,12 @@ export async function rescheduleBooking(token: string, startsAt: string) {
 
 export async function cancelBooking(token: string, reason: string) {
   const supabase = await createClient();
+  const { data: before } = await supabase.rpc("get_booking_by_token", { p_token: token });
+  const prior = before as { id: string; status: string } | null;
   const { error } = await supabase.rpc("cancel_booking_by_token", { p_token: token, p_reason: reason.slice(0, 500) });
   if (error) return { error: error.message };
+  // A request the business never accepted gets its deposit back.
+  if (prior?.status === "pending_approval") await refundDeposit(prior.id);
   const { data } = await supabase.rpc("get_booking_by_token", { p_token: token });
   if (data) await notifyBooking((data as { id: string }).id, "cancellation");
   revalidatePath(`/booking/${token}`);
