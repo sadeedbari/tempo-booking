@@ -1,0 +1,31 @@
+# Runs Tempo's reminders job every hour. Vercel's free (Hobby) plan only allows
+# daily cron jobs, so this triggers the same endpoint on a tighter schedule.
+# The job is idempotent: reminders are claimed before sending, so overlapping
+# runs (including Vercel's own daily one) never double-send.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   TEMPO_URL    e.g. https://tempo.sulosystems.com   (no trailing slash)
+#   CRON_SECRET  the same value as the CRON_SECRET environment variable in Vercel
+name: Reminders
+
+on:
+  schedule:
+    - cron: "5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call the reminders endpoint
+        env:
+          TEMPO_URL: ${{ secrets.TEMPO_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          status=$(curl -sS -o response.txt -w "%{http_code}" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${TEMPO_URL}/api/cron/reminders")
+          cat response.txt; echo
+          test "$status" = "200"

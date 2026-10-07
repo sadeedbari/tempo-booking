@@ -95,3 +95,12 @@ Every table has Row Level Security. Team members only see their own team's data;
 | `npm test` | Slot engine tests |
 | `npm run typecheck` | TypeScript |
 | `npm run db:types` | Generate Supabase types (needs `npx supabase login`) |
+
+### Reminders schedule on Vercel's free plan
+
+Vercel Hobby only allows daily cron jobs, so `vercel.json` runs the reminders job once a day.
+For hourly runs (needed for "2 hours before" style reminders and prompt release of expired holds),
+`.github/workflows/reminders.yml` calls the same endpoint every hour. Add two repository secrets
+in GitHub → Settings → Secrets and variables → Actions: `TEMPO_URL` (your live URL) and
+`CRON_SECRET` (identical to the Vercel environment variable). On Vercel Pro you can switch
+`vercel.json` back to `0 * * * *` and delete the workflow.
