@@ -11,6 +11,8 @@ Scheduling for teams — a Cal.com / Fresha-style booking system with an Apple-i
 - **Payments** — deposits through Stripe Connect (money goes to each team's own Stripe account)
 - **Notifications** — confirmation, change, cancellation and reminder emails (Resend) and SMS (Twilio)
 - **Self-service** — customers get a link to view, add to calendar (.ics) or cancel their booking
+- **Website pop-up** — one `<script>` tag opens the booking flow over any website (`public/embed.js`); per-service links and embed codes live in Settings → Add to your website
+- **Confirmation** — confirm bookings automatically, or hold each online request until an owner/admin approves it (deposits are refunded if declined)
 - Light & dark mode, frosted-glass materials, iOS-style controls, mobile tab bar
 
 ## Stack

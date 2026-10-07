@@ -24,7 +24,7 @@ export function initials(name: string) {
 export const RESERVED_SLUGS = new Set([
   "api", "app", "o", "login", "signup", "logout", "auth", "onboarding", "invite", "booking",
   "settings", "admin", "dashboard", "help", "support", "pricing", "about", "terms", "privacy",
-  "blog", "docs", "preview", "static", "_next", "favicon", "tempo", "www", "mail",
+  "blog", "docs", "preview", "static", "_next", "favicon", "tempo", "www", "mail", "embed",
 ]);
 
 export const PALETTE = [

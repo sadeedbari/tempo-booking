@@ -16,10 +16,11 @@ export function formatDuration(minutes: number) {
   return m ? `${h} hr ${m} min` : `${h} hr`;
 }
 
-export function formatTime(date: Date | string, timeZone: string) {
-  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone }).format(
-    new Date(date),
-  );
+export function formatTime(date: Date | string, timeZone: string, hour12 = true) {
+  return new Intl.DateTimeFormat(
+    "en-US",
+    hour12 ? { hour: "numeric", minute: "2-digit", timeZone } : { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone },
+  ).format(new Date(date));
 }
 
 export function formatDate(date: Date | string, timeZone: string, opts?: Intl.DateTimeFormatOptions) {

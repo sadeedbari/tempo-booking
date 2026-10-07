@@ -1,37 +1,36 @@
 "use client";
-import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, Calendar, ChevronLeft, ChevronRight, Clock, Globe, MapPin, Phone, Video, Users,
+  ArrowLeft, Calendar, ChevronRight, Clock, Globe, MapPin, Phone, Video, Users,
 } from "lucide-react";
 import { Avatar, Notice } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
 import { LogoMark } from "@/components/app/logo";
 import { cn } from "@/lib/utils";
-import {
-  addDaysToKey, formatDate, formatDuration, formatMoney, formatTime, startOfDayInZone, timeZoneLabel, todayKey, weekdayOfKey,
-} from "@/lib/format";
-import { eligibleMembers, slotsForDay, type Slot } from "@/lib/slots";
+import { formatDate, formatDuration, formatMoney, formatTime, timeZoneLabel } from "@/lib/format";
+import { eligibleMembers, type Slot } from "@/lib/slots";
 import type { PublicOrg, PublicService } from "@/lib/types";
-import { book, getWindow, type AvailabilityWindow } from "@/app/[slug]/actions";
+import { book, getWindow } from "@/app/[slug]/actions";
+import { TimePicker } from "./time-picker";
 
 type Step = "location" | "service" | "staff" | "time" | "details";
 const LOC = { in_person: { icon: MapPin, label: "In person" }, video: { icon: Video, label: "Video call" }, phone: { icon: Phone, label: "Phone call" } };
-const WINDOW = 14; // days of availability fetched at a time
-const noop = () => () => {};
 
 export function BookingFlow({
   data,
   initialService,
   paymentCancelled,
+  embed = false,
   fetchWindow = getWindow,
 }: {
   data: PublicOrg;
   initialService?: string;
   paymentCancelled?: boolean;
+  /** Rendered inside the website pop-up: compact, no page chrome. */
+  embed?: boolean;
   /** Override for previews/tests. */
   fetchWindow?: typeof getWindow;
 }) {
@@ -56,14 +55,10 @@ export function BookingFlow({
     return preselected && el.length === 1 ? el[0] : null;
   }); // null = any
   const [step, setStep] = useState<Step>(multiLocation ? "location" : preselected ? stepAfterService(preselected) : "service");
-  const [pickedDay, setDay] = useState<string | null>(null);
-  const [windowStart, setWindowStart] = useState<string>(todayKey(tz));
   const [reload, setReload] = useState(0);
-  const [busyCache, setBusyCache] = useState<Record<string, AvailabilityWindow>>({});
   const [slot, setSlot] = useState<Slot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
-  const viewerTz = useSyncExternalStore(noop, () => Intl.DateTimeFormat().resolvedOptions().timeZone || tz, () => tz);
 
   const eligible = useMemo(() => eligibleFor(service), [service, allStaffIds]); // eslint-disable-line react-hooks/exhaustive-deps
   const eligibleStaff = staff.filter((s) => eligible.includes(s.id));
@@ -74,8 +69,6 @@ export function BookingFlow({
     const el = service ? eligibleMembers(service.staff_ids, staffHere) : staffHere;
     setLocationId(id);
     setSlot(null);
-    setDay(null);
-    setBusyCache({});
     setMemberId(service && el.length === 1 ? el[0] : null);
     setStep(service ? (el.length > 1 ? "staff" : "time") : "service");
   }
@@ -84,71 +77,9 @@ export function BookingFlow({
     const el = eligibleFor(s);
     setService(s);
     setSlot(null);
-    setDay(null);
     setMemberId(el.length === 1 ? el[0] : null);
     setStep(stepAfterService(s));
   }
-
-  // Busy times are fetched per two-week window and cached.
-  const cacheKey = `${windowStart}:${reload}`;
-  const win = busyCache[cacheKey] ?? null;
-  const busy = win?.busy ?? null;
-  useEffect(() => {
-    if (step !== "time" || busyCache[cacheKey]) return;
-    let live = true;
-    fetchWindow(
-      org.id,
-      startOfDayInZone(windowStart, tz).toISOString(),
-      startOfDayInZone(addDaysToKey(windowStart, WINDOW + 1), tz).toISOString(),
-      windowStart,
-      addDaysToKey(windowStart, WINDOW),
-    ).then((w) => live && setBusyCache((c) => ({ ...c, [cacheKey]: w })));
-    return () => {
-      live = false;
-    };
-  }, [step, cacheKey, windowStart, org.id, tz, busyCache, fetchWindow]);
-
-  const slotOpts = useMemo(
-    () =>
-      service && busy
-        ? {
-            timeZone: tz,
-            durationMinutes: service.duration_minutes,
-            bufferAfterMinutes: service.buffer_after_minutes,
-            intervalMinutes: org.slot_interval_minutes,
-            minNoticeMinutes: org.min_notice_minutes,
-            maxAdvanceDays: org.max_advance_days,
-            memberIds: memberId ? [memberId] : eligible,
-            rules: availability,
-            shifts: org.schedule_mode === "shifts" ? win?.shifts : undefined,
-            locationId,
-            busy,
-          }
-        : null,
-    [service, busy, win, tz, org, memberId, eligible, availability, locationId],
-  );
-
-  const days = useMemo(() => Array.from({ length: WINDOW }, (_, i) => addDaysToKey(windowStart, i)), [windowStart]);
-  const dayHasSlots = useMemo(() => {
-    const m: Record<string, boolean> = {};
-    if (slotOpts) days.forEach((d) => (m[d] = slotsForDay(d, slotOpts).length > 0));
-    return m;
-  }, [days, slotOpts]);
-  // The chosen day, or the first day in view with availability.
-  const day =
-    pickedDay && days.includes(pickedDay) && dayHasSlots[pickedDay]
-      ? pickedDay
-      : days.find((d) => dayHasSlots[d]) ?? days[0];
-  const slots = useMemo(() => (slotOpts ? slotsForDay(day, slotOpts) : []), [day, slotOpts]);
-
-  const groups = useMemo(() => {
-    const g: Record<"Morning" | "Afternoon" | "Evening", Slot[]> = { Morning: [], Afternoon: [], Evening: [] };
-    slots.forEach((s) => {
-      const h = Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: tz }).format(new Date(s.start)));
-      (h < 12 ? g.Morning : h < 17 ? g.Afternoon : g.Evening).push(s);
-    });
-    return Object.entries(g).filter(([, v]) => v.length) as [string, Slot[]][];
-  }, [slots, tz]);
 
   const back = () => {
     setError(null);
@@ -184,23 +115,27 @@ export function BookingFlow({
         }
         return;
       }
-      if (r.checkoutUrl) window.location.href = r.checkoutUrl;
-      else router.push(`/booking/${r.token}?new=1`);
+      if (embed) window.parent.postMessage({ type: "tempo:booked", token: r.token }, "*");
+      if (r.checkoutUrl) {
+        if (embed) window.parent.postMessage({ type: "tempo:redirect", url: r.checkoutUrl }, "*");
+        else window.location.href = r.checkoutUrl;
+      } else router.push(`/booking/${r.token}?new=1${embed ? "&embed=1" : ""}`);
     });
   }
 
   const chosenStaff = memberId ? staff.find((s) => s.id === memberId) : null;
   const assignedStaff = slot && !memberId && slot.memberIds.length === 1 ? staff.find((s) => s.id === slot.memberIds[0]) : null;
-  const showTzNote = viewerTz !== tz;
 
   return (
-    <div className="relative min-h-dvh" style={{ ["--accent" as string]: accent, ["--accent-soft" as string]: `${accent}1a` }}>
-      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] opacity-60 blur-3xl"
-        style={{ background: `radial-gradient(40% 60% at 20% 20%, ${accent}33, transparent), radial-gradient(35% 50% at 80% 10%, ${accent}22, transparent)` }} />
+    <div className={cn("relative", embed ? "h-dvh overflow-y-auto bg-surface" : "min-h-dvh")} style={{ ["--accent" as string]: accent, ["--accent-soft" as string]: `${accent}1a` }}>
+      {!embed && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] opacity-60 blur-3xl"
+          style={{ background: `radial-gradient(40% 60% at 20% 20%, ${accent}33, transparent), radial-gradient(35% 50% at 80% 10%, ${accent}22, transparent)` }} />
+      )}
 
-      <div className="mx-auto grid max-w-5xl gap-6 px-4 py-8 sm:py-14 lg:grid-cols-[340px_1fr]">
+      <div className={cn("grid", embed ? "min-h-full lg:grid-cols-[300px_1fr]" : "mx-auto max-w-5xl gap-6 px-4 py-8 sm:py-14 lg:grid-cols-[340px_1fr]")}>
         {/* Summary panel */}
-        <aside className="h-fit rounded-[24px] glass-strong hairline p-6 shadow-md lg:sticky lg:top-8">
+        <aside className={cn(embed ? "border-b border-separator p-6 lg:border-b-0 lg:border-r" : "h-fit rounded-[24px] glass-strong hairline p-6 shadow-md lg:sticky lg:top-8")}>
           <div className="flex items-center gap-3">
             {org.logo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -251,7 +186,7 @@ export function BookingFlow({
         </aside>
 
         {/* Steps */}
-        <main className="min-w-0 rounded-[24px] bg-surface p-5 shadow-md hairline sm:p-7">
+        <main className={cn("min-w-0", embed ? "p-5 sm:p-7" : "rounded-[24px] bg-surface p-5 shadow-md hairline sm:p-7")}>
           {(step !== "service" || multiLocation) && step !== "location" && (
             <button onClick={back} className="mb-4 -ml-1 inline-flex items-center gap-1 text-[15px] font-medium text-accent">
               <ArrowLeft className="size-4" /> Back
@@ -329,82 +264,23 @@ export function BookingFlow({
             </div>
           )}
 
-          {step === "time" && (
+          {step === "time" && service && (
             <div key="time" className="animate-rise">
               <StepTitle n={(eligibleStaff.length > 1 ? 3 : 2) + n} title="Pick a time" />
-              <div className="mb-4 flex items-center justify-between">
-                <div className="text-[17px] font-semibold">
-                  {new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${day}T12:00:00Z`))}
-                </div>
-                <div className="flex gap-1">
-                  <button disabled={windowStart <= todayKey(tz)} onClick={() => setWindowStart(addDaysToKey(windowStart, -WINDOW))} className="grid size-9 place-items-center rounded-full text-accent transition hover:bg-accent-soft disabled:text-label-4 disabled:hover:bg-transparent" aria-label="Earlier">
-                    <ChevronLeft className="size-5" />
-                  </button>
-                  <button onClick={() => setWindowStart(addDaysToKey(windowStart, WINDOW))} className="grid size-9 place-items-center rounded-full text-accent transition hover:bg-accent-soft" aria-label="Later">
-                    <ChevronRight className="size-5" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="scrollbar-none -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-2">
-                {days.map((d) => {
-                  const has = dayHasSlots[d];
-                  const sel = d === day;
-                  return (
-                    <button
-                      key={d}
-                      disabled={!busy || !has}
-                      onClick={() => { setDay(d); setSlot(null); }}
-                      className={cn(
-                        "flex w-[52px] shrink-0 flex-col items-center rounded-[14px] py-2.5 transition",
-                        sel ? "bg-accent text-white shadow-md" : has ? "hover:bg-surface-2" : "opacity-35",
-                      )}
-                    >
-                      <span className={cn("text-[11px] font-semibold uppercase", sel ? "text-white/80" : "text-label-3")}>
-                        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][weekdayOfKey(d)]}
-                      </span>
-                      <span className="mt-0.5 text-[19px] font-semibold">{Number(d.slice(8))}</span>
-                      <span className={cn("mt-1 size-1 rounded-full", has ? (sel ? "bg-white" : "bg-accent") : "bg-transparent")} />
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mt-5 min-h-48">
-                {!busy ? (
-                  <div className="flex justify-center py-16 text-label-3"><Spinner className="size-6" /></div>
-                ) : slots.length === 0 ? (
-                  <div className="py-14 text-center">
-                    <p className="text-[15px] text-label-2">No times available in these two weeks.</p>
-                    <Button variant="tinted" pill className="mt-4" onClick={() => setWindowStart(addDaysToKey(windowStart, WINDOW))}>Check later dates</Button>
-                  </div>
-                ) : (
-                  <div className="space-y-5">
-                    {groups.map(([label, list]) => (
-                      <div key={label}>
-                        <div className="mb-2 text-[13px] font-medium text-label-3">{label}</div>
-                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                          {list.map((s) => (
-                            <button
-                              key={s.start}
-                              onClick={() => { setSlot(s); setStep("details"); }}
-                              className={cn(
-                                "h-11 rounded-[12px] text-[15px] font-semibold transition active:scale-95",
-                                slot?.start === s.start ? "bg-accent text-white" : "bg-accent-soft text-accent hover:bg-accent hover:text-white",
-                              )}
-                            >
-                              {formatTime(s.start, tz)}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {showTzNote && busy && slots.length > 0 && (
-                  <p className="mt-5 text-[12px] text-label-3">Times shown in {org.name}&apos;s time zone ({timeZoneLabel(tz)}).</p>
-                )}
-              </div>
+              <TimePicker
+                org={org}
+                availability={availability}
+                service={service}
+                memberIds={memberId ? [memberId] : eligible}
+                locationId={locationId}
+                fetchWindow={fetchWindow}
+                selected={slot}
+                reloadKey={reload}
+                onPick={(s) => {
+                  setSlot(s);
+                  setStep("details");
+                }}
+              />
             </div>
           )}
 
@@ -441,7 +317,7 @@ export function BookingFlow({
         </main>
       </div>
 
-      <footer className="pb-10 text-center">
+      <footer className={cn("text-center", embed ? "pb-4" : "pb-10")}>
         <Link href="/" className="inline-flex items-center gap-1.5 text-[12px] font-medium text-label-3 hover:text-label-2">
           <LogoMark className="size-4" /> Powered by Tempo
         </Link>

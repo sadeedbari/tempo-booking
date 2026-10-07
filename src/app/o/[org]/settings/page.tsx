@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getOrgContext } from "@/lib/auth";
-import { features } from "@/lib/env";
+import { env, features } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import type { Location } from "@/lib/types";
 import { SettingsView } from "./view";
@@ -12,9 +12,10 @@ export default async function SettingsPage(props: PageProps<"/o/[org]/settings">
   const sp = await props.searchParams;
   const { org, isAdmin, isOwner, members } = await getOrgContext(slug);
   const supabase = await createClient();
-  const [locs, links] = await Promise.all([
+  const [locs, links, svcs] = await Promise.all([
     supabase.from("locations").select("*").eq("org_id", org.id).order("position").order("created_at"),
     supabase.from("member_locations").select("location_id, member_id"),
+    supabase.from("services").select("slug, name").eq("org_id", org.id).eq("active", true).order("position"),
   ]);
   const locationStaff: Record<string, string[]> = {};
   (links.data ?? []).forEach((r) => (locationStaff[r.location_id] ??= []).push(r.member_id));
@@ -26,6 +27,8 @@ export default async function SettingsPage(props: PageProps<"/o/[org]/settings">
       isOwner={isOwner}
       locations={(locs.data ?? []) as Location[]}
       locationStaff={locationStaff}
+      appUrl={env.appUrl}
+      services={(svcs.data ?? []) as { slug: string; name: string }[]}
       members={members}
       features={features}
       stripeStatus={typeof sp.stripe === "string" ? sp.stripe : undefined}
