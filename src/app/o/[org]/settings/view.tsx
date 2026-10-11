@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { Check, CreditCard, Mail, MessageSquare, ExternalLink } from "lucide-react";
 import { PageHeader, Notice, Badge } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
+import { buttonClass } from "@/components/ui/button-class";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { PALETTE } from "@/lib/utils";
@@ -10,7 +11,7 @@ import { allTimeZones, CURRENCIES } from "@/lib/timezones";
 import type { Location, Membership, Organization } from "@/lib/types";
 import { LocationsSection } from "./locations";
 import { EmbedSection } from "./embed";
-import { connectStripe, deleteOrg, updateOrg } from "../actions";
+import { deleteOrg, updateOrg } from "../actions";
 
 export function SettingsView({
   slug, org, isAdmin, isOwner, features, stripeStatus, locations, locationStaff, members, appUrl, services,
@@ -134,13 +135,18 @@ export function SettingsView({
               </div>
             </div>
             {features.payments && (
-              <Button variant={org.stripe_charges_enabled ? "gray" : "filled"} pill disabled={pending}
-                onClick={() => start(async () => { const r = await connectStripe(slug); if (r?.error) toast(r.error, "error"); })}>
-                {org.stripe_charges_enabled ? <>Manage <ExternalLink className="size-4" /></> : "Connect Stripe"}
-              </Button>
+              // A full navigation: the owner leaves for Stripe and comes back to this page when done.
+              <a
+                href={`/api/stripe/connect?org=${encodeURIComponent(slug)}${org.stripe_charges_enabled ? "&manage=1" : ""}`}
+                className={buttonClass(org.stripe_charges_enabled ? "gray" : "filled", "md", true)}
+              >
+                {org.stripe_charges_enabled ? <>Open Stripe dashboard <ExternalLink className="size-4" /></> : org.stripe_account_id ? "Continue setup" : "Connect Stripe"}
+              </a>
             )}
           </div>
-          {stripeStatus === "connected" && <div className="mt-3"><Notice tone="green">Stripe connected.</Notice></div>}
+          {stripeStatus === "connected" && <div className="mt-3"><Notice tone="green">Stripe connected. You can now take deposits.</Notice></div>}
+          {stripeStatus === "pending" && <div className="mt-3"><Notice tone="blue">Stripe still needs a few details before you can take deposits. Choose Continue setup to finish.</Notice></div>}
+          {stripeStatus === "error" && <div className="mt-3"><Notice>We couldn&apos;t reach Stripe just now. Please try again in a moment.</Notice></div>}
         </Section>
 
         <Section title="Notifications" description="Confirmations, cancellations and reminders sent to customers.">

@@ -9,9 +9,7 @@ import { syncBookingCalendar } from "@/lib/calendar/sync";
 import { refundDeposit } from "@/lib/bookings";
 import { decrypt } from "@/lib/calendar/crypto";
 import { getProvider } from "@/lib/calendar/providers";
-import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { env } from "@/lib/env";
 import { RESERVED_SLUGS, slugify } from "@/lib/utils";
 import { copyPairs, periodDays, type SchedulePeriod } from "@/lib/schedule";
 import { dayKey } from "@/lib/format";
@@ -709,30 +707,3 @@ export async function deleteOrg(slug: string): Promise<ActionResult> {
 }
 
 /* ───────────────────────────── Payments ───────────────────────────── */
-
-export async function connectStripe(slug: string): Promise<ActionResult> {
-  const { org } = await ctxFor(slug, true);
-  const stripe = getStripe();
-  if (!stripe) return { error: "Stripe isn't configured on this server yet. Add STRIPE_SECRET_KEY to your environment." };
-
-  let accountId = org.stripe_account_id;
-  if (!accountId) {
-    const account = await stripe.accounts.create({
-      type: "express",
-      business_profile: { name: org.name, url: org.website || undefined },
-      metadata: { org_id: org.id },
-    });
-    accountId = account.id;
-    // Stripe fields are write-protected from the client; use the service role.
-    const admin = createAdminClient();
-    await admin.from("organizations").update({ stripe_account_id: accountId }).eq("id", org.id);
-  }
-
-  const link = await stripe.accountLinks.create({
-    account: accountId,
-    refresh_url: `${env.appUrl}/o/${slug}/settings?stripe=refresh`,
-    return_url: `${env.appUrl}/api/stripe/return?org=${slug}`,
-    type: "account_onboarding",
-  });
-  redirect(link.url);
-}
