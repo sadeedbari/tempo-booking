@@ -6,7 +6,8 @@ const AUTH = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN = "https://oauth2.googleapis.com/token";
 const API = "https://www.googleapis.com/calendar/v3";
 // Create/edit events and read the events that block time. Nothing broader.
-const SCOPES = ["openid", "email", "https://www.googleapis.com/auth/calendar.events"];
+const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+const SCOPES = ["openid", "email", CALENDAR_SCOPE];
 
 const redirectUri = () => `${env.appUrl}/api/google/callback`;
 
@@ -15,6 +16,7 @@ interface TokenResponse {
   expires_in: number;
   refresh_token?: string;
   id_token?: string;
+  scope?: string;
 }
 
 async function tokenRequest(body: Record<string, string>): Promise<Tokens> {
@@ -26,7 +28,7 @@ async function tokenRequest(body: Record<string, string>): Promise<Tokens> {
   const json = await res.json();
   if (!res.ok) throw Object.assign(new Error(json.error_description || json.error || "Google token error"), { code: json.error as string });
   const t = json as TokenResponse;
-  return { accessToken: t.access_token, expiresIn: t.expires_in, refreshToken: t.refresh_token, email: emailFromIdToken(t.id_token) };
+  return { accessToken: t.access_token, expiresIn: t.expires_in, refreshToken: t.refresh_token, email: emailFromIdToken(t.id_token), scopes: t.scope?.split(" ") };
 }
 
 function emailFromIdToken(idToken?: string) {
@@ -89,7 +91,12 @@ export const google: CalendarProvider = {
     return `${AUTH}?${p}`;
   },
 
-  exchangeCode: (code) => tokenRequest({ grant_type: "authorization_code", code, redirect_uri: redirectUri() }),
+  async exchangeCode(code) {
+    const t = await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: redirectUri() });
+    // Google lets people untick individual permissions, so check calendar access was really granted.
+    if (!t.scopes?.includes(CALENDAR_SCOPE)) throw Object.assign(new Error("Calendar permission was not granted"), { code: "missing_scope" });
+    return t;
+  },
   refresh: (refreshToken) => tokenRequest({ grant_type: "refresh_token", refresh_token: refreshToken }),
 
   async revoke(token) {

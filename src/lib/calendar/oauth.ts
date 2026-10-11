@@ -56,6 +56,8 @@ export async function finishConnect(request: NextRequest, id: ProviderId) {
     await refreshExternalBusy(org.id, new Date().toISOString(), new Date(Date.now() + org.max_advance_days * 86_400_000).toISOString(), { memberId: me.id });
     return back("connected");
   } catch (e) {
+    // The person left the calendar permission unticked: not a failure, just not connected.
+    if ((e as { code?: string }).code === "missing_scope") return back("denied");
     console.error(`[calendar:${id}] callback failed`, (e as Error).message);
     return back("error");
   }

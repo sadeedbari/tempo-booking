@@ -8,6 +8,8 @@ export interface Tokens {
   /** Present on first consent; Microsoft also rotates it on refresh. */
   refreshToken?: string;
   email?: string | null;
+  /** Scopes the user actually granted, when the provider reports them. */
+  scopes?: string[];
 }
 
 /** A time block on a personal calendar (ISO instants; all-day events carry dates instead). */
