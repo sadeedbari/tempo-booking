@@ -76,13 +76,34 @@ export function CustomersView({
             <input type="hidden" name="id" value={editing.id ?? ""} />
             <Field label="Name"><Input name="name" defaultValue={editing.name} required /></Field>
             <Field label="Email"><Input name="email" type="email" defaultValue={editing.email} required /></Field>
-            <Field label="Phone"><Input name="phone" type="tel" defaultValue={editing.phone ?? ""} /></Field>
+            <PhoneWithConsent initialPhone={editing.phone ?? ""} consentAt={editing.sms_consent_at ?? null} timeZone={org.timezone} />
             <Field label="Private notes" hint="Only your team can see these."><Textarea name="notes" defaultValue={editing.notes ?? ""} /></Field>
             {error && <Notice>{error}</Notice>}
             <Button type="submit" size="lg" pill className="w-full" loading={pending}>Save</Button>
           </form>
         )}
       </Sheet>
+    </>
+  );
+}
+
+/** Phone field with the text-message consent checkbox, shown once a number is entered. */
+function PhoneWithConsent({ initialPhone, consentAt, timeZone }: { initialPhone: string; consentAt: string | null; timeZone: string }) {
+  const [phone, setPhone] = useState(initialPhone);
+  return (
+    <>
+      <Field label="Phone" hint="Optional. Any format works, we'll tidy it up.">
+        <Input name="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      </Field>
+      {phone.trim().length > 0 && (
+        <label className="flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug text-label-2">
+          <input type="checkbox" name="sms_consent" defaultChecked={Boolean(consentAt)} className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" />
+          <span>
+            This customer agreed to receive text messages about their bookings.
+            {consentAt && <span className="block text-label-3">Agreed on {formatDate(consentAt, timeZone, { weekday: undefined, year: "numeric" })}. Untick to stop texting them.</span>}
+          </span>
+        </label>
+      )}
     </>
   );
 }

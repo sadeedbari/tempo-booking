@@ -507,17 +507,30 @@ export async function saveCustomer(slug: string, formData: FormData): Promise<Ac
   try {
     const { org } = await ctxFor(slug);
     const id = String(formData.get("id") || "");
+    const typedPhone = String(formData.get("phone") || "").trim();
+    // Store phone numbers in international format so texts can be delivered.
+    const phone = typedPhone ? normalizePhone(typedPhone, org.currency) : null;
+    if (typedPhone && !phone) return { error: "That phone number doesn't look right. Include the area code, or leave it blank." };
     const row = {
       name: String(formData.get("name") || "").trim(),
       email: String(formData.get("email") || "").trim().toLowerCase(),
-      phone: String(formData.get("phone") || "").trim() || null,
+      phone,
       notes: String(formData.get("notes") || "").trim() || null,
     };
     if (!row.name || !z.string().email().safeParse(row.email).success) return { error: "Add a name and a valid email." };
     const supabase = await createClient();
+
+    // Text consent: ticked box keeps the original date (or records now); unticked or no number clears it.
+    const consent = Boolean(phone) && formData.get("sms_consent") === "on";
+    let existingConsent: string | null = null;
+    if (id) {
+      const { data: cur } = await supabase.from("customers").select("sms_consent_at").eq("id", id).eq("org_id", org.id).maybeSingle();
+      existingConsent = cur?.sms_consent_at ?? null;
+    }
+    const sms_consent_at = consent ? existingConsent ?? new Date().toISOString() : null;
     const { error } = id
-      ? await supabase.from("customers").update(row).eq("id", id).eq("org_id", org.id)
-      : await supabase.from("customers").insert({ ...row, org_id: org.id });
+      ? await supabase.from("customers").update({ ...row, sms_consent_at }).eq("id", id).eq("org_id", org.id)
+      : await supabase.from("customers").insert({ ...row, sms_consent_at, org_id: org.id });
     if (error) return { error: friendly(error) };
     refresh(slug);
     return { ok: true };
