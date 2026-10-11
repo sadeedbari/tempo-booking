@@ -298,7 +298,7 @@ export function BookingFlow({
                   </Field>
                   {hasPhone && (
                     <label className="flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug text-label-2 sm:col-span-2">
-                      <input type="checkbox" name="sms_consent" className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" />
+                      <input type="checkbox" name="sms_consent" defaultChecked className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" />
                       <span>
                         Text me a confirmation and reminder about this booking. Message and data rates may apply. Reply STOP to opt out.
                       </span>

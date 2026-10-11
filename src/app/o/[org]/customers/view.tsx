@@ -97,7 +97,7 @@ function PhoneWithConsent({ initialPhone, consentAt, timeZone }: { initialPhone:
       </Field>
       {phone.trim().length > 0 && (
         <label className="flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug text-label-2">
-          <input type="checkbox" name="sms_consent" defaultChecked={Boolean(consentAt)} className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" />
+          <input type="checkbox" name="sms_consent" defaultChecked={consentAt ? true : initialPhone === ""} className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" />
           <span>
             This customer agreed to receive text messages about their bookings.
             {consentAt && <span className="block text-label-3">Agreed on {formatDate(consentAt, timeZone, { weekday: undefined, year: "numeric" })}. Untick to stop texting them.</span>}
