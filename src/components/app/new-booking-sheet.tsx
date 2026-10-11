@@ -51,6 +51,8 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
   const [query, setQuery] = useState("");
   const [customerId, setCustomerId] = useState("");
 
+  const selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return customers.filter((c) => !q || c.name.toLowerCase().includes(q) || c.email.includes(q)).slice(0, 6);
@@ -168,6 +170,18 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
                 ))}
                 {filtered.length === 0 && <div className="px-3.5 py-3 text-[14px] text-label-3">No matches.</div>}
               </div>
+              {selectedCustomer && (
+                selectedCustomer.sms_consent_at ? (
+                  <p className="px-1 text-[13px] text-label-3">{selectedCustomer.name} has agreed to text messages.</p>
+                ) : selectedCustomer.phone ? (
+                  <label className="flex cursor-pointer items-start gap-2.5 px-1 text-[13px] leading-snug text-label-2">
+                    <input type="checkbox" name="sms_consent" className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" />
+                    <span>{selectedCustomer.name} agreed to receive text messages about this booking.</span>
+                  </label>
+                ) : (
+                  <p className="px-1 text-[13px] text-label-3">No phone number on file for {selectedCustomer.name}, so no texts will be sent.</p>
+                )
+              )}
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">

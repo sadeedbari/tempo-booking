@@ -38,7 +38,7 @@ export default async function CalendarPage(props: PageProps<"/o/[org]/calendar">
       .eq("org_id", org.id)
       .lt("starts_at", startOfDayInZone(rangeEnd, tz).toISOString())
       .gt("ends_at", startOfDayInZone(rangeStart, tz).toISOString()),
-    supabase.from("customers").select("id, name, email, phone").eq("org_id", org.id).order("name").limit(500),
+    supabase.from("customers").select("id, name, email, phone, sms_consent_at").eq("org_id", org.id).order("name").limit(500),
     supabase.from("locations").select("*").eq("org_id", org.id).eq("active", true).order("position").order("created_at"),
     org.schedule_mode === "shifts"
       ? supabase.from("shifts").select("*").eq("org_id", org.id).gte("day", rangeStart).lt("day", rangeEnd)

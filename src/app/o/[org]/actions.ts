@@ -174,6 +174,15 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
         .single();
       if (error) return { error: friendly(error) };
       customerId = c.id;
+    } else if (v.sms_consent) {
+      // Staff confirmed an existing customer agreed to texts (only possible if they have a number on file).
+      await supabase
+        .from("customers")
+        .update({ sms_consent_at: new Date().toISOString() })
+        .eq("id", customerId)
+        .eq("org_id", org.id)
+        .not("phone", "is", null)
+        .is("sms_consent_at", null);
     }
 
     const start = new Date(v.starts_at);
