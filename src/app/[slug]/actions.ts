@@ -5,7 +5,8 @@ import { notifyBooking } from "@/lib/notify";
 import { getStripe } from "@/lib/stripe";
 import { env } from "@/lib/env";
 import { refreshExternalBusy } from "@/lib/calendar/sync";
-import type { BusyInterval, PublicShift } from "@/lib/types";
+import { normalizePhone } from "@/lib/phone";
+import type { BusyInterval, PublicOrg, PublicShift } from "@/lib/types";
 
 export interface AvailabilityWindow {
   busy: BusyInterval[];
@@ -38,12 +39,23 @@ export async function book(input: {
   name: string;
   email: string;
   phone: string;
+  /** The customer ticked the box agreeing to booking text messages. */
+  smsConsent?: boolean;
   notes: string;
 }): Promise<BookResult> {
   // Pull the latest personal-calendar events so a just-added event blocks this slot.
   const slotStart = new Date(input.startsAt).getTime();
   await refreshExternalBusy(input.orgId, new Date(slotStart - 86_400_000).toISOString(), new Date(slotStart + 2 * 86_400_000).toISOString());
   const supabase = await createClient();
+
+  // Store phone numbers in international format so texts can actually be delivered.
+  let phone = input.phone.trim();
+  if (phone) {
+    const { data: pub } = await supabase.rpc("get_public_org", { p_slug: input.slug });
+    const normalized = normalizePhone(phone, (pub as PublicOrg | null)?.org.currency);
+    if (!normalized) return { ok: false, error: "That phone number doesn't look right. Include the area code, or leave it blank." };
+    phone = normalized;
+  }
   const { data, error } = await supabase.rpc("create_public_booking", {
     p_org: input.orgId,
     p_service: input.serviceId,
@@ -51,12 +63,25 @@ export async function book(input: {
     p_starts_at: input.startsAt,
     p_name: input.name.slice(0, 120),
     p_email: input.email.slice(0, 200),
-    p_phone: input.phone.slice(0, 40),
+    p_phone: phone,
     p_notes: input.notes.slice(0, 1000),
     p_location: input.locationId,
   });
   if (error) return { ok: false, error: error.message };
   const b = data as { id: string; manage_token: string; status: string };
+
+  // Remember that they agreed to texts (the checkbox is only shown when a number is entered).
+  if (input.smsConsent && phone && env.supabaseServiceKey) {
+    try {
+      const admin = createAdminClient();
+      const { data: row } = await admin.from("bookings").select("customer_id").eq("id", b.id).single();
+      if (row?.customer_id) {
+        await admin.from("customers").update({ sms_consent_at: new Date().toISOString() }).eq("id", row.customer_id).is("sms_consent_at", null);
+      }
+    } catch (e) {
+      console.error("[sms] couldn't record consent", (e as Error).message);
+    }
+  }
 
   if (b.status === "pending_payment") {
     const stripe = getStripe();

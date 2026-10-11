@@ -108,6 +108,8 @@ export interface Customer {
   email: string;
   phone: string | null;
   notes: string | null;
+  /** When the customer agreed to booking text messages; texts are never sent without it. */
+  sms_consent_at: string | null;
   created_at: string;
 }
 

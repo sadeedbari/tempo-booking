@@ -4,6 +4,7 @@ import { env, features } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateTime, formatMoney, formatDuration } from "@/lib/format";
 import { syncBookingCalendar } from "@/lib/calendar/sync";
+import { normalizePhone } from "@/lib/phone";
 
 type Kind = "confirmation" | "cancellation" | "reminder" | "rescheduled" | "request" | "declined";
 
@@ -19,7 +20,7 @@ interface BookingForEmail {
   payment_status: string;
   manage_token: string;
   location: { name: string; address: string | null } | null;
-  customer: { name: string; email: string; phone: string | null } | null;
+  customer: { name: string; email: string; phone: string | null; sms_consent_at: string | null } | null;
   member: { display_name: string } | null;
   service: { location_type: string; location_detail: string | null; duration_minutes: number } | null;
   org: { name: string; slug: string; timezone: string; address: string | null; phone: string | null; accent_color: string };
@@ -31,7 +32,7 @@ async function loadBooking(bookingId: string): Promise<BookingForEmail | null> {
   const { data } = await admin
     .from("bookings")
     .select(
-      "id, starts_at, ends_at, status, service_name, price_cents, deposit_cents, currency, payment_status, manage_token, customer:customers(name, email, phone), location:locations(name, address), member:memberships(display_name), service:services(location_type, location_detail, duration_minutes), org:organizations(name, slug, timezone, address, phone, accent_color)",
+      "id, starts_at, ends_at, status, service_name, price_cents, deposit_cents, currency, payment_status, manage_token, customer:customers(name, email, phone, sms_consent_at), location:locations(name, address), member:memberships(display_name), service:services(location_type, location_detail, duration_minutes), org:organizations(name, slug, timezone, address, phone, accent_color)",
     )
     .eq("id", bookingId)
     .single();
@@ -121,9 +122,11 @@ export async function notifyBooking(bookingId: string, kind: Kind) {
     } else {
       console.info(`[notify] ${kind} for booking ${bookingId} (email not configured)`);
     }
-    if (b.customer.phone && (kind === "reminder" || kind === "confirmation")) {
+    // Texts need the customer's agreement and a number Twilio can use (international format).
+    const to = b.customer.phone && b.customer.sms_consent_at ? normalizePhone(b.customer.phone, b.currency) : null;
+    if (to && (kind === "reminder" || kind === "confirmation")) {
       await sendSms(
-        b.customer.phone,
+        to,
         `${b.org.name}: ${kind === "reminder" ? "Reminder" : "Confirmed"} — ${b.service_name}, ${formatDateTime(b.starts_at, b.org.timezone)}. Manage: ${env.appUrl}/booking/${b.manage_token}`,
       );
     }

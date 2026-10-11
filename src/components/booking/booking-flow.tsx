@@ -58,6 +58,7 @@ export function BookingFlow({
   const [reload, setReload] = useState(0);
   const [slot, setSlot] = useState<Slot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hasPhone, setHasPhone] = useState(false);
   const [pending, start] = useTransition();
 
   const eligible = useMemo(() => eligibleFor(service), [service, allStaffIds]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -104,6 +105,7 @@ export function BookingFlow({
         name: String(fd.get("name") || ""),
         email: String(fd.get("email") || ""),
         phone: String(fd.get("phone") || ""),
+        smsConsent: fd.get("sms_consent") === "on",
         notes: String(fd.get("notes") || ""),
       });
       if (!r.ok) {
@@ -291,7 +293,17 @@ export function BookingFlow({
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Full name" className="sm:col-span-2"><Input name="name" autoComplete="name" required autoFocus /></Field>
                   <Field label="Email"><Input name="email" type="email" autoComplete="email" required /></Field>
-                  <Field label="Phone" hint="For reminders by text."><Input name="phone" type="tel" autoComplete="tel" /></Field>
+                  <Field label="Phone" hint="Optional.">
+                    <Input name="phone" type="tel" autoComplete="tel" onChange={(e) => setHasPhone(e.target.value.trim().length > 0)} />
+                  </Field>
+                  {hasPhone && (
+                    <label className="flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug text-label-2 sm:col-span-2">
+                      <input type="checkbox" name="sms_consent" className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" />
+                      <span>
+                        Text me a confirmation and reminder about this booking. Message and data rates may apply. Reply STOP to opt out.
+                      </span>
+                    </label>
+                  )}
                   <Field label="Anything we should know?" className="sm:col-span-2"><Textarea name="notes" className="min-h-20" /></Field>
                 </div>
                 {error && <Notice>{error}</Notice>}

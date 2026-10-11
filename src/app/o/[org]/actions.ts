@@ -12,6 +12,7 @@ import { getProvider } from "@/lib/calendar/providers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { RESERVED_SLUGS, slugify } from "@/lib/utils";
 import { copyPairs, periodDays, type SchedulePeriod } from "@/lib/schedule";
+import { normalizePhone } from "@/lib/phone";
 import { dayKey } from "@/lib/format";
 import type { BookingStatus, Organization, OrgRole } from "@/lib/types";
 
@@ -138,6 +139,7 @@ const manualBookingSchema = z.object({
   customer_name: z.string().trim().max(120).optional(),
   customer_email: z.string().trim().email().optional().or(z.literal("")),
   customer_phone: z.string().trim().max(40).optional(),
+  sms_consent: z.boolean().optional(),
   notes: z.string().trim().max(1000).optional(),
   notify: z.boolean(),
 });
@@ -145,7 +147,7 @@ const manualBookingSchema = z.object({
 export async function createManualBooking(slug: string, formData: FormData): Promise<ActionResult> {
   try {
     const { org, isAdmin } = await ctxFor(slug);
-    const parsed = manualBookingSchema.safeParse({ ...Object.fromEntries(formData), notify: formData.get("notify") === "on" });
+    const parsed = manualBookingSchema.safeParse({ ...Object.fromEntries(formData), notify: formData.get("notify") === "on", sms_consent: formData.get("sms_consent") === "on" });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const v = parsed.data;
     const supabase = await createClient();
@@ -157,10 +159,15 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
     let customerId = v.customer_id || null;
     if (!customerId) {
       if (!v.customer_name || !v.customer_email) return { error: "Add the customer's name and email." };
+      let phone: string | null = null;
+      if (v.customer_phone) {
+        phone = normalizePhone(v.customer_phone, org.currency);
+        if (!phone) return { error: "That phone number doesn't look right. Include the area code, or leave it blank." };
+      }
       const { data: c, error } = await supabase
         .from("customers")
         .upsert(
-          { org_id: org.id, name: v.customer_name, email: v.customer_email.toLowerCase(), phone: v.customer_phone || null },
+          { org_id: org.id, name: v.customer_name, email: v.customer_email.toLowerCase(), phone, ...(v.sms_consent && phone ? { sms_consent_at: new Date().toISOString() } : {}) },
           { onConflict: "org_id,email" },
         )
         .select("id")
