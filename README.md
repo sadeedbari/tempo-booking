@@ -83,7 +83,7 @@ Every table has Row Level Security. Team members only see their own team's data;
 1. Push to GitHub and import into Vercel.
 2. Add the environment variables from `.env.example` (set `NEXT_PUBLIC_APP_URL` to your domain).
 3. In Supabase → Authentication → URL Configuration, set the Site URL and add `https://yourdomain.com/auth/callback` to Redirect URLs.
-4. Stripe: enable Connect, then add a webhook to `https://yourdomain.com/api/stripe/webhook` for `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired` and `account.updated` (enable "Listen to events on Connected accounts" for `account.updated`).
+4. Stripe: enable Connect (Settings → Connect). Tempo uses Managed Risk: each business gets a connected account with the full Stripe Dashboard and deposits are direct charges on that account. Add a webhook destination at `https://yourdomain.com/api/stripe/webhook` that listens to **events from connected accounts** for `checkout.session.completed`, `checkout.session.async_payment_succeeded` and `checkout.session.expired`; put its signing secret in `STRIPE_WEBHOOK_SECRET`.
 5. `vercel.json` schedules `/api/cron/reminders` hourly.
 
 ## Scripts

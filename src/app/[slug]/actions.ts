@@ -70,7 +70,10 @@ export async function book(input: {
     const org = full?.org as unknown as { name: string; stripe_account_id: string };
     const customer = full?.customer as unknown as { email: string };
     const fee = Math.round((full!.deposit_cents * env.platformFeePercent) / 100);
-    const session = await stripe.checkout.sessions.create({
+    if (!org.stripe_account_id) return { ok: false, error: "Online payments aren't available right now." };
+    // Direct charge: created on the business's own Stripe account, with Tempo's fee on top.
+    const session = await stripe.checkout.sessions.create(
+      {
       mode: "payment",
       customer_email: customer.email,
       line_items: [
@@ -84,7 +87,6 @@ export async function book(input: {
         },
       ],
       payment_intent_data: {
-        transfer_data: { destination: org.stripe_account_id },
         ...(fee > 0 ? { application_fee_amount: fee } : {}),
         metadata: { booking_id: b.id },
       },
@@ -92,7 +94,9 @@ export async function book(input: {
       expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
       success_url: `${env.appUrl}/booking/${b.manage_token}?paid=1`,
       cancel_url: `${env.appUrl}/${input.slug}?cancelled=1`,
-    });
+      },
+      { stripeAccount: org.stripe_account_id },
+    );
     await admin.from("bookings").update({ stripe_checkout_session_id: session.id }).eq("id", b.id);
     return { ok: true, token: b.manage_token, checkoutUrl: session.url ?? undefined };
   }

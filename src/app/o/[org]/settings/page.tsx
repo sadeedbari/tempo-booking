@@ -3,6 +3,7 @@ import { getOrgContext } from "@/lib/auth";
 import { env, features } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import type { Location } from "@/lib/types";
+import { syncChargesEnabled } from "@/lib/stripe-connect";
 import { SettingsView } from "./view";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -10,7 +11,14 @@ export const metadata: Metadata = { title: "Settings" };
 export default async function SettingsPage(props: PageProps<"/o/[org]/settings">) {
   const { org: slug } = await props.params;
   const sp = await props.searchParams;
-  const { org, isAdmin, isOwner, members } = await getOrgContext(slug);
+  const ctx = await getOrgContext(slug);
+  const { isAdmin, isOwner, members } = ctx;
+  let org = ctx.org;
+  // A business that started Stripe setup but hasn't finished: ask Stripe (covers closing the tab early).
+  if (isAdmin && features.payments && org.stripe_account_id && !org.stripe_charges_enabled) {
+    const enabled = await syncChargesEnabled(org.id, org.stripe_account_id);
+    if (enabled) org = { ...org, stripe_charges_enabled: true };
+  }
   const supabase = await createClient();
   const [locs, links, svcs] = await Promise.all([
     supabase.from("locations").select("*").eq("org_id", org.id).order("position").order("created_at"),
