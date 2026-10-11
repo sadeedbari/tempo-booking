@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Customers" };
 
 export default async function CustomersPage(props: PageProps<"/o/[org]/customers">) {
   const { org: slug } = await props.params;
-  const { org } = await getOrgContext(slug);
+  const { org, isAdmin } = await getOrgContext(slug);
   const supabase = await createClient();
   const [{ data: customers }, { data: stats }] = await Promise.all([
     supabase.from("customers").select("*").eq("org_id", org.id).order("name"),
@@ -22,5 +22,5 @@ export default async function CustomersPage(props: PageProps<"/o/[org]/customers
     if (!a.last || b.starts_at > a.last) a.last = b.starts_at;
     if (b.status === "completed") a.spent += b.price_cents;
   });
-  return <CustomersView slug={slug} org={org} customers={(customers ?? []) as Customer[]} stats={agg} />;
+  return <CustomersView slug={slug} org={org} canDelete={isAdmin} customers={(customers ?? []) as Customer[]} stats={agg} />;
 }

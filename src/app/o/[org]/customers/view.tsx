@@ -8,17 +8,18 @@ import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { Customer, Organization } from "@/lib/types";
-import { saveCustomer } from "../actions";
+import { deleteCustomer, saveCustomer } from "../actions";
 
 export function CustomersView({
-  slug, org, customers, stats,
+  slug, org, customers, stats, canDelete,
 }: {
-  slug: string; org: Organization; customers: Customer[]; stats: Record<string, { visits: number; last: string | null; spent: number }>;
+  slug: string; org: Organization; canDelete: boolean; customers: Customer[]; stats: Record<string, { visits: number; last: string | null; spent: number }>;
 }) {
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<Partial<Customer> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const toast = useToast();
 
   const list = useMemo(() => {
@@ -31,7 +32,7 @@ export function CustomersView({
       <PageHeader
         title="Customers"
         subtitle={`${customers.length} ${customers.length === 1 ? "person" : "people"}`}
-        actions={<Button pill onClick={() => { setError(null); setEditing({}); }}><Plus className="size-4" strokeWidth={2.5} /> Add</Button>}
+        actions={<Button pill onClick={() => { setError(null); setConfirmDelete(false); setEditing({}); }}><Plus className="size-4" strokeWidth={2.5} /> Add</Button>}
       />
       <div className="relative mb-5 max-w-md">
         <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-label-3" />
@@ -44,7 +45,7 @@ export function CustomersView({
           {list.map((c) => {
             const s = stats[c.id];
             return (
-              <button key={c.id} onClick={() => { setError(null); setEditing(c); }} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-surface-2">
+              <button key={c.id} onClick={() => { setError(null); setConfirmDelete(false); setEditing(c); }} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-surface-2">
                 <Avatar name={c.name} size={36} color="#8E8E93" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[15px] font-medium">{c.name}</div>
@@ -80,6 +81,31 @@ export function CustomersView({
             <Field label="Private notes" hint="Only your team can see these."><Textarea name="notes" defaultValue={editing.notes ?? ""} /></Field>
             {error && <Notice>{error}</Notice>}
             <Button type="submit" size="lg" pill className="w-full" loading={pending}>Save</Button>
+            {canDelete && editing.id && (
+              <div className="space-y-2 border-t border-separator pt-4">
+                {confirmDelete && (
+                  <p className="text-[13px] text-label-2">
+                    This permanently removes {editing.name}&apos;s details. Their past bookings stay in your records but no longer show who they were. This can&apos;t be undone.
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="w-full"
+                  disabled={pending}
+                  onClick={() => {
+                    if (!confirmDelete) return setConfirmDelete(true);
+                    start(async () => {
+                      const r = await deleteCustomer(slug, editing.id!);
+                      if (r.error) setError(r.error);
+                      else { toast("Customer deleted"); setEditing(null); }
+                    });
+                  }}
+                >
+                  {confirmDelete ? "Tap again to delete" : "Delete customer"}
+                </Button>
+              </div>
+            )}
           </form>
         )}
       </Sheet>

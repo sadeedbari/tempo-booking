@@ -539,6 +539,32 @@ export async function saveCustomer(slug: string, formData: FormData): Promise<Ac
   }
 }
 
+/**
+ * Deletes a customer (owners and admins only). Their past bookings stay in the records but
+ * lose the customer details; customers with upcoming bookings can't be deleted until those
+ * are cancelled or done.
+ */
+export async function deleteCustomer(slug: string, id: string): Promise<ActionResult> {
+  try {
+    const { org } = await ctxFor(slug, true);
+    const supabase = await createClient();
+    const { count } = await supabase
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", org.id)
+      .eq("customer_id", id)
+      .in("status", ["confirmed", "pending_payment", "pending_approval"])
+      .gte("ends_at", new Date().toISOString());
+    if (count) return { error: `This customer has ${count} upcoming booking${count === 1 ? "" : "s"}. Cancel ${count === 1 ? "it" : "them"} first.` };
+    const { error } = await supabase.from("customers").delete().eq("id", id).eq("org_id", org.id);
+    if (error) return { error: friendly(error) };
+    refresh(slug);
+    return { ok: true };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
 /* ───────────────────────────── Team ───────────────────────────── */
 
 export async function inviteMember(slug: string, formData: FormData): Promise<ActionResult> {
