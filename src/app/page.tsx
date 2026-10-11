@@ -112,6 +112,10 @@ export default async function Home() {
       </main>
 
       <footer className="border-t border-separator py-8 text-center text-[13px] text-label-3">
+        <div className="mb-2 flex justify-center gap-5 font-medium">
+          <Link href="/privacy" className="hover:text-label-2">Privacy Policy</Link>
+          <Link href="/terms" className="hover:text-label-2">Terms of Service</Link>
+        </div>
         © {new Date().getFullYear()} Tempo. Made with care.
       </footer>
     </div>
