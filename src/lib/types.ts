@@ -124,6 +124,10 @@ export interface Booking {
   location_id: string | null;
   /** Where the team goes, for services that visit the customer. */
   customer_address: string | null;
+  /** The exact Google place the address was picked from (optional). */
+  customer_address_place_id: string | null;
+  customer_address_lat: number | null;
+  customer_address_lng: number | null;
   customer_id: string | null;
   starts_at: string;
   ends_at: string;

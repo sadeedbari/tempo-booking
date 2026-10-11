@@ -93,7 +93,7 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
             <Row
               icon={<MapPin />}
               label={
-                <a className="text-accent" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(booking.customer_address)}`}>
+                <a className="text-accent" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(booking.customer_address)}${booking.customer_address_place_id ? `&query_place_id=${encodeURIComponent(booking.customer_address_place_id)}` : ""}`}>
                   {booking.customer_address}
                 </a>
               }

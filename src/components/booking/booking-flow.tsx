@@ -15,6 +15,7 @@ import { eligibleMembers, type Slot } from "@/lib/slots";
 import type { PublicOrg, PublicService } from "@/lib/types";
 import { book, getWindow } from "@/app/[slug]/actions";
 import { TimePicker } from "./time-picker";
+import { AddressInput } from "@/components/ui/address-input";
 
 type Step = "location" | "service" | "staff" | "time" | "details";
 const LOC = { in_person: { icon: MapPin, label: "In person" }, video: { icon: Video, label: "Video call" }, phone: { icon: Phone, label: "Phone call" } };
@@ -106,6 +107,9 @@ export function BookingFlow({
         email: String(fd.get("email") || ""),
         phone: String(fd.get("phone") || ""),
         address: String(fd.get("address") || ""),
+        addressPlace: fd.get("address_place_id")
+          ? { placeId: String(fd.get("address_place_id")), lat: fd.get("address_lat") ? Number(fd.get("address_lat")) : null, lng: fd.get("address_lng") ? Number(fd.get("address_lng")) : null }
+          : undefined,
         smsConsent: fd.get("sms_consent") === "on",
         notes: String(fd.get("notes") || ""),
       });
@@ -311,7 +315,7 @@ export function BookingFlow({
                       hint="Where should we come?"
                       className="sm:col-span-2"
                     >
-                      <Input name="address" autoComplete="street-address" required={service.address_mode === "required"} />
+                      <AddressInput name="address" currency={org.currency} required={service.address_mode === "required"} strict={service.address_mode === "required"} placeholder="Start typing your address" />
                     </Field>
                   )}
                   <Field label="Anything we should know?" className="sm:col-span-2"><Textarea name="notes" className="min-h-20" /></Field>

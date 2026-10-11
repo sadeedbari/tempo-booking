@@ -41,6 +41,8 @@ export async function book(input: {
   phone: string;
   /** Where the team should go, for services that visit the customer. */
   address?: string;
+  /** Set when the address was picked from the Google suggestions. */
+  addressPlace?: { placeId: string; lat: number | null; lng: number | null };
   /** The customer ticked the box agreeing to booking text messages. */
   smsConsent?: boolean;
   notes: string;
@@ -72,6 +74,20 @@ export async function book(input: {
   });
   if (error) return { ok: false, error: error.message };
   const b = data as { id: string; manage_token: string; status: string };
+
+  // Remember the exact place when the address came from the suggestion list.
+  const place = input.addressPlace;
+  if (place && input.address?.trim() && env.supabaseServiceKey && /^[A-Za-z0-9_-]{1,300}$/.test(place.placeId)) {
+    const ok = (n: number | null, max: number) => (typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= max ? n : null);
+    try {
+      await createAdminClient()
+        .from("bookings")
+        .update({ customer_address_place_id: place.placeId, customer_address_lat: ok(place.lat, 90), customer_address_lng: ok(place.lng, 180) })
+        .eq("id", b.id);
+    } catch (e) {
+      console.error("[address] couldn't save the place", (e as Error).message);
+    }
+  }
 
   // Remember that they agreed to texts (the checkbox is only shown when a number is entered).
   if (input.smsConsent && phone && env.supabaseServiceKey) {

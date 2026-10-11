@@ -7,6 +7,7 @@ import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, Notice } from "@/components/ui/misc";
+import { AddressInput } from "@/components/ui/address-input";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { formatDuration, formatMoney, todayKey } from "@/lib/format";
@@ -142,7 +143,7 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
 
         {selectedService && selectedService.address_mode !== "off" && (
           <Field label={selectedService.address_mode === "required" ? "Service address" : "Service address (optional)"} hint="Where the team goes.">
-            <Input name="customer_address" autoComplete="street-address" required={selectedService.address_mode === "required"} />
+            <AddressInput name="customer_address" currency={org.currency} required={selectedService.address_mode === "required"} placeholder="Start typing the address" />
           </Field>
         )}
 

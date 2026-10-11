@@ -147,6 +147,12 @@ const manualBookingSchema = z.object({
   notify: z.boolean(),
 });
 
+/** A latitude/longitude from a form field, or null if missing or out of range. */
+function coord(v: FormDataEntryValue | null, max: number) {
+  const n = v ? Number(v) : NaN;
+  return Number.isFinite(n) && Math.abs(n) <= max ? n : null;
+}
+
 export async function createManualBooking(slug: string, formData: FormData): Promise<ActionResult> {
   try {
     const { org, isAdmin } = await ctxFor(slug);
@@ -205,6 +211,13 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
         member_id: v.member_id,
         location_id: v.location_id || null,
         customer_address: address,
+        ...(address && /^[A-Za-z0-9_-]{1,300}$/.test(String(formData.get("customer_address_place_id") ?? ""))
+          ? {
+              customer_address_place_id: String(formData.get("customer_address_place_id")),
+              customer_address_lat: coord(formData.get("customer_address_lat"), 90),
+              customer_address_lng: coord(formData.get("customer_address_lng"), 180),
+            }
+          : {}),
         customer_id: customerId,
         starts_at: start.toISOString(),
         ends_at: end.toISOString(),
