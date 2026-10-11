@@ -105,6 +105,7 @@ export function BookingFlow({
         name: String(fd.get("name") || ""),
         email: String(fd.get("email") || ""),
         phone: String(fd.get("phone") || ""),
+        address: String(fd.get("address") || ""),
         smsConsent: fd.get("sms_consent") === "on",
         notes: String(fd.get("notes") || ""),
       });
@@ -303,6 +304,15 @@ export function BookingFlow({
                         Text me a confirmation and reminder about this booking. Message and data rates may apply. Reply STOP to opt out.
                       </span>
                     </label>
+                  )}
+                  {service.address_mode !== "off" && (
+                    <Field
+                      label={service.address_mode === "required" ? "Address" : "Address (optional)"}
+                      hint="Where should we come?"
+                      className="sm:col-span-2"
+                    >
+                      <Input name="address" autoComplete="street-address" required={service.address_mode === "required"} />
+                    </Field>
                   )}
                   <Field label="Anything we should know?" className="sm:col-span-2"><Textarea name="notes" className="min-h-20" /></Field>
                 </div>

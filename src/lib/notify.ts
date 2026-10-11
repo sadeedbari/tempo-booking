@@ -10,6 +10,7 @@ type Kind = "confirmation" | "cancellation" | "reminder" | "rescheduled" | "requ
 
 interface BookingForEmail {
   id: string;
+  customer_address: string | null;
   starts_at: string;
   ends_at: string;
   status: string;
@@ -32,7 +33,7 @@ async function loadBooking(bookingId: string): Promise<BookingForEmail | null> {
   const { data } = await admin
     .from("bookings")
     .select(
-      "id, starts_at, ends_at, status, service_name, price_cents, deposit_cents, currency, payment_status, manage_token, customer:customers(name, email, phone, sms_consent_at), location:locations(name, address), member:memberships(display_name), service:services(location_type, location_detail, duration_minutes), org:organizations(name, slug, timezone, address, phone, accent_color)",
+      "id, customer_address, starts_at, ends_at, status, service_name, price_cents, deposit_cents, currency, payment_status, manage_token, customer:customers(name, email, phone, sms_consent_at), location:locations(name, address), member:memberships(display_name), service:services(location_type, location_detail, duration_minutes), org:organizations(name, slug, timezone, address, phone, accent_color)",
     )
     .eq("id", bookingId)
     .single();
@@ -65,7 +66,9 @@ export function renderEmail(kind: Kind, b: BookingForEmail) {
   const when = formatDateTime(b.starts_at, b.org.timezone);
   const manageUrl = `${env.appUrl}/booking/${b.manage_token}`;
   const where =
-    b.service?.location_type === "video"
+    b.customer_address
+      ? b.customer_address
+      : b.service?.location_type === "video"
       ? b.service.location_detail || "Video call — link to follow"
       : b.service?.location_type === "phone"
         ? "Phone call"

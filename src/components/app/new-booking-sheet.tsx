@@ -51,6 +51,7 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
   const [query, setQuery] = useState("");
   const [customerId, setCustomerId] = useState("");
 
+  const selectedService = services.find((s) => s.id === serviceId) ?? null;
   const selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
 
   const filtered = useMemo(() => {
@@ -138,6 +139,12 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
             ))}
           </div>
         </div>
+
+        {selectedService && selectedService.address_mode !== "off" && (
+          <Field label={selectedService.address_mode === "required" ? "Service address" : "Service address (optional)"} hint="Where the team goes.">
+            <Input name="customer_address" autoComplete="street-address" required={selectedService.address_mode === "required"} />
+          </Field>
+        )}
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">

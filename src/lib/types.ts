@@ -1,6 +1,8 @@
 export type OrgRole = "owner" | "admin" | "member";
 export type ServiceKind = "appointment" | "meeting";
 export type LocationType = "in_person" | "video" | "phone";
+/** Whether a service asks the customer for an address (for businesses that travel to the customer). */
+export type AddressMode = "off" | "optional" | "required";
 export type BookingStatus = "pending_payment" | "pending_approval" | "confirmed" | "cancelled" | "completed" | "no_show";
 /** "auto": confirmed immediately. "manual": held until an owner/admin approves. */
 export type ConfirmationMode = "auto" | "manual";
@@ -67,6 +69,7 @@ export interface Service {
   color: string;
   location_type: LocationType;
   location_detail: string | null;
+  address_mode: AddressMode;
   active: boolean;
   position: number;
 }
@@ -119,6 +122,8 @@ export interface Booking {
   service_id: string | null;
   member_id: string;
   location_id: string | null;
+  /** Where the team goes, for services that visit the customer. */
+  customer_address: string | null;
   customer_id: string | null;
   starts_at: string;
   ends_at: string;
@@ -160,6 +165,7 @@ export interface PublicService {
   deposit_cents: number;
   color: string;
   location_type: LocationType;
+  address_mode: AddressMode;
   staff_ids: string[];
 }
 

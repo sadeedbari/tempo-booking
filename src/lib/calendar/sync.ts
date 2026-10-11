@@ -111,6 +111,7 @@ export async function refreshExternalBusy(orgId: string, from: string, to: strin
 
 interface BookingRow {
   id: string;
+  customer_address: string | null;
   status: string;
   starts_at: string;
   ends_at: string;
@@ -134,7 +135,7 @@ export async function syncBookingCalendar(bookingId: string) {
     const { data } = await db()
       .from("bookings")
       .select(
-        "id, status, starts_at, ends_at, service_name, notes, member_id, customer:customers(name, email, phone), location:locations(name, address), service:services(location_type, location_detail), org:organizations(slug, name, timezone, address)",
+        "id, customer_address, status, starts_at, ends_at, service_name, notes, member_id, customer:customers(name, email, phone), location:locations(name, address), service:services(location_type, location_detail), org:organizations(slug, name, timezone, address)",
       )
       .eq("id", bookingId)
       .single();
@@ -160,7 +161,9 @@ export async function syncBookingCalendar(bookingId: string) {
     }
     if (!wantEvent) return;
 
-    const where = b.location
+    const where = b.customer_address
+      ? b.customer_address
+      : b.location
       ? [b.location.name, b.location.address].filter(Boolean).join(", ")
       : b.service?.location_type === "video"
         ? b.service.location_detail || "Video call"

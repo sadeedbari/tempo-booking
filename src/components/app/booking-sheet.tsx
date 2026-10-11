@@ -89,6 +89,17 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
       <div className="space-y-5">
         <div className="overflow-hidden rounded-[14px] bg-surface hairline divide-y divide-separator">
           <Row icon={<CalendarClock />} label={formatDate(booking.starts_at, tz)} sub={`${formatTime(booking.starts_at, tz)} – ${formatTime(booking.ends_at, tz)}${member ? ` · with ${member.display_name}` : ""}`} />
+          {booking.customer_address && (
+            <Row
+              icon={<MapPin />}
+              label={
+                <a className="text-accent" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(booking.customer_address)}`}>
+                  {booking.customer_address}
+                </a>
+              }
+              sub="Service address"
+            />
+          )}
           {location && <Row icon={<MapPin />} label={location.name} sub={location.address} />}
           <Row icon={<User />} label={booking.customer?.name ?? "Customer"} />
           {booking.customer?.email && <Row icon={<Mail />} label={<a className="text-accent" href={`mailto:${booking.customer.email}`}>{booking.customer.email}</a>} />}

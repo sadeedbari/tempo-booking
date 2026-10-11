@@ -50,6 +50,7 @@ const serviceSchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   location_type: z.enum(["in_person", "video", "phone"]),
   location_detail: z.string().trim().max(300).optional(),
+  address_mode: z.enum(["off", "optional", "required"]).default("off"),
   active: z.boolean(),
 });
 
@@ -79,6 +80,7 @@ export async function saveService(slug: string, formData: FormData): Promise<Act
       color: v.color,
       location_type: v.location_type,
       location_detail: v.location_detail || null,
+      address_mode: v.address_mode,
       active: v.active,
     };
 
@@ -134,6 +136,7 @@ const manualBookingSchema = z.object({
   service_id: z.string().uuid({ message: "Choose a service" }),
   member_id: z.string().uuid({ message: "Choose a team member" }),
   location_id: z.string().uuid().optional().or(z.literal("")),
+  customer_address: z.string().trim().max(300).optional(),
   starts_at: z.string().min(10),
   customer_id: z.string().uuid().optional().or(z.literal("")),
   customer_name: z.string().trim().max(120).optional(),
@@ -155,6 +158,8 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
 
     const { data: service } = await supabase.from("services").select("*").eq("id", v.service_id).eq("org_id", org.id).single();
     if (!service) return { error: "Service not found." };
+    const address = service.address_mode === "off" ? null : v.customer_address || null;
+    if (service.address_mode === "required" && !address) return { error: "Add the address where the team should go." };
 
     let customerId = v.customer_id || null;
     if (!customerId) {
@@ -199,6 +204,7 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
         service_id: service.id,
         member_id: v.member_id,
         location_id: v.location_id || null,
+        customer_address: address,
         customer_id: customerId,
         starts_at: start.toISOString(),
         ends_at: end.toISOString(),

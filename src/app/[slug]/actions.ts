@@ -39,6 +39,8 @@ export async function book(input: {
   name: string;
   email: string;
   phone: string;
+  /** Where the team should go, for services that visit the customer. */
+  address?: string;
   /** The customer ticked the box agreeing to booking text messages. */
   smsConsent?: boolean;
   notes: string;
@@ -66,6 +68,7 @@ export async function book(input: {
     p_phone: phone,
     p_notes: input.notes.slice(0, 1000),
     p_location: input.locationId,
+    p_address: (input.address ?? "").slice(0, 300),
   });
   if (error) return { ok: false, error: error.message };
   const b = data as { id: string; manage_token: string; status: string };

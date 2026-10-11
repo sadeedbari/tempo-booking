@@ -15,7 +15,7 @@ type PublicBooking = {
   id: string; status: string; starts_at: string; ends_at: string; service_name: string;
   price_cents: number; deposit_cents: number; currency: string; payment_status: string; notes: string | null;
   customer_name: string; customer_email: string; staff_name: string | null;
-  location_type: string | null; location_detail: string | null; location_name: string | null; location_address: string | null;
+  location_type: string | null; location_detail: string | null; location_name: string | null; location_address: string | null; customer_address: string | null;
   org: { name: string; slug: string; timezone: string; address: string | null; phone: string | null; accent_color: string; cancellation_window_hours: number };
 };
 
@@ -36,7 +36,9 @@ export default async function ManageBookingPage(props: PageProps<"/booking/[toke
   const canCancel = isCancellable(b);
 
   const where =
-    b.location_type === "video"
+    b.customer_address
+      ? { icon: MapPin, text: b.customer_address }
+      : b.location_type === "video"
       ? { icon: Video, text: b.location_detail || "Video call — link to follow" }
       : b.location_type === "phone"
         ? { icon: Phone, text: "Phone call" }

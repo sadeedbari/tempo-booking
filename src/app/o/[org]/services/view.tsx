@@ -163,6 +163,14 @@ function ServiceEditor({
           )}
         </div>
 
+        <Field label="Customer's address" hint="For mobile services where you go to the customer, like detailing or house calls.">
+          <Select name="address_mode" defaultValue={service.address_mode ?? "off"}>
+            <option value="off">Don&apos;t ask</option>
+            <option value="optional">Ask, but optional</option>
+            <option value="required">Required to book</option>
+          </Select>
+        </Field>
+
         <div className="space-y-2">
           <span className="px-1 text-[13px] font-medium text-label-2">Colour</span>
           <div className="flex flex-wrap gap-2.5">
