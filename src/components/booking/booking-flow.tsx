@@ -107,6 +107,7 @@ export function BookingFlow({
         email: String(fd.get("email") || ""),
         phone: String(fd.get("phone") || ""),
         address: String(fd.get("address") || ""),
+        unit: String(fd.get("unit") || ""),
         addressPlace: fd.get("address_place_id")
           ? { placeId: String(fd.get("address_place_id")), lat: fd.get("address_lat") ? Number(fd.get("address_lat")) : null, lng: fd.get("address_lng") ? Number(fd.get("address_lng")) : null }
           : undefined,
@@ -316,6 +317,11 @@ export function BookingFlow({
                       className="sm:col-span-2"
                     >
                       <AddressInput name="address" currency={org.currency} required={service.address_mode === "required"} strict={service.address_mode === "required"} placeholder="Start typing your address" />
+                    </Field>
+                  )}
+                  {service.address_mode !== "off" && (
+                    <Field label="Unit, apartment or suite (optional)" className="sm:col-span-2">
+                      <Input name="unit" autoComplete="address-line2" maxLength={30} placeholder="e.g. Apt 4B" />
                     </Field>
                   )}
                   <Field label="Anything we should know?" className="sm:col-span-2"><Textarea name="notes" className="min-h-20" /></Field>

@@ -146,6 +146,11 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
             <AddressInput name="customer_address" currency={org.currency} required={selectedService.address_mode === "required"} placeholder="Start typing the address" />
           </Field>
         )}
+        {selectedService && selectedService.address_mode !== "off" && (
+          <Field label="Unit, apartment or suite (optional)">
+            <Input name="customer_unit" maxLength={30} placeholder="e.g. Apt 4B" />
+          </Field>
+        )}
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">

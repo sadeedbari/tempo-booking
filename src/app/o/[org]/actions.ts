@@ -13,6 +13,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { RESERVED_SLUGS, slugify } from "@/lib/utils";
 import { copyPairs, periodDays, type SchedulePeriod } from "@/lib/schedule";
 import { normalizePhone } from "@/lib/phone";
+import { withUnit } from "@/lib/address";
 import { dayKey } from "@/lib/format";
 import type { BookingStatus, Organization, OrgRole } from "@/lib/types";
 
@@ -137,6 +138,7 @@ const manualBookingSchema = z.object({
   member_id: z.string().uuid({ message: "Choose a team member" }),
   location_id: z.string().uuid().optional().or(z.literal("")),
   customer_address: z.string().trim().max(300).optional(),
+  customer_unit: z.string().trim().max(30).optional(),
   starts_at: z.string().min(10),
   customer_id: z.string().uuid().optional().or(z.literal("")),
   customer_name: z.string().trim().max(120).optional(),
@@ -164,7 +166,7 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
 
     const { data: service } = await supabase.from("services").select("*").eq("id", v.service_id).eq("org_id", org.id).single();
     if (!service) return { error: "Service not found." };
-    const address = service.address_mode === "off" ? null : v.customer_address || null;
+    const address = service.address_mode === "off" ? null : withUnit(v.customer_address, v.customer_unit).slice(0, 300) || null;
     if (service.address_mode === "required" && !address) return { error: "Add the address where the team should go." };
 
     let customerId = v.customer_id || null;

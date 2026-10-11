@@ -6,6 +6,7 @@ import { getStripe } from "@/lib/stripe";
 import { env } from "@/lib/env";
 import { refreshExternalBusy } from "@/lib/calendar/sync";
 import { normalizePhone } from "@/lib/phone";
+import { withUnit } from "@/lib/address";
 import type { BusyInterval, PublicOrg, PublicShift } from "@/lib/types";
 
 export interface AvailabilityWindow {
@@ -41,6 +42,8 @@ export async function book(input: {
   phone: string;
   /** Where the team should go, for services that visit the customer. */
   address?: string;
+  /** Optional unit/apartment, stored as part of the address. */
+  unit?: string;
   /** Set when the address was picked from the Google suggestions. */
   addressPlace?: { placeId: string; lat: number | null; lng: number | null };
   /** The customer ticked the box agreeing to booking text messages. */
@@ -70,7 +73,7 @@ export async function book(input: {
     p_phone: phone,
     p_notes: input.notes.slice(0, 1000),
     p_location: input.locationId,
-    p_address: (input.address ?? "").slice(0, 300),
+    p_address: withUnit(input.address, input.unit).slice(0, 300),
   });
   if (error) return { ok: false, error: error.message };
   const b = data as { id: string; manage_token: string; status: string };
