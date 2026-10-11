@@ -15,7 +15,8 @@ import { env } from "@/lib/env";
 export async function GET(request: NextRequest) {
   const slug = request.nextUrl.searchParams.get("org") ?? "";
   const { org, isAdmin } = await getOrgContext(slug);
-  const back = (status: string) => NextResponse.redirect(new URL(`/o/${slug}/settings?stripe=${status}`, request.url));
+  const back = (status: string, reason?: string) =>
+    NextResponse.redirect(new URL(`/o/${slug}/settings?stripe=${status}${reason ? `&reason=${reason}` : ""}`, request.url));
 
   const stripe = getStripe();
   if (!isAdmin || !stripe) return back("error");
@@ -47,7 +48,11 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.redirect(link.url);
   } catch (e) {
-    console.error("[stripe] connect failed", (e as Error).message);
+    const message = (e as Error).message ?? "";
+    console.error("[stripe] connect failed", message);
+    // Tell the owner what to fix for the common cases.
+    if (/signed up for Connect|Connect/i.test(message) && /sign|enabled|platform/i.test(message)) return back("error", "connect_disabled");
+    if (/Invalid API Key|No such|api_key|Expired API Key/i.test(message)) return back("error", "bad_key");
     return back("error");
   }
 }

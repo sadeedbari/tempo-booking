@@ -14,10 +14,10 @@ import { EmbedSection } from "./embed";
 import { deleteOrg, updateOrg } from "../actions";
 
 export function SettingsView({
-  slug, org, isAdmin, isOwner, features, stripeStatus, locations, locationStaff, members, appUrl, services,
+  slug, org, isAdmin, isOwner, features, stripeStatus, stripeReason, locations, locationStaff, members, appUrl, services,
 }: {
   slug: string; org: Organization; appUrl: string; services: { slug: string; name: string }[]; locations: Location[]; locationStaff: Record<string, string[]>; members: Membership[]; isAdmin: boolean; isOwner: boolean;
-  features: { payments: boolean; email: boolean; sms: boolean }; stripeStatus?: string;
+  features: { payments: boolean; email: boolean; sms: boolean }; stripeStatus?: string; stripeReason?: string;
 }) {
   const toast = useToast();
   const [pending, start] = useTransition();
@@ -146,7 +146,17 @@ export function SettingsView({
           </div>
           {stripeStatus === "connected" && <div className="mt-3"><Notice tone="green">Stripe connected. You can now take deposits.</Notice></div>}
           {stripeStatus === "pending" && <div className="mt-3"><Notice tone="blue">Stripe still needs a few details before you can take deposits. Choose Continue setup to finish.</Notice></div>}
-          {stripeStatus === "error" && <div className="mt-3"><Notice>We couldn&apos;t reach Stripe just now. Please try again in a moment.</Notice></div>}
+          {stripeStatus === "error" && (
+            <div className="mt-3">
+              <Notice>
+                {stripeReason === "connect_disabled"
+                  ? "Stripe Connect isn't turned on for the Stripe account behind this server's key yet. In the Stripe dashboard, open Settings → Connect and click Get started, then try again."
+                  : stripeReason === "bad_key"
+                    ? "Stripe rejected this server's secret key. Check that STRIPE_SECRET_KEY is the right key for the right mode (test or live), then redeploy."
+                    : "We couldn't reach Stripe just now. Please try again in a moment."}
+              </Notice>
+            </div>
+          )}
         </Section>
 
         <Section title="Notifications" description="Confirmations, cancellations and reminders sent to customers.">

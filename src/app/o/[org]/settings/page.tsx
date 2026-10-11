@@ -32,6 +32,7 @@ export default async function SettingsPage(props: PageProps<"/o/[org]/settings">
       members={members}
       features={features}
       stripeStatus={typeof sp.stripe === "string" ? sp.stripe : undefined}
+      stripeReason={typeof sp.reason === "string" ? sp.reason : undefined}
     />
   );
 }
