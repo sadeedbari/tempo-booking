@@ -117,7 +117,7 @@ export function AvailabilityView({
             })}
           </div>
           <div className="flex items-center justify-between px-2">
-            <button onClick={copyMondayToWeekdays} className="text-[14px] font-medium text-accent">Copy Monday to all weekdays</button>
+            <button onClick={copyMondayToWeekdays} className="inline-flex min-h-10 items-center text-[14px] font-medium text-accent">Copy Monday to all weekdays</button>
             {dirty && <span className="text-[13px] text-orange">Unsaved changes</span>}
           </div>
           {error && <Notice>{error}</Notice>}

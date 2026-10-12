@@ -1,4 +1,5 @@
 "use server";
+import { friendlyDbError } from "@/lib/db-errors";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
@@ -81,10 +82,10 @@ export async function saveWorkflow(slug: string, input: EditableWorkflow): Promi
     const row = { org_id: org.id, name: v.name, trigger, offset_minutes: offset, active: v.active, all_services: v.all_services, updated_at: new Date().toISOString() };
     if (id) {
       const { error } = await supabase.from("workflows").update(row).eq("id", id).eq("org_id", org.id);
-      if (error) return { error: error.message };
+      if (error) return { error: friendlyDbError(error)! };
     } else {
       const { data, error } = await supabase.from("workflows").insert({ ...row, position: 100 }).select("id").single();
-      if (error) return { error: error.message };
+      if (error) return { error: friendlyDbError(error)! };
       id = data.id as string;
     }
 
@@ -98,13 +99,13 @@ export async function saveWorkflow(slug: string, input: EditableWorkflow): Promi
       const stepRow = { workflow_id: id, org_id: org.id, channel: s.channel, subject: s.channel === "email" ? s.subject.trim() : "", body: s.body, enabled: s.enabled, position };
       const known = s.id && (existing ?? []).some((e) => e.id === s.id);
       const { error } = known ? await supabase.from("workflow_steps").update(stepRow).eq("id", s.id!) : await supabase.from("workflow_steps").insert(stepRow);
-      if (error) return { error: error.message };
+      if (error) return { error: friendlyDbError(error)! };
     }
 
     await supabase.from("workflow_services").delete().eq("workflow_id", id);
     if (!v.all_services) {
       const { error } = await supabase.from("workflow_services").insert(v.service_ids.map((service_id) => ({ workflow_id: id, service_id })));
-      if (error) return { error: error.message };
+      if (error) return { error: friendlyDbError(error)! };
     }
     revalidatePath(`/o/${slug}/workflows`, "layout");
     return { ok: true, id };
@@ -121,7 +122,7 @@ export async function deleteWorkflow(slug: string, id: string): Promise<Result> 
     if (!w) return { error: "Workflow not found." };
     if (w.default_key) return { error: "Built-in workflows can't be deleted. Turn them off instead." };
     const { error } = await supabase.from("workflows").delete().eq("id", id).eq("org_id", org.id);
-    if (error) return { error: error.message };
+    if (error) return { error: friendlyDbError(error)! };
     revalidatePath(`/o/${slug}/workflows`, "layout");
     return { ok: true };
   } catch (e) {
@@ -167,7 +168,7 @@ export async function setWorkflowActive(slug: string, id: string, active: boolea
   try {
     const { org } = await adminCtx(slug);
     const { error } = await (await createClient()).from("workflows").update({ active, updated_at: new Date().toISOString() }).eq("id", id).eq("org_id", org.id);
-    if (error) return { error: error.message };
+    if (error) return { error: friendlyDbError(error)! };
     revalidatePath(`/o/${slug}/workflows`, "layout");
     return { ok: true };
   } catch (e) {

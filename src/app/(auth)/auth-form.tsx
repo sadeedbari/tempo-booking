@@ -40,6 +40,11 @@ export function AuthForm({ mode, next }: { mode: "login" | "signup"; next?: stri
           minLength={mode === "signup" ? 8 : undefined}
         />
       </Field>
+      {mode === "login" && (
+        <div className="-mt-1 text-right">
+          <Link href="/forgot" className="inline-block py-2 text-[14px] font-medium text-accent">Forgot password?</Link>
+        </div>
+      )}
       {state?.error && <Notice>{state.error}</Notice>}
       <SubmitButton size="lg" className="w-full">
         {mode === "login" ? "Sign in" : "Create account"}

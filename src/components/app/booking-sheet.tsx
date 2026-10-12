@@ -165,7 +165,7 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
             </div>
           )
         )}
-        {!active && booking.status !== "cancelled" && (
+        {!active && !awaiting && booking.status !== "cancelled" && (
           <Button variant="gray" className="w-full" onClick={() => act("confirmed", "Booking restored")} disabled={pending}>Undo — mark as confirmed</Button>
         )}
         {error && <Notice>{error}</Notice>}

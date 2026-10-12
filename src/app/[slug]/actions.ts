@@ -52,6 +52,7 @@ export async function book(input: {
 }): Promise<BookResult> {
   // Pull the latest personal-calendar events so a just-added event blocks this slot.
   const slotStart = new Date(input.startsAt).getTime();
+  if (!Number.isFinite(slotStart)) return { ok: false, error: "Please pick a time and try again." };
   await refreshExternalBusy(input.orgId, new Date(slotStart - 86_400_000).toISOString(), new Date(slotStart + 2 * 86_400_000).toISOString());
   const supabase = await createClient();
 
@@ -75,7 +76,12 @@ export async function book(input: {
     p_location: input.locationId,
     p_address: withUnit(input.address, input.unit).slice(0, 300),
   });
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    // The booking function words its own rules for people ("that time was just taken"); anything else is a fault.
+    if (error.code === "P0001") return { ok: false, error: error.message };
+    console.error("[book] unexpected database error:", error.code, error.message);
+    return { ok: false, error: "Something went wrong while booking. Please try again in a moment." };
+  }
   const b = data as { id: string; manage_token: string; status: string };
 
   // Remember the exact place when the address came from the suggestion list.
@@ -106,8 +112,16 @@ export async function book(input: {
   }
 
   if (b.status === "pending_payment") {
+    // If payment can't be started, free the time again right away instead of holding it for 30 minutes.
+    const release = async () => {
+      if (!env.supabaseServiceKey) return;
+      await createAdminClient().from("bookings").update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: "Payment could not be started" }).eq("id", b.id).eq("status", "pending_payment");
+    };
     const stripe = getStripe();
-    if (!stripe || !env.supabaseServiceKey) return { ok: false, error: "Online payments aren't available right now." };
+    if (!stripe || !env.supabaseServiceKey) {
+      await release();
+      return { ok: false, error: "Online payments aren't available right now." };
+    }
     const admin = createAdminClient();
     const { data: full } = await admin
       .from("bookings")
@@ -117,35 +131,45 @@ export async function book(input: {
     const org = full?.org as unknown as { name: string; stripe_account_id: string };
     const customer = full?.customer as unknown as { email: string };
     const fee = Math.round((full!.deposit_cents * env.platformFeePercent) / 100);
-    if (!org.stripe_account_id) return { ok: false, error: "Online payments aren't available right now." };
-    // Direct charge: created on the business's own Stripe account, with Tempo's fee on top.
-    const session = await stripe.checkout.sessions.create(
-      {
-      mode: "payment",
-      customer_email: customer.email,
-      line_items: [
+    if (!org.stripe_account_id) {
+      await release();
+      return { ok: false, error: "Online payments aren't available right now." };
+    }
+    try {
+      // Direct charge: created on the business's own Stripe account, with Tempo's fee on top.
+      const session = await stripe.checkout.sessions.create(
         {
-          quantity: 1,
-          price_data: {
-            currency: full!.currency.toLowerCase(),
-            unit_amount: full!.deposit_cents,
-            product_data: { name: `Deposit · ${full!.service_name}`, description: org.name },
+        mode: "payment",
+        customer_email: customer.email,
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: full!.currency.toLowerCase(),
+              unit_amount: full!.deposit_cents,
+              product_data: { name: `Deposit · ${full!.service_name}`, description: org.name },
+            },
           },
+        ],
+        payment_intent_data: {
+          ...(fee > 0 ? { application_fee_amount: fee } : {}),
+          metadata: { booking_id: b.id },
         },
-      ],
-      payment_intent_data: {
-        ...(fee > 0 ? { application_fee_amount: fee } : {}),
         metadata: { booking_id: b.id },
-      },
-      metadata: { booking_id: b.id },
-      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
-      success_url: `${env.appUrl}/booking/${b.manage_token}?paid=1`,
-      cancel_url: `${env.appUrl}/${input.slug}?cancelled=1`,
-      },
-      { stripeAccount: org.stripe_account_id },
-    );
-    await admin.from("bookings").update({ stripe_checkout_session_id: session.id }).eq("id", b.id);
-    return { ok: true, token: b.manage_token, checkoutUrl: session.url ?? undefined };
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+        success_url: `${env.appUrl}/booking/${b.manage_token}?paid=1`,
+        cancel_url: `${env.appUrl}/${input.slug}?cancelled=1`,
+        },
+        { stripeAccount: org.stripe_account_id },
+      );
+      await admin.from("bookings").update({ stripe_checkout_session_id: session.id }).eq("id", b.id);
+      return { ok: true, token: b.manage_token, checkoutUrl: session.url ?? undefined };
+    } catch (e) {
+      // Stripe is unreachable or refused: don't leave the time held for a payment that can't start.
+      console.error("[book] couldn't start the payment:", (e as Error).message);
+      await release();
+      return { ok: false, error: "We couldn't start the payment just now, so nothing was booked. Please try again in a moment." };
+    }
   }
 
   await notifyBooking(b.id, b.status === "pending_approval" ? "request" : "confirmation");

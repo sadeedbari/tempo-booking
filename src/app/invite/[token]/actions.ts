@@ -1,4 +1,5 @@
 "use server";
+import { friendlyDbError } from "@/lib/db-errors";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -8,7 +9,7 @@ export async function acceptInvite(_: { error?: string } | undefined, formData: 
     p_token: String(formData.get("token")),
     p_display_name: String(formData.get("display_name") || ""),
   });
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyDbError(error)! };
   const { data: org } = await supabase.from("organizations").select("slug").eq("id", orgId).single();
   redirect(`/o/${org?.slug}/dashboard`);
 }

@@ -1,4 +1,5 @@
 "use server";
+import { friendlyDbError } from "@/lib/db-errors";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
@@ -40,18 +41,28 @@ export async function createTeam(_: OnboardingState, formData: FormData): Promis
   });
   if (error) {
     if (error.code === "23505") return { error: "That link is already taken — try another." };
-    return { error: error.message };
+    return { error: friendlyDbError(error)! };
   }
 
-  await supabase.from("services").insert(
+  // Every row spells out every column: a bulk insert fills a missing key with NULL (not the default), which
+  // used to make the whole insert fail for the starter services that had no deposit.
+  const { error: starterError } = await supabase.from("services").insert(
     STARTERS[kind].map((s, i) => ({
       org_id: orgId,
       slug: slugify(s.name),
       kind,
       position: i,
-      ...s,
+      name: s.name,
+      description: s.description,
+      duration_minutes: s.duration_minutes,
+      price_cents: s.price_cents,
+      deposit_cents: "deposit_cents" in s ? s.deposit_cents : 0,
+      color: s.color,
+      location_type: "location_type" in s ? s.location_type : "in_person",
     })),
   );
+  // The team exists either way; if the starters couldn't be added the owner can create services themselves.
+  if (starterError) console.error("[onboarding] starter services failed:", starterError.message);
 
   redirect(`/o/${slug}/calendar?welcome=1`);
 }

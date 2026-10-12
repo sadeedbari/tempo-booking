@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# end-to-end test credentials and output
+e2e/.state.json
+test-results/
+playwright-report/

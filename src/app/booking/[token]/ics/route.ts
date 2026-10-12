@@ -4,7 +4,7 @@ function ics(d: Date) {
   return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
 function esc(s: string) {
-  return s.replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+  return s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
 }
 
 export async function GET(_: Request, ctx: RouteContext<"/booking/[token]/ics">) {

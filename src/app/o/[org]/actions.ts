@@ -11,6 +11,7 @@ import { decrypt } from "@/lib/calendar/crypto";
 import { getProvider } from "@/lib/calendar/providers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PALETTE, RESERVED_SLUGS, slugify } from "@/lib/utils";
+import { friendlyDbError as friendly } from "@/lib/db-errors";
 import { copyPairs, hasSameLocationOverlap, periodDays, type SchedulePeriod } from "@/lib/schedule";
 import { normalizePhone } from "@/lib/phone";
 import { withUnit } from "@/lib/address";
@@ -18,14 +19,6 @@ import { dayKey } from "@/lib/format";
 import type { BookingStatus, Organization, OrgRole } from "@/lib/types";
 
 export type ActionResult = { ok?: boolean; error?: string; id?: string };
-
-function friendly(error: { code?: string; message: string } | null): string | undefined {
-  if (!error) return undefined;
-  if (error.code === "23P01") return "That time overlaps another booking for this team member.";
-  if (error.code === "23505") return "That already exists — try a different name or link.";
-  if (error.code === "42501") return "You don't have permission to do that.";
-  return error.message;
-}
 
 async function ctxFor(slug: string, adminOnly = false) {
   const ctx = await getOrgContext(slug);

@@ -276,6 +276,7 @@ export function BookingFlow({
           {step === "time" && service && (
             <div key="time" className="animate-rise">
               <StepTitle n={(eligibleStaff.length > 1 ? 3 : 2) + n} title="Pick a time" />
+              {error && <div className="mb-4"><Notice>{error}</Notice></div>}
               <TimePicker
                 org={org}
                 availability={availability}
@@ -287,6 +288,7 @@ export function BookingFlow({
                 reloadKey={reload}
                 onPick={(s) => {
                   setSlot(s);
+                  setError(null);
                   setStep("details");
                 }}
               />

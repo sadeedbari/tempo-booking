@@ -16,7 +16,8 @@ type Picked = { placeId: string; lat: number | null; lng: number | null };
  * fills in the full address and remembers the exact place (id + coordinates).
  *  - `strict`: the form can't be submitted until a suggestion is chosen.
  *  - If no key is configured or the lookup fails, it quietly becomes a plain text box so
- *    bookings are never blocked.
+ *    bookings are never blocked. The same goes when Google has no match for what was typed
+ *    (new builds, rural addresses): the address is accepted as typed.
  * Submits `{name}`, `{name}_place_id`, `{name}_lat`, `{name}_lng` with the form.
  */
 export function AddressInput({
@@ -33,6 +34,8 @@ export function AddressInput({
   const [active, setActive] = useState(-1);
   const [picked, setPicked] = useState<Picked | null>(null);
   const [failed, setFailed] = useState(false);
+  // The text we last asked Google about, so we know when "no suggestions" is a real answer.
+  const [lookedUp, setLookedUp] = useState<string | null>(null);
   const enabled = Boolean(KEY) && !failed;
   // Only show suggestions while the person is still typing an unconfirmed address.
   const shown = enabled && !picked && value.trim().length >= 3 ? items : [];
@@ -64,6 +67,7 @@ export function AddressInput({
           return p ? [{ placeId: p.placeId, main: p.structuredFormat?.mainText?.text ?? p.text?.text ?? "", secondary: p.structuredFormat?.secondaryText?.text ?? "", full: p.text?.text ?? "" }] : [];
         });
         setItems(next);
+        setLookedUp(value);
         setActive(-1);
       } catch (e) {
         if ((e as Error).name !== "AbortError") setFailed(true); // fall back to a plain text box
@@ -75,10 +79,11 @@ export function AddressInput({
     };
   }, [value, enabled, picked, region]);
 
-  // In strict mode, block submitting until a suggestion has been picked.
+  // In strict mode, block submitting until a suggestion has been picked, unless Google found nothing to pick.
+  const noMatches = lookedUp === value && items.length === 0;
   useEffect(() => {
-    inputRef.current?.setCustomValidity(strict && enabled && !picked ? "Choose your address from the list of suggestions." : "");
-  }, [strict, enabled, picked]);
+    inputRef.current?.setCustomValidity(strict && enabled && !picked && !noMatches ? "Choose your address from the list of suggestions." : "");
+  }, [strict, enabled, picked, noMatches]);
 
   async function choose(s: Suggestion) {
     setValue(s.full);
@@ -159,6 +164,9 @@ export function AddressInput({
       )}
       {enabled && picked && (
         <p className="mt-1.5 px-1 text-[12px] text-green">Address confirmed.</p>
+      )}
+      {enabled && !picked && noMatches && value.trim().length >= 3 && (
+        <p className="mt-1.5 px-1 text-[12px] text-label-3">We couldn&apos;t match that address, so we&apos;ll use it exactly as typed.</p>
       )}
     </div>
   );

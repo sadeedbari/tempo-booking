@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The end-to-end test harness (Playwright fixtures use a function called `use`, which is not a React hook).
+    "e2e/**",
+    "test-results/**",
+    "playwright-report/**",
   ]),
 ]);
 

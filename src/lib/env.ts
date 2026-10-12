@@ -19,6 +19,9 @@ export const env = {
   // "common" accepts both work/school and personal Microsoft accounts.
   microsoftTenant: process.env.MICROSOFT_TENANT || "common",
   tokenEncryptionKey: process.env.TOKEN_ENCRYPTION_KEY,
+  // Test hooks: point texts / Stripe at local stand-ins. Only honoured when TEMPO_E2E=1, which only e2e/dev-server.sh sets.
+  twilioApiBase: process.env.TEMPO_E2E === "1" ? process.env.TWILIO_API_BASE : undefined,
+  stripeMockUrl: process.env.TEMPO_E2E === "1" ? process.env.STRIPE_MOCK_URL : undefined,
   vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY,
   vapidSubject: process.env.VAPID_SUBJECT || "mailto:info@sulosystems.com",

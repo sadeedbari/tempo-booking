@@ -105,7 +105,7 @@ export async function sendSms(to: string, body: string): Promise<{ ok: boolean; 
   if (!features.sms) return { ok: false, error: "Texting isn't set up on this server." };
   try {
     const auth = Buffer.from(`${env.twilioSid}:${env.twilioToken}`).toString("base64");
-    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${env.twilioSid}/Messages.json`, {
+    const res = await fetch(`${env.twilioApiBase ?? "https://api.twilio.com"}/2010-04-01/Accounts/${env.twilioSid}/Messages.json`, {
       method: "POST",
       headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ To: to, From: env.twilioFrom!, Body: body }),
@@ -240,19 +240,21 @@ const HOUR = 3600_000;
  * Sends the "N before the appointment" and "N after it ends" messages that have come due.
  * Runs from the hourly job. Each message is claimed before sending, so overlapping runs never double-send.
  */
-export async function runTimedWorkflows(now = new Date()) {
+export async function runTimedWorkflows(now = new Date(), onlyOrgs?: string[]) {
   const admin = createAdminClient();
   let sent = 0;
 
   // Businesses that haven't opened Workflows yet still get their built-in reminder.
   const [{ data: orgs }, { data: seeded }] = await Promise.all([
-    admin.from("organizations").select("id, reminder_hours_before"),
+    onlyOrgs ? admin.from("organizations").select("id, reminder_hours_before").in("id", onlyOrgs) : admin.from("organizations").select("id, reminder_hours_before"),
     admin.from("workflows").select("org_id").eq("default_key", "reminder"),
   ]);
   const have = new Set((seeded ?? []).map((w) => w.org_id as string));
   for (const o of orgs ?? []) if (!have.has(o.id)) await ensureDefaultWorkflows(o.id, o.reminder_hours_before);
 
-  const { data } = await admin.from("workflows").select(WORKFLOW_SELECT).eq("active", true).in("trigger", ["before_start", "after_end"]);
+  let wq = admin.from("workflows").select(WORKFLOW_SELECT).eq("active", true).in("trigger", ["before_start", "after_end"]);
+  if (onlyOrgs) wq = wq.in("org_id", onlyOrgs);
+  const { data } = await wq;
   for (const w of (data ?? []) as unknown as LoadedWorkflow[]) {
     const steps = w.steps.filter((s) => s.enabled).sort((x, y) => x.position - y.position);
     if (!steps.length) continue;
