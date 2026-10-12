@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { AlertCircle, CalendarClock, Check, ChevronRight, Circle, Clock, Download, Lightbulb } from "lucide-react";
+import { AlertCircle, CalendarClock, Check, ChevronRight, Clock, Download, Lightbulb } from "lucide-react";
 import { formatDate, formatTime, STATUS_LABEL } from "@/lib/format";
 import { change, RANGES, type Dashboard } from "@/lib/dashboard";
 import { Avatar, Badge, statusTone } from "@/components/ui/misc";
 import type { Membership, Organization } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { SetupProgress } from "./setup-progress";
 import { BarChart, BarRow, Card, Delta, Empty, Heatmap, Kpi, money, pct, StackedBar } from "./widgets";
 
 export interface DashboardViewProps {
@@ -80,6 +81,7 @@ export function DashboardView({ slug, org, me, members, isAdmin, d, rangeDays, n
             </Link>
           ))}
         </div>
+        {showSetup && <SetupProgress items={setup} />}
         <a
           href={`/api/export/home?org=${encodeURIComponent(slug)}&range=${rangeDays}`}
           className="inline-flex h-10 items-center gap-1.5 rounded-[10px] bg-surface-2 px-3.5 text-[13px] font-medium transition hover:bg-surface-3"
@@ -89,22 +91,6 @@ export function DashboardView({ slug, org, me, members, isAdmin, d, rangeDays, n
         </a>
         </div>
       </div>
-
-      {showSetup && (
-        <Card title="Get set up" subtitle={`${setup.filter((s) => s.done).length} of ${setup.length} done`}>
-          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {setup.map((s) => (
-              <li key={s.label}>
-                <Link href={s.href} className="flex items-center gap-3 rounded-[12px] bg-surface-2 px-3.5 py-2.5 text-[14px] transition hover:bg-surface-3">
-                  {s.done ? <span className="grid size-5 place-items-center rounded-full bg-green text-white"><Check className="size-3.5" strokeWidth={3} /></span> : <Circle className="size-5 text-label-4" />}
-                  <span className={cn("flex-1", s.done && "text-label-3 line-through")}>{s.label}</span>
-                  {!s.done && <ChevronRight className="size-4 text-label-3" />}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
 
       {/* Headline numbers */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
