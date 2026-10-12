@@ -19,6 +19,10 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Content-Security-Policy", value: "frame-ancestors *" }],
       },
       {
+        source: "/sw.js",
+        headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }],
+      },
+      {
         source: "/embed.js",
         headers: [{ key: "Cache-Control", value: "public, max-age=3600, stale-while-revalidate=86400" }],
       },

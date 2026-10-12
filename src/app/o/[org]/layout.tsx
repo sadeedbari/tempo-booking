@@ -1,4 +1,5 @@
 import { getMyOrgs, getOrgContext, requireUser } from "@/lib/auth";
+import { InstallBanner } from "@/components/app/pwa";
 import { Sidebar } from "@/components/app/sidebar";
 import { createClient } from "@/lib/supabase/server";
 
@@ -22,7 +23,8 @@ export default async function OrgLayout(props: LayoutProps<"/o/[org]">) {
         pendingApprovals={pendingApprovals ?? 0}
       />
       <main className="pb-28 lg:pb-10 lg:pl-[260px]">
-        <div className="mx-auto max-w-[1400px] px-4 pt-6 sm:px-8 sm:pt-10">{props.children}</div>
+        <div className="mx-auto max-w-[1400px] px-4 pt-6 sm:px-8 sm:pt-10"><InstallBanner />
+        {props.children}</div>
       </main>
     </div>
   );
