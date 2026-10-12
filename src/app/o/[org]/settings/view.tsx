@@ -100,12 +100,6 @@ export function SettingsView({
                   {[5, 10, 15, 20, 30, 60].map((d) => <option key={d} value={d}>Every {d} minutes</option>)}
                 </Select>
               </Field>
-              <Field label="New bookings are" hint="Manual: you approve or decline each online request.">
-                <Select name="booking_confirmation" defaultValue={org.booking_confirmation}>
-                  <option value="auto">Confirmed automatically</option>
-                  <option value="manual">Approved by me first</option>
-                </Select>
-              </Field>
               <Field label="Booking alerts for your team" hint="Push notification to owners, admins and the booked team member when a booking is made, requested, rescheduled or cancelled.">
                 <div className="flex h-11 items-center gap-3">
                   <Switch name="notify_push" defaultChecked={org.notify_push} label="Booking alerts for your team" />

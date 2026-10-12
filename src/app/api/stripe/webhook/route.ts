@@ -25,11 +25,12 @@ export async function POST(request: Request) {
       const session = event.data.object as Stripe.Checkout.Session;
       const bookingId = session.metadata?.booking_id;
       if (bookingId && session.payment_status === "paid") {
-        const { data: org } = await admin.from("bookings").select("org:organizations(booking_confirmation, stripe_account_id)").eq("id", bookingId).single();
-        const o = org?.org as unknown as { booking_confirmation: string; stripe_account_id: string | null } | null;
+        const { data: org } = await admin.from("bookings").select("org:organizations(stripe_account_id), service:services(auto_approve)").eq("id", bookingId).single();
+        const o = org?.org as unknown as { stripe_account_id: string | null } | null;
+        const svc = org?.service as unknown as { auto_approve: boolean } | null;
         // The charge must have happened on this booking's own business's Stripe account.
         if (!o || (event.account && o.stripe_account_id !== event.account)) break;
-        const manual = o.booking_confirmation === "manual";
+        const manual = svc ? !svc.auto_approve : false; // a deleted service can no longer require approval
         const { data } = await admin
           .from("bookings")
           .update({ status: manual ? "pending_approval" : "confirmed", payment_status: "paid" })

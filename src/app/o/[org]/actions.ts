@@ -52,6 +52,7 @@ const serviceSchema = z.object({
   location_type: z.enum(["in_person", "video", "phone"]),
   location_detail: z.string().trim().max(300).optional(),
   address_mode: z.enum(["off", "optional", "required"]).default("off"),
+  auto_approve: z.boolean(),
   active: z.boolean(),
 });
 
@@ -61,6 +62,7 @@ export async function saveService(slug: string, formData: FormData): Promise<Act
     const parsed = serviceSchema.safeParse({
       ...Object.fromEntries(formData),
       active: formData.get("active") === "on",
+      auto_approve: formData.get("auto_approve") === "on",
     });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const v = parsed.data;
@@ -82,6 +84,7 @@ export async function saveService(slug: string, formData: FormData): Promise<Act
       location_type: v.location_type,
       location_detail: v.location_detail || null,
       address_mode: v.address_mode,
+      auto_approve: v.auto_approve,
       active: v.active,
     };
 
@@ -741,7 +744,6 @@ const orgSchema = z.object({
   slot_interval_minutes: z.coerce.number().int(),
   cancellation_window_hours: z.coerce.number().int().min(0).max(720),
   reminder_hours_before: z.coerce.number().int().min(0).max(168),
-  booking_confirmation: z.enum(["auto", "manual"]),
   notify_push: z.enum(["on", ""]).optional(), // the switch sends "on" when enabled, "" when off
 });
 

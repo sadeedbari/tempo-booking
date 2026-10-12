@@ -53,6 +53,7 @@ export function ServicesView({
                     {s.description && <p className="mt-0.5 line-clamp-2 text-[14px] text-label-2">{s.description}</p>}
                   </div>
                   {!s.active && <Badge>Hidden</Badge>}
+                  {s.active && !s.auto_approve && <Badge tone="orange">Needs approval</Badge>}
                 </div>
                 <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-label-2">
                   <span className="inline-flex items-center gap-1.5"><Clock className="size-3.5" />{formatDuration(s.duration_minutes)}</span>
@@ -198,6 +199,14 @@ function ServiceEditor({
               );
             })}
           </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 rounded-[12px] bg-surface-2 px-4 py-3">
+          <div>
+            <div className="text-[15px] font-medium">Automatically approve bookings</div>
+            <div className="text-[13px] text-label-2">Off: each online booking arrives as a request that you confirm or reject.</div>
+          </div>
+          <Switch name="auto_approve" defaultChecked={service.auto_approve ?? true} label="Automatically approve bookings" />
         </div>
 
         <div className="flex items-center justify-between rounded-[12px] bg-surface-2 px-4 py-3">

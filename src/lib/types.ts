@@ -5,7 +5,6 @@ export type LocationType = "in_person" | "video" | "phone";
 export type AddressMode = "off" | "optional" | "required";
 export type BookingStatus = "pending_payment" | "pending_approval" | "confirmed" | "cancelled" | "completed" | "no_show";
 /** "auto": confirmed immediately. "manual": held until an owner/admin approves. */
-export type ConfirmationMode = "auto" | "manual";
 export type PaymentStatus = "none" | "pending" | "paid" | "refunded";
 /** "availability": each person's recurring weekly hours. "shifts": an admin-built dated schedule. */
 export type ScheduleMode = "availability" | "shifts";
@@ -28,7 +27,6 @@ export interface Organization {
   cancellation_window_hours: number;
   reminder_hours_before: number;
   schedule_mode: ScheduleMode;
-  booking_confirmation: ConfirmationMode;
   notify_push: boolean;
   stripe_account_id: string | null;
   stripe_charges_enabled: boolean;
@@ -71,6 +69,8 @@ export interface Service {
   location_type: LocationType;
   location_detail: string | null;
   address_mode: AddressMode;
+  /** true: online bookings are confirmed automatically; false: they arrive as requests to approve. */
+  auto_approve: boolean;
   active: boolean;
   position: number;
 }
@@ -171,6 +171,7 @@ export interface PublicService {
   color: string;
   location_type: LocationType;
   address_mode: AddressMode;
+  auto_approve: boolean;
   staff_ids: string[];
 }
 
@@ -196,7 +197,7 @@ export interface PublicOrg {
     Organization,
     | "id" | "name" | "slug" | "description" | "timezone" | "currency" | "accent_color" | "logo_url"
     | "address" | "phone" | "website" | "min_notice_minutes" | "max_advance_days"
-    | "slot_interval_minutes" | "cancellation_window_hours" | "schedule_mode" | "booking_confirmation"
+    | "slot_interval_minutes" | "cancellation_window_hours" | "schedule_mode"
   > & { payments_enabled: boolean };
   services: PublicService[];
   staff: PublicStaff[];

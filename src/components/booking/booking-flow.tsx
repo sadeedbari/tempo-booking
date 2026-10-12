@@ -330,9 +330,9 @@ export function BookingFlow({
                 <Button type="submit" size="lg" pill className="w-full" loading={pending}>
                   {service.deposit_cents > 0 && org.payments_enabled
                     ? `Continue to pay ${formatMoney(service.deposit_cents, org.currency)} deposit`
-                    : org.booking_confirmation === "manual" ? "Request booking" : "Confirm booking"}
+                    : !service.auto_approve ? "Request booking" : "Confirm booking"}
                 </Button>
-                {org.booking_confirmation === "manual" && (
+                {!service.auto_approve && (
                   <p className="text-center text-[12px] text-label-3">
                     {org.name} confirms each booking personally. You&apos;ll get an email once it&apos;s approved
                     {service.deposit_cents > 0 && org.payments_enabled ? ", and your deposit is refunded if it isn't." : "."}
