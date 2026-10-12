@@ -153,6 +153,14 @@ export function CalendarView(props: Props) {
   }
 
   const today = todayKey(tz);
+  const viewingToday = p.view === "day" ? p.date === today : today >= p.rangeStart && today <= addDaysToKey(p.rangeStart, 6);
+  // What the date control shows: "Today" when you're on it, otherwise the day or week you're looking at.
+  const short = (k: string, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-US", { ...o, timeZone: "UTC" }).format(new Date(`${k}T12:00:00Z`));
+  const rangeLabel = viewingToday && p.view === "day"
+    ? "Today"
+    : p.view === "day"
+      ? short(p.date, { weekday: "short", month: "short", day: "numeric" })
+      : `${short(p.rangeStart, { month: "short", day: "numeric" })} – ${short(addDaysToKey(p.rangeStart, 6), { month: "short", day: "numeric" })}`;
   const nowMin = now ? minutesInDay(now.toISOString(), tz) : -1;
 
   return (
@@ -165,11 +173,16 @@ export function CalendarView(props: Props) {
           <h1 className="text-[28px] font-bold leading-tight sm:text-[34px]">{p.view === "day" ? dayTitle : title}</h1>
           <p className="text-[14px] text-label-2">{p.bookings.length} booking{p.bookings.length === 1 ? "" : "s"} {p.view === "day" ? "today" : "this week"}</p>
         </div>
+        {!viewingToday && (
+          <button onClick={() => go(today)} className="h-10 rounded-[11px] bg-surface px-3.5 text-[14px] font-medium text-accent shadow-sm hairline hover:bg-surface-2 sm:h-10">
+            Today
+          </button>
+        )}
         <div className="flex items-center gap-1 rounded-[11px] bg-surface p-1 shadow-sm hairline">
           <button onClick={() => go(addDaysToKey(p.date, -step))} className="grid size-10 place-items-center sm:size-8 rounded-[8px] text-label-2 hover:bg-surface-2" aria-label="Previous">
             <ChevronLeft className="size-5" />
           </button>
-          <button onClick={() => go(today)} className="h-10 rounded-[8px] px-3 sm:h-8 text-[14px] font-medium hover:bg-surface-2">Today</button>
+          <span className="min-w-[7.5rem] px-2 text-center text-[14px] font-medium" aria-live="polite">{rangeLabel}</span>
           <button onClick={() => go(addDaysToKey(p.date, step))} className="grid size-10 place-items-center sm:size-8 rounded-[8px] text-label-2 hover:bg-surface-2" aria-label="Next">
             <ChevronRight className="size-5" />
           </button>
