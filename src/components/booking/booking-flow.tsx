@@ -176,6 +176,7 @@ export function BookingFlow({
                   <div className="text-[13px] text-label-2">{formatMoney(service.price_cents, org.currency)}{service.deposit_cents > 0 && org.payments_enabled ? ` · ${formatMoney(service.deposit_cents, org.currency)} deposit` : ""}</div>
                 </div>
               </div>
+              {service.description && <p className="line-clamp-4 whitespace-pre-line text-[14px] leading-relaxed text-label-2 lg:line-clamp-none">{service.description}</p>}
               <SummaryRow icon={Clock}>{formatDuration(service.duration_minutes)}</SummaryRow>
               {(() => { const L = LOC[service.location_type]; return <SummaryRow icon={L.icon}>{L.label}</SummaryRow>; })()}
               {(chosenStaff || assignedStaff) && <SummaryRow icon={Users}>{(chosenStaff || assignedStaff)!.display_name}</SummaryRow>}
