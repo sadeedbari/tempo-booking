@@ -60,11 +60,14 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/export/[
       supabase.from("shifts").select("*").eq("org_id", org.id).gte("day", days[0]).lte("day", days[days.length - 1]).order("day").order("start_time"),
       supabase.from("locations").select("*").eq("org_id", org.id).order("position").order("created_at"),
     ]);
+    // A location's schedule exports just that location's shifts.
+    const locId = sp.get("location") ?? "";
+    const scopedLocation = ((locations ?? []) as Location[]).some((l) => l.id === locId) ? locId : null;
     const bookable = members.filter((m) => m.bookable);
     const people = isAdmin ? bookable : bookable.filter((m) => m.id === me.id);
     sheets = scheduleSheets({
       days,
-      shifts: ((shifts ?? []) as Shift[]).filter((s) => people.some((p) => p.id === s.member_id)),
+      shifts: ((shifts ?? []) as Shift[]).filter((s) => people.some((p) => p.id === s.member_id) && (!scopedLocation || s.location_id === scopedLocation)),
       members: people,
       locations: (locations ?? []) as Location[],
       period,

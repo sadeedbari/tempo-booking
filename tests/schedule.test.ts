@@ -31,3 +31,27 @@ test("month copy keeps the weekday and its position in the month", () => {
   // Oct 29 = 5th Thursday; September has only four, so it falls back to the 4th (Sep 24).
   assert.deepEqual(pairs[28], { from: "2026-09-24", to: "2026-10-29" });
 });
+
+import { crossLocationOverlaps, hasSameLocationOverlap } from "../src/lib/schedule";
+
+const sp = (start: string, end: string, location_id: string | null) => ({ start, end, location_id });
+
+test("the same person at two locations at the same time is flagged, not blocked", () => {
+  const pairs = crossLocationOverlaps([sp("09:00", "13:00", "A"), sp("12:00", "17:00", "B")]);
+  assert.equal(pairs.length, 1);
+  assert.equal(hasSameLocationOverlap([sp("09:00", "13:00", "A"), sp("12:00", "17:00", "B")]), false);
+});
+
+test("back-to-back shifts at different locations are fine", () => {
+  assert.equal(crossLocationOverlaps([sp("09:00", "13:00", "A"), sp("13:00", "17:00", "B")]).length, 0);
+});
+
+test("overlaps at the same location are never allowed (any-location counts as its own place)", () => {
+  assert.equal(hasSameLocationOverlap([sp("09:00", "13:00", "A"), sp("12:00", "14:00", "A")]), true);
+  assert.equal(hasSameLocationOverlap([sp("09:00", "13:00", null), sp("12:00", "14:00", null)]), true);
+  assert.equal(crossLocationOverlaps([sp("09:00", "13:00", null), sp("12:00", "14:00", "A")]).length, 1);
+});
+
+test("shift times with seconds are understood", () => {
+  assert.equal(crossLocationOverlaps([sp("09:00:00", "13:00:00", "A"), sp("12:30:00", "17:00:00", "B")]).length, 1);
+});

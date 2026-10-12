@@ -53,3 +53,29 @@ export function copyPairs(period: SchedulePeriod, targetStart: string): { from: 
     return { from: `${prevStart.slice(0, 8)}${pad(day)}`, to };
   });
 }
+
+/** A shift's start/end ("HH:MM" or "HH:MM:SS") and where it is (null = any location). */
+export interface ShiftSpan {
+  start: string;
+  end: string;
+  location_id: string | null;
+}
+const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+const overlaps = (a: ShiftSpan, b: ShiftSpan) => toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
+
+/** Pairs of one person's shifts that overlap in time but are at different locations (allowed, but worth a warning). */
+export function crossLocationOverlaps<T extends ShiftSpan>(shifts: T[]): [T, T][] {
+  const out: [T, T][] = [];
+  for (let i = 0; i < shifts.length; i++)
+    for (let j = i + 1; j < shifts.length; j++)
+      if (shifts[i].location_id !== shifts[j].location_id && overlaps(shifts[i], shifts[j])) out.push([shifts[i], shifts[j]]);
+  return out;
+}
+
+/** True when two shifts at the same location overlap, which is never allowed. */
+export function hasSameLocationOverlap(shifts: ShiftSpan[]): boolean {
+  for (let i = 0; i < shifts.length; i++)
+    for (let j = i + 1; j < shifts.length; j++)
+      if (shifts[i].location_id === shifts[j].location_id && overlaps(shifts[i], shifts[j])) return true;
+  return false;
+}

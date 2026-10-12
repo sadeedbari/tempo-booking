@@ -11,7 +11,7 @@ import { decrypt } from "@/lib/calendar/crypto";
 import { getProvider } from "@/lib/calendar/providers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PALETTE, RESERVED_SLUGS, slugify } from "@/lib/utils";
-import { copyPairs, periodDays, type SchedulePeriod } from "@/lib/schedule";
+import { copyPairs, hasSameLocationOverlap, periodDays, type SchedulePeriod } from "@/lib/schedule";
 import { normalizePhone } from "@/lib/phone";
 import { withUnit } from "@/lib/address";
 import { dayKey } from "@/lib/format";
@@ -444,7 +444,7 @@ async function assertScheduled(
 
 const shiftsSchema = z
   .array(z.object({ start: z.string().regex(HHMM), end: z.string().regex(HHMM), location_id: z.string().uuid().nullable() }))
-  .max(6);
+  .max(12);
 
 /** Replaces one person's shifts for one day (an empty list = day off). */
 export async function saveDayShifts(
@@ -459,9 +459,10 @@ export async function saveDayShifts(
     const parsed = shiftsSchema.safeParse(shifts);
     if (!parsed.success) return { error: "Check the shift times." };
     const list = [...parsed.data].sort((a, b) => a.start.localeCompare(b.start));
-    for (let i = 0; i < list.length; i++) {
-      if (list[i].end <= list[i].start) return { error: "Each shift must end after it starts." };
-      if (i > 0 && list[i].start < list[i - 1].end) return { error: "Shifts on the same day can't overlap." };
+    for (const s of list) if (s.end <= s.start) return { error: "Each shift must end after it starts." };
+    // Two places at once is allowed (the schedule warns about it), but not twice at the same place.
+    if (hasSameLocationOverlap(list.map((s) => ({ start: s.start, end: s.end, location_id: s.location_id })))) {
+      return { error: "Shifts at the same location can't overlap." };
     }
     const supabase = await createClient();
     const { error } = await supabase.rpc("set_day_shifts", { p_org: org.id, p_member: memberId, p_day: day, p_shifts: list });
@@ -473,18 +474,28 @@ export async function saveDayShifts(
   }
 }
 
+/** null = all locations; a location id = just that one (checked to belong to the team); false = not found. */
+async function scopedLocation(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string, locationId?: string): Promise<string | null | false> {
+  if (!locationId || locationId === "all") return null;
+  const { data } = await supabase.from("locations").select("id").eq("id", locationId).eq("org_id", orgId).single();
+  return data ? (data.id as string) : false;
+}
+
 /** Copies the previous week/month onto the period starting at `targetStart`. */
 export async function copySchedule(
   slug: string,
   period: SchedulePeriod,
   targetStart: string,
   replace: boolean,
+  locationId?: string,
 ): Promise<ActionResult & { copied?: number }> {
   try {
     const { org } = await ctxFor(slug, true);
     if (!DAY.test(targetStart)) return { error: "Pick a valid period." };
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc("copy_shifts", { p_org: org.id, p_pairs: copyPairs(period, targetStart), p_replace: replace });
+    const location = await scopedLocation(supabase, org.id, locationId);
+    if (location === false) return { error: "Location not found." };
+    const { data, error } = await supabase.rpc("copy_shifts", { p_org: org.id, p_pairs: copyPairs(period, targetStart), p_replace: replace, p_location: location });
     if (error) return { error: friendly(error) };
     refresh(slug);
     return { ok: true, copied: data as number };
@@ -494,13 +505,15 @@ export async function copySchedule(
 }
 
 /** Seeds shifts for a period from everyone's recurring weekly hours (only for days with no shifts yet). */
-export async function fillFromWeeklyHours(slug: string, period: SchedulePeriod, start: string): Promise<ActionResult & { copied?: number }> {
+export async function fillFromWeeklyHours(slug: string, period: SchedulePeriod, start: string, locationId?: string): Promise<ActionResult & { copied?: number }> {
   try {
     const { org } = await ctxFor(slug, true);
     if (!DAY.test(start)) return { error: "Pick a valid period." };
     const days = periodDays(period, start);
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc("fill_shifts_from_weekly", { p_org: org.id, p_from: days[0], p_to: days[days.length - 1] });
+    const location = await scopedLocation(supabase, org.id, locationId);
+    if (location === false) return { error: "Location not found." };
+    const { data, error } = await supabase.rpc("fill_shifts_from_weekly", { p_org: org.id, p_from: days[0], p_to: days[days.length - 1], p_location: location });
     if (error) return { error: friendly(error) };
     refresh(slug);
     return { ok: true, copied: data as number };

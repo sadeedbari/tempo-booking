@@ -61,11 +61,13 @@ export default async function Preview(props: PageProps<"/preview/[page]">) {
       members.flatMap((mm, i): Shift[] => {
         const wd = weekdayOfKey(d);
         if (wd === 0 || wd === 6 || (i === 1 && wd === 3)) return [];
-        const mk = (n: number, s: string, e: string): Shift => ({ id: `${mm.id}-${d}-${n}`, org_id: "o1", member_id: mm.id, location_id: null, day: d, start_time: s, end_time: e });
-        return i === 2 ? [mk(1, "09:00", "12:00"), mk(2, "14:00", "18:00")] : [mk(1, "09:00", "17:00")];
+        const mk = (n: number, s: string, e: string, loc: string | null = null): Shift => ({ id: `${mm.id}-${d}-${n}`, org_id: "o1", member_id: mm.id, location_id: loc, day: d, start_time: s, end_time: e });
+        if (i === 0) return wd === 2 ? [mk(1, "09:00", "13:00", "l1"), mk(2, "12:00", "17:00", "l2")] : [mk(1, "09:00", "17:00", "l1")];
+        if (i === 1) return [mk(1, "09:00", "17:00", "l2")];
+        return [mk(1, "09:00", "12:00", "l1"), mk(2, "14:00", "18:00", "l2")];
       }),
     );
-    return shell(<ScheduleView slug="lumen" org={org} period={period} start={start} days={days} today={day} members={members} meId="m1" isAdmin={sp.as !== "staff"} shifts={shifts} locations={[]} />);
+    return shell(<ScheduleView slug="lumen" org={org} period={period} start={start} days={days} today={day} members={members} meId="m1" isAdmin={sp.as !== "staff"} shifts={shifts} locations={[{ id: "l1", org_id: "o1", name: "Queen West", address: null, phone: null, active: true, position: 0 }, { id: "l2", org_id: "o1", name: "Leslieville", address: null, phone: null, active: true, position: 1 }]} locationStaff={{}} locationId={typeof sp.location === "string" ? sp.location : "all"} />);
   }
   if (page === "services") return shell(<ServicesView slug="lumen" org={org} services={services} staffMap={{}} members={members} canEdit />);
   if (page === "team") return shell(<TeamView slug="lumen" members={[...members, { ...members[2], id: "m4", user_id: null, email: "priya@lumen.studio", display_name: "Priya Shah", title: null, color: "#FF9500" }, { ...members[2], id: "m5", user_id: null, email: null, display_name: "Sam Ortiz", title: "Front desk", color: "#FF2D55" }]} me={members[0]} isAdmin invites={[{ id: "i1", org_id: "o1", member_id: "m4", email: "priya@lumen.studio", role: "member", token: "t", accepted_at: null, expires_at: "2026-10-19T12:00:00Z", created_at: "" }]} emails={{}} />);

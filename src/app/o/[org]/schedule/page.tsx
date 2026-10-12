@@ -19,7 +19,7 @@ export default async function SchedulePage(props: PageProps<"/o/[org]/schedule">
   const days = periodDays(period, start);
 
   const supabase = await createClient();
-  const [shifts, locations] = await Promise.all([
+  const [shifts, locations, links] = await Promise.all([
     supabase
       .from("shifts")
       .select("*")
@@ -29,7 +29,13 @@ export default async function SchedulePage(props: PageProps<"/o/[org]/schedule">
       .order("day")
       .order("start_time"),
     supabase.from("locations").select("*").eq("org_id", org.id).eq("active", true).order("position").order("created_at"),
+    supabase.from("member_locations").select("location_id, member_id"),
   ]);
+  const locationList = (locations.data ?? []) as Location[];
+  // Which people work at which location (a location nobody is assigned to is open to everyone).
+  const locationStaff: Record<string, string[]> = {};
+  (links.data ?? []).forEach((r) => (locationStaff[r.location_id] ??= []).push(r.member_id));
+  const locationId = typeof sp.location === "string" && locationList.some((l) => l.id === sp.location) ? sp.location : "all";
 
   return (
     <ScheduleView
@@ -43,7 +49,9 @@ export default async function SchedulePage(props: PageProps<"/o/[org]/schedule">
       meId={me.id}
       isAdmin={isAdmin}
       shifts={(shifts.data ?? []) as Shift[]}
-      locations={(locations.data ?? []) as Location[]}
+      locations={locationList}
+      locationStaff={locationStaff}
+      locationId={locationId}
     />
   );
 }
