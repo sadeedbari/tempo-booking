@@ -99,10 +99,10 @@ export function TimePicker({
             {monthLabel.split(" ")[0]} <span className="font-normal text-label-2">{monthLabel.split(" ")[1]}</span>
           </h3>
           <div className="flex gap-1">
-            <button disabled={!canGoBack} onClick={() => { setMonth(addMonthsToKey(month, -1)); setPickedDay(null); }} className="grid size-9 place-items-center rounded-full text-accent transition hover:bg-accent-soft disabled:text-label-4 disabled:hover:bg-transparent" aria-label="Previous month">
+            <button disabled={!canGoBack} onClick={() => { setMonth(addMonthsToKey(month, -1)); setPickedDay(null); }} className="grid size-10 place-items-center rounded-full text-accent transition hover:bg-accent-soft disabled:text-label-4 disabled:hover:bg-transparent" aria-label="Previous month">
               <ChevronLeft className="size-5" />
             </button>
-            <button disabled={!canGoForward} onClick={() => { setMonth(addMonthsToKey(month, 1)); setPickedDay(null); }} className="grid size-9 place-items-center rounded-full text-accent transition hover:bg-accent-soft disabled:text-label-4 disabled:hover:bg-transparent" aria-label="Next month">
+            <button disabled={!canGoForward} onClick={() => { setMonth(addMonthsToKey(month, 1)); setPickedDay(null); }} className="grid size-10 place-items-center rounded-full text-accent transition hover:bg-accent-soft disabled:text-label-4 disabled:hover:bg-transparent" aria-label="Next month">
               <ChevronRight className="size-5" />
             </button>
           </div>
@@ -155,7 +155,7 @@ export function TimePicker({
               <div className="text-[16px] font-semibold">{dayLabel}</div>
               <div className="inline-flex rounded-[9px] bg-surface-2 p-0.5 text-[12px] font-semibold">
                 {[true, false].map((h) => (
-                  <button key={String(h)} type="button" onClick={() => setHour12(h)} className={cn("h-7 rounded-[7px] px-2.5 transition", hour12 === h ? "bg-surface shadow-sm" : "text-label-3")}>
+                  <button key={String(h)} type="button" onClick={() => setHour12(h)} className={cn("h-9 rounded-[7px] px-3 sm:h-7 sm:px-2.5 transition", hour12 === h ? "bg-surface shadow-sm" : "text-label-3")}>
                     {h ? "12h" : "24h"}
                   </button>
                 ))}

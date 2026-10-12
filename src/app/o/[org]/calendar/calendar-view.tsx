@@ -166,11 +166,11 @@ export function CalendarView(props: Props) {
           <p className="text-[14px] text-label-2">{p.bookings.length} booking{p.bookings.length === 1 ? "" : "s"} {p.view === "day" ? "today" : "this week"}</p>
         </div>
         <div className="flex items-center gap-1 rounded-[11px] bg-surface p-1 shadow-sm hairline">
-          <button onClick={() => go(addDaysToKey(p.date, -step))} className="grid size-8 place-items-center rounded-[8px] text-label-2 hover:bg-surface-2" aria-label="Previous">
+          <button onClick={() => go(addDaysToKey(p.date, -step))} className="grid size-10 place-items-center sm:size-8 rounded-[8px] text-label-2 hover:bg-surface-2" aria-label="Previous">
             <ChevronLeft className="size-5" />
           </button>
-          <button onClick={() => go(today)} className="h-8 rounded-[8px] px-3 text-[14px] font-medium hover:bg-surface-2">Today</button>
-          <button onClick={() => go(addDaysToKey(p.date, step))} className="grid size-8 place-items-center rounded-[8px] text-label-2 hover:bg-surface-2" aria-label="Next">
+          <button onClick={() => go(today)} className="h-10 rounded-[8px] px-3 sm:h-8 text-[14px] font-medium hover:bg-surface-2">Today</button>
+          <button onClick={() => go(addDaysToKey(p.date, step))} className="grid size-10 place-items-center sm:size-8 rounded-[8px] text-label-2 hover:bg-surface-2" aria-label="Next">
             <ChevronRight className="size-5" />
           </button>
         </div>
@@ -192,7 +192,7 @@ export function CalendarView(props: Props) {
               key={l.id}
               onClick={() => setLocationFilter(l.id)}
               className={cn(
-                "flex h-8 shrink-0 items-center rounded-full px-3.5 text-[13px] font-medium transition",
+                "flex h-10 shrink-0 items-center sm:h-8 rounded-full px-3.5 text-[13px] font-medium transition",
                 locationFilter === l.id ? "bg-accent text-white" : "bg-surface text-label-2 hairline hover:text-label",
               )}
             >
@@ -210,7 +210,7 @@ export function CalendarView(props: Props) {
               key={m.id}
               onClick={() => setStaffFilter(m.id)}
               className={cn(
-                "flex h-8 shrink-0 items-center gap-2 rounded-full pr-3 text-[13px] font-medium transition",
+                "flex h-10 shrink-0 items-center sm:h-8 gap-2 rounded-full pr-3 text-[13px] font-medium transition",
                 m.id === "all" ? "pl-3" : "pl-1",
                 staffFilter === m.id ? "bg-label text-canvas" : "bg-surface text-label-2 hairline hover:text-label",
               )}
@@ -224,13 +224,16 @@ export function CalendarView(props: Props) {
 
       {/* Grid */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[18px] bg-surface shadow-sm hairline">
+        {/* One scroll area for headers and body, so they never drift apart on narrow screens */}
+        <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-auto">
+        <div className="min-w-fit">
         {/* Column headers */}
-        <div className="flex border-b border-separator">
-          <div className="w-14 shrink-0 sm:w-16" />
+        <div className="sticky top-0 z-30 flex border-b border-separator bg-surface">
+          <div className="sticky left-0 z-10 w-14 shrink-0 bg-surface sm:w-16" />
           {columns.map((c) => {
             const isToday = c.day === today;
             return (
-              <div key={c.key} className="min-w-[120px] flex-1 border-l border-separator px-2 py-2.5 text-center">
+              <div key={c.key} className="min-w-[88px] flex-1 border-l border-separator px-1 py-2.5 sm:min-w-[120px] sm:px-2 text-center">
                 {c.member ? (
                   <div className="flex items-center justify-center gap-2">
                     <Avatar name={c.member.display_name} color={c.member.color} size={26} />
@@ -252,10 +255,10 @@ export function CalendarView(props: Props) {
         </div>
 
         {/* Body */}
-        <div ref={scrollRef} className="relative flex-1 overflow-auto">
+        <div className="relative">
           <div className="flex" style={{ height: hours.length * HOUR }}>
             {/* Time gutter */}
-            <div className="relative w-14 shrink-0 sm:w-16">
+            <div className="sticky left-0 z-10 w-14 shrink-0 bg-surface sm:w-16">
               {hours.map((h, i) => (
                 <div key={h} className="absolute right-2 -translate-y-1/2 text-[11px] font-medium text-label-3" style={{ top: i * HOUR }}>
                   {i === 0 ? "" : new Intl.DateTimeFormat("en-US", { hour: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(2020, 0, 1, h)))}
@@ -284,7 +287,7 @@ export function CalendarView(props: Props) {
               return (
                 <div
                   key={c.key}
-                  className="relative min-w-[120px] flex-1 cursor-cell border-l border-separator bg-surface-2"
+                  className="relative min-w-[88px] flex-1 cursor-cell sm:min-w-[120px] border-l border-separator bg-surface-2"
                   onClick={(e) => onGridClick(e, c.day, clickMember)}
                 >
                   {/* Working hours */}
@@ -358,6 +361,8 @@ export function CalendarView(props: Props) {
             })}
           </div>
         </div>
+        </div>
+        </div>
       </div>
 
       <NewBookingSheet
@@ -398,7 +403,7 @@ function Welcome({ slug }: { slug: string }) {
         <div className="text-[14px] text-white/80">We added starter services and Mon–Fri, 9–5 hours. Tweak them, then share your booking page.</div>
       </div>
       <a href={`/${slug}`} target="_blank" className={buttonClass("gray", "sm", true, "bg-white text-[#007AFF] hover:bg-white/90")}>View booking page</a>
-      <button onClick={() => setOpen(false)} className="text-[14px] font-medium text-white/80 hover:text-white">Dismiss</button>
+      <button onClick={() => setOpen(false)} className="h-10 text-[14px] font-medium text-white/80 hover:text-white">Dismiss</button>
     </div>
   );
 }

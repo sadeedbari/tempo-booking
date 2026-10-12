@@ -71,14 +71,14 @@ export function AvailabilityView({
         <div className="scrollbar-none -mx-1 mb-6 flex gap-2 overflow-x-auto px-1">
           {members.map((m) => (
             <button key={m.id} onClick={() => router.push(`/o/${slug}/availability?member=${m.id}`)}
-              className={cn("flex h-9 shrink-0 items-center gap-2 rounded-full pl-1 pr-3.5 text-[14px] font-medium transition", m.id === memberId ? "bg-label text-canvas" : "bg-surface hairline text-label-2")}>
+              className={cn("flex h-10 shrink-0 items-center gap-2 rounded-full pl-1 pr-3.5 text-[14px] font-medium transition", m.id === memberId ? "bg-label text-canvas" : "bg-surface hairline text-label-2")}>
               <Avatar name={m.display_name} color={m.color} size={28} /> {m.display_name}
             </button>
           ))}
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_380px]">
         <div className="space-y-2">
           <div className="overflow-hidden rounded-[18px] bg-surface shadow-sm hairline divide-y divide-separator">
             {WD.map((d, i) => {
@@ -88,24 +88,24 @@ export function AvailabilityView({
                 <div key={d} className="flex flex-wrap items-start gap-4 px-5 py-4">
                   <div className="flex w-40 items-center gap-3 pt-1">
                     <Switch label={DAYS[i]} checked={on} onChange={(v) => update(d, v ? [{ start: "09:00", end: "17:00" }] : [])} />
-                    <span className={cn("text-[15px] font-medium", !on && "text-label-3")}>{DAYS[i]}</span>
+                    <span className={cn("py-2 text-[15px] font-medium", !on && "text-label-3")}>{DAYS[i]}</span>
                   </div>
                   <div className="flex-1 space-y-2">
                     {!on && <div className="pt-2 text-[14px] text-label-3">Unavailable</div>}
                     {blocks.map((b, bi) => (
                       <div key={bi} className="flex items-center gap-2 animate-fade">
-                        <Select className="h-9 w-32" value={b.start} onChange={(e) => update(d, blocks.map((x, xi) => (xi === bi ? { ...x, start: e.target.value } : x)))}>
+                        <Select className="h-10 w-32" value={b.start} onChange={(e) => update(d, blocks.map((x, xi) => (xi === bi ? { ...x, start: e.target.value } : x)))}>
                           {TIME_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                         </Select>
                         <span className="text-label-3">–</span>
-                        <Select className="h-9 w-32" value={b.end} onChange={(e) => update(d, blocks.map((x, xi) => (xi === bi ? { ...x, end: e.target.value } : x)))}>
+                        <Select className="h-10 w-32" value={b.end} onChange={(e) => update(d, blocks.map((x, xi) => (xi === bi ? { ...x, end: e.target.value } : x)))}>
                           {[...TIME_OPTIONS.slice(1), { value: "23:59", label: "Midnight" }].map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                         </Select>
-                        <button onClick={() => update(d, blocks.filter((_, xi) => xi !== bi))} className="grid size-8 place-items-center rounded-full text-label-3 hover:bg-surface-2 hover:text-red" aria-label="Remove">
+                        <button onClick={() => update(d, blocks.filter((_, xi) => xi !== bi))} className="grid size-10 place-items-center sm:size-8 rounded-full text-label-3 hover:bg-surface-2 hover:text-red" aria-label="Remove">
                           <X className="size-4" />
                         </button>
                         {bi === blocks.length - 1 && (
-                          <button onClick={() => update(d, [...blocks, { start: "13:00", end: "17:00" }])} className="grid size-8 place-items-center rounded-full text-accent hover:bg-accent-soft" aria-label="Add hours">
+                          <button onClick={() => update(d, [...blocks, { start: "13:00", end: "17:00" }])} className="grid size-10 place-items-center sm:size-8 rounded-full text-accent hover:bg-accent-soft" aria-label="Add hours">
                             <Plus className="size-4" />
                           </button>
                         )}
@@ -143,7 +143,7 @@ export function AvailabilityView({
                       {formatDate(t.starts_at, org.timezone, { weekday: "short", month: "short" })} {formatTime(t.starts_at, org.timezone)} → {formatDate(t.ends_at, org.timezone, { weekday: "short", month: "short" })} {formatTime(t.ends_at, org.timezone)}
                     </div>
                   </div>
-                  <button className="grid size-8 place-items-center rounded-full text-label-3 hover:bg-red-soft hover:text-red" aria-label="Delete"
+                  <button className="grid size-10 place-items-center sm:size-8 rounded-full text-label-3 hover:bg-red-soft hover:text-red" aria-label="Delete"
                     onClick={() => start(async () => { const r = await deleteTimeOff(slug, t.id); toast(r.error ?? "Removed", r.error ? "error" : "success"); })}>
                     <Trash2 className="size-4" />
                   </button>

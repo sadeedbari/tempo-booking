@@ -2,7 +2,7 @@ import { forwardRef, type InputHTMLAttributes, type SelectHTMLAttributes, type T
 import { cn } from "@/lib/utils";
 
 const field =
-  "w-full rounded-[11px] bg-surface-2 px-3.5 text-[15px] text-label placeholder:text-label-3 " +
+  "w-full rounded-[11px] bg-surface-2 px-3.5 text-[16px] sm:text-[15px] text-label placeholder:text-label-3 " +
   "border border-transparent transition-[box-shadow,background-color,border-color] duration-200 " +
   "focus:bg-surface focus:border-accent focus:shadow-[var(--ring)] outline-none disabled:opacity-50";
 

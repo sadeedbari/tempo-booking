@@ -39,7 +39,7 @@ export function ServicesView({
       {services.length === 0 ? (
         <EmptyState icon={<Sparkles className="size-7" />} title="No services yet" body="Create your first service so customers can start booking." action={canEdit && <Button pill onClick={() => setEditing({})}>Create service</Button>} />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {services.map((s) => {
             const Icon = LOC_ICON[s.location_type];
             const staff = staffMap[s.id] ?? [];
@@ -175,7 +175,7 @@ function ServiceEditor({
           <span className="px-1 text-[13px] font-medium text-label-2">Colour</span>
           <div className="flex flex-wrap gap-2.5">
             {PALETTE.map((c) => (
-              <button type="button" key={c} onClick={() => setColor(c)} className="grid size-8 place-items-center rounded-full transition-transform active:scale-90" style={{ background: c }} aria-label={c}>
+              <button type="button" key={c} onClick={() => setColor(c)} className="grid size-10 place-items-center sm:size-8 rounded-full transition-transform active:scale-90" style={{ background: c }} aria-label={c}>
                 {color === c && <Check className="size-4 text-white" strokeWidth={3} />}
               </button>
             ))}
@@ -185,14 +185,14 @@ function ServiceEditor({
         <div className="space-y-2">
           <span className="px-1 text-[13px] font-medium text-label-2">Who performs this?</span>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => setSelectedStaff([])} className={cn("h-8 rounded-full px-3.5 text-[13px] font-medium transition", selectedStaff.length === 0 ? "bg-accent text-white" : "bg-surface-2")}>
+            <button type="button" onClick={() => setSelectedStaff([])} className={cn("h-10 sm:h-8 rounded-full px-3.5 text-[13px] font-medium transition", selectedStaff.length === 0 ? "bg-accent text-white" : "bg-surface-2")}>
               Anyone
             </button>
             {members.map((m) => {
               const on = selectedStaff.includes(m.id);
               return (
                 <button type="button" key={m.id} onClick={() => setSelectedStaff((s) => (on ? s.filter((x) => x !== m.id) : [...s, m.id]))}
-                  className={cn("flex h-8 items-center gap-1.5 rounded-full pl-1 pr-3 text-[13px] font-medium transition", on ? "bg-accent text-white" : "bg-surface-2")}>
+                  className={cn("flex h-10 sm:h-8 items-center gap-1.5 rounded-full pl-1 pr-3 text-[13px] font-medium transition", on ? "bg-accent text-white" : "bg-surface-2")}>
                   <Avatar name={m.display_name} color={m.color} size={24} /> {m.display_name}
                 </button>
               );

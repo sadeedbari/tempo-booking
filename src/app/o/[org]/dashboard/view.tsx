@@ -74,7 +74,7 @@ export function DashboardView({ slug, org, me, members, isAdmin, d, rangeDays, n
             <Link
               key={r}
               href={`${basePath ?? `/o/${slug}/dashboard`}?range=${r}`}
-              className={cn("grid h-8 place-items-center rounded-[8px] px-3.5 text-[13px] font-medium transition", r === rangeDays ? "bg-surface shadow-sm" : "text-label-2 hover:text-label")}
+              className={cn("grid h-10 place-items-center rounded-[8px] px-3.5 sm:h-8 text-[13px] font-medium transition", r === rangeDays ? "bg-surface shadow-sm" : "text-label-2 hover:text-label")}
             >
               Last {r} days
             </Link>
@@ -82,7 +82,7 @@ export function DashboardView({ slug, org, me, members, isAdmin, d, rangeDays, n
         </div>
         <a
           href={`/api/export/home?org=${encodeURIComponent(slug)}&range=${rangeDays}`}
-          className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-surface-2 px-3.5 text-[13px] font-medium transition hover:bg-surface-3"
+          className="inline-flex h-10 items-center gap-1.5 rounded-[10px] bg-surface-2 px-3.5 text-[13px] font-medium transition hover:bg-surface-3"
           title="Download these statistics as an Excel file"
         >
           <Download className="size-4" /> Export to Excel
@@ -92,7 +92,7 @@ export function DashboardView({ slug, org, me, members, isAdmin, d, rangeDays, n
 
       {showSetup && (
         <Card title="Get set up" subtitle={`${setup.filter((s) => s.done).length} of ${setup.length} done`}>
-          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {setup.map((s) => (
               <li key={s.label}>
                 <Link href={s.href} className="flex items-center gap-3 rounded-[12px] bg-surface-2 px-3.5 py-2.5 text-[14px] transition hover:bg-surface-3">
@@ -150,12 +150,12 @@ export function DashboardView({ slug, org, me, members, isAdmin, d, rangeDays, n
       </div>
 
       {/* Today + attention */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card
           className="lg:col-span-2"
           title="Today"
           subtitle={d.nextUp ? `Next: ${formatTime(d.nextUp.starts_at, tz)}, ${d.nextUp.service_name}` : "Nothing else coming up today"}
-          action={<Link href={`/o/${slug}/calendar`} className="text-[13px] font-medium text-accent">Open calendar</Link>}
+          action={<Link href={`/o/${slug}/calendar`} className="inline-flex min-h-10 items-center text-[13px] font-medium text-accent">Open calendar</Link>}
         >
           {d.todayList.length === 0 ? (
             <Empty>No appointments today.</Empty>
@@ -245,7 +245,7 @@ export function DashboardView({ slug, org, me, members, isAdmin, d, rangeDays, n
       </div>
 
       {/* Services + busiest times */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card title="Top services" subtitle="By number of bookings">
           {d.services.length === 0 ? (
             <Empty>No bookings in this period yet.</Empty>
@@ -269,7 +269,7 @@ export function DashboardView({ slug, org, me, members, isAdmin, d, rangeDays, n
       </div>
 
       {/* Team + mix */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {isAdmin && (
           <Card className="lg:col-span-2" title="Team" subtitle="This period">
             <div className="overflow-x-auto">
@@ -330,7 +330,7 @@ export function DashboardView({ slug, org, me, members, isAdmin, d, rangeDays, n
       </div>
 
       {isAdmin && (
-        <Card title="Best customers" subtitle="By spend this period" action={<Link href={`/o/${slug}/customers`} className="text-[13px] font-medium text-accent">All customers</Link>}>
+        <Card title="Best customers" subtitle="By spend this period" action={<Link href={`/o/${slug}/customers`} className="inline-flex min-h-10 items-center text-[13px] font-medium text-accent">All customers</Link>}>
           {d.topCustomers.length === 0 ? (
             <Empty>Completed visits will show up here.</Empty>
           ) : (

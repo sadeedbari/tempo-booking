@@ -21,7 +21,7 @@ export function Card({
   title?: React.ReactNode; subtitle?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode; className?: string;
 }) {
   return (
-    <section className={cn("rounded-[18px] bg-surface p-5 shadow-sm hairline", className)}>
+    <section className={cn("min-w-0 rounded-[18px] bg-surface p-4 sm:p-5 shadow-sm hairline", className)}>
       {(title || action) && (
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -61,16 +61,16 @@ export function Kpi({
   label: string; value: React.ReactNode; sub?: React.ReactNode; spark?: number[]; href?: string;
 }) {
   const body = (
-    <div className="flex h-full flex-col rounded-[18px] bg-surface p-4 shadow-sm hairline transition hover:shadow-md">
+    <div className="flex h-full min-w-0 flex-col rounded-[18px] bg-surface p-4 shadow-sm hairline transition hover:shadow-md">
       <div className="text-[13px] font-medium text-label-2">{label}</div>
       <div className="mt-1 flex items-end justify-between gap-3">
-        <div className="text-[28px] font-bold leading-tight tracking-tight">{value}</div>
+        <div className="min-w-0 truncate text-[24px] font-bold leading-tight tracking-tight sm:text-[28px]">{value}</div>
         {spark && <Sparkline values={spark} />}
       </div>
       {sub && <div className="mt-1.5 min-h-[18px]">{sub}</div>}
     </div>
   );
-  return href ? <Link href={href} className="block">{body}</Link> : body;
+  return href ? <Link href={href} className="block min-w-0">{body}</Link> : body;
 }
 
 export function Sparkline({ values }: { values: number[] }) {
@@ -78,7 +78,7 @@ export function Sparkline({ values }: { values: number[] }) {
   const w = 84, h = 32, max = Math.max(...values);
   const pts = values.map((v, i) => `${(i / (values.length - 1)) * w},${h - 3 - (v / max) * (h - 6)}`).join(" ");
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-8 w-[84px] shrink-0 text-accent" aria-hidden>
+    <svg viewBox={`0 0 ${w} ${h}`} className="hidden h-8 w-[84px] shrink-0 text-accent sm:block" aria-hidden>
       <polyline points={pts} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );

@@ -152,7 +152,7 @@ function MemberSheet({ slug, member, me, isAdmin, onClose }: { slug: string; mem
           <span className="px-1 text-[13px] font-medium text-label-2">Calendar colour</span>
           <div className="flex flex-wrap gap-2.5">
             {PALETTE.map((c) => (
-              <button type="button" key={c} onClick={() => setColor(c)} className="grid size-8 place-items-center rounded-full" style={{ background: c }}>
+              <button type="button" key={c} onClick={() => setColor(c)} className="grid size-10 place-items-center sm:size-8 rounded-full" style={{ background: c }}>
                 {color === c && <Check className="size-4 text-white" strokeWidth={3} />}
               </button>
             ))}

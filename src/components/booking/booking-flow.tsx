@@ -141,7 +141,7 @@ export function BookingFlow({
           style={{ background: `radial-gradient(40% 60% at 20% 20%, ${accent}33, transparent), radial-gradient(35% 50% at 80% 10%, ${accent}22, transparent)` }} />
       )}
 
-      <div className={cn("grid", embed ? "min-h-full lg:grid-cols-[300px_1fr]" : "mx-auto max-w-5xl gap-6 px-4 py-8 sm:py-14 lg:grid-cols-[340px_1fr]")}>
+      <div className={cn("grid grid-cols-1", embed ? "min-h-full lg:grid-cols-[300px_1fr]" : "mx-auto max-w-5xl gap-6 px-4 py-8 sm:py-14 lg:grid-cols-[340px_1fr]")}>
         {/* Summary panel */}
         <aside className={cn(embed ? "border-b border-separator p-6 lg:border-b-0 lg:border-r" : "h-fit rounded-[24px] glass-strong hairline p-6 shadow-md lg:sticky lg:top-8")}>
           <div className="flex items-center gap-3">
@@ -263,7 +263,7 @@ export function BookingFlow({
           {step === "staff" && eligibleStaff.length > 1 && (
             <div key="staff" className="animate-rise">
               <StepTitle n={2 + n} title="Who would you like?" />
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <StaffCard name="Any available" subtitle="Earliest availability" onClick={() => { setMemberId(null); setStep("time"); }} any accent={accent} />
                 {eligibleStaff.map((m) => (
                   <StaffCard key={m.id} name={m.display_name} subtitle={m.title ?? undefined} color={m.color} avatar={m.avatar_url} onClick={() => { setMemberId(m.id); setStep("time"); }} />
@@ -296,7 +296,7 @@ export function BookingFlow({
             <div key="details" className="animate-rise">
               <StepTitle n={(eligibleStaff.length > 1 ? 4 : 3) + n} title="Your details" />
               <form action={submit} className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="Full name" className="sm:col-span-2"><Input name="name" autoComplete="name" required autoFocus /></Field>
                   <Field label="Email"><Input name="email" type="email" autoComplete="email" required /></Field>
                   <Field label="Phone" hint="Optional.">
@@ -350,7 +350,7 @@ export function BookingFlow({
       </div>
 
       <footer className={cn("text-center", embed ? "pb-4" : "pb-10")}>
-        <Link href="/" className="inline-flex items-center gap-1.5 text-[12px] font-medium text-label-3 hover:text-label-2">
+        <Link href="/" className="inline-flex min-h-10 items-center gap-1.5 text-[12px] font-medium text-label-3 hover:text-label-2">
           <LogoMark className="size-4" /> Powered by Tempo
         </Link>
       </footer>

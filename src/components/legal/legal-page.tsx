@@ -8,10 +8,10 @@ export function LegalPage({ title, children }: { title: string; children: React.
     <div className="min-h-dvh">
       <header className="border-b border-separator">
         <nav className="mx-auto flex h-14 max-w-3xl items-center justify-between px-5">
-          <Link href="/"><Logo /></Link>
+          <Link href="/" className="inline-flex min-h-10 items-center"><Logo /></Link>
           <div className="flex gap-5 text-[14px] font-medium text-label-2">
-            <Link href="/privacy" className="hover:text-label">Privacy</Link>
-            <Link href="/terms" className="hover:text-label">Terms</Link>
+            <Link href="/privacy" className="inline-block px-2 py-2.5 hover:text-label">Privacy</Link>
+            <Link href="/terms" className="inline-block px-2 py-2.5 hover:text-label">Terms</Link>
           </div>
         </nav>
       </header>

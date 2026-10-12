@@ -51,7 +51,7 @@ export function Sheet({
       >
         <div className="mx-auto mt-2 h-1.5 w-9 rounded-full bg-label-4 sm:hidden" />
         {(title || subtitle) && (
-          <div className="flex items-start gap-3 px-6 pt-4 pb-3 sm:pt-6">
+          <div className="flex items-start gap-3 px-5 pt-4 pb-3 sm:px-6 sm:pt-6">
             <div className="min-w-0 flex-1">
               {title && <h2 className="text-[20px] font-semibold leading-tight">{title}</h2>}
               {subtitle && <p className="mt-1 text-[14px] text-label-2">{subtitle}</p>}
@@ -59,14 +59,14 @@ export function Sheet({
             <button
               onClick={onClose}
               aria-label="Close"
-              className="grid size-8 shrink-0 place-items-center rounded-full bg-surface-2 text-label-2 transition hover:bg-surface-3"
+              className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 sm:size-8 text-label-2 transition hover:bg-surface-3"
             >
               <X className="size-4" strokeWidth={2.5} />
             </button>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto px-6 pb-6">{children}</div>
-        {footer && <div className="border-t border-separator px-6 py-4 bg-surface/40">{footer}</div>}
+        <div className="flex-1 overflow-y-auto px-5 pb-6 sm:px-6">{children}</div>
+        {footer && <div className="border-t border-separator bg-surface/40 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">{footer}</div>}
       </div>
     </div>,
     document.body,

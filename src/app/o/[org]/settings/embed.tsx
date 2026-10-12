@@ -47,7 +47,7 @@ export function EmbedSection({
             onChange={setKind}
             options={[{ value: "popup", label: "Pop-up button" }, { value: "floating", label: "Floating button" }, { value: "link", label: "Direct link" }]}
           />
-          <Select value={service} onChange={(e) => setService(e.target.value)} className="h-8 w-auto max-w-full text-[13px]" aria-label="What should open">
+          <Select value={service} onChange={(e) => setService(e.target.value)} className="h-10 w-auto max-w-full sm:h-8 sm:text-[13px]" aria-label="What should open">
             <option value="">Whole booking page</option>
             {services.map((s) => <option key={s.slug} value={s.slug}>{s.name} only</option>)}
           </Select>
@@ -55,7 +55,7 @@ export function EmbedSection({
 
         <div className="relative">
           <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-[12px] bg-surface-2 p-4 pr-14 font-mono text-[12.5px] leading-relaxed">{code}</pre>
-          <button onClick={copy} className="absolute right-2.5 top-2.5 grid size-8 place-items-center rounded-[9px] bg-surface text-label-2 shadow-sm hairline transition hover:text-label" aria-label="Copy">
+          <button onClick={copy} className="absolute right-2.5 top-2.5 grid size-10 place-items-center sm:size-8 rounded-[9px] bg-surface text-label-2 shadow-sm hairline transition hover:text-label" aria-label="Copy">
             {copied ? <Check className="size-4 text-green" /> : <Copy className="size-4" />}
           </button>
         </div>

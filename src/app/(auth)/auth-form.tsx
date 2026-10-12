@@ -46,9 +46,9 @@ export function AuthForm({ mode, next }: { mode: "login" | "signup"; next?: stri
       </SubmitButton>
       <p className="pt-2 text-center text-[14px] text-label-2">
         {mode === "login" ? (
-          <>New to Tempo? <Link href={`/signup${nextQs}`} className="font-medium text-accent">Create an account</Link></>
+          <>New to Tempo? <Link href={`/signup${nextQs}`} className="inline-block py-3 font-medium text-accent">Create an account</Link></>
         ) : (
-          <>Already have an account? <Link href={`/login${nextQs}`} className="font-medium text-accent">Sign in</Link></>
+          <>Already have an account? <Link href={`/login${nextQs}`} className="inline-block py-3 font-medium text-accent">Sign in</Link></>
         )}
       </p>
     </form>

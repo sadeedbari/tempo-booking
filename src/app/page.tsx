@@ -59,7 +59,7 @@ export default async function Home() {
           {/* Product preview */}
           <div className="animate-rise relative mx-auto mt-16 max-w-4xl" style={{ animationDelay: "260ms" }}>
             <div className="rounded-[26px] glass-strong hairline p-2 shadow-lg">
-              <div className="grid overflow-hidden rounded-[20px] bg-surface text-left sm:grid-cols-[220px_1fr]">
+              <div className="grid grid-cols-1 overflow-hidden rounded-[20px] bg-surface text-left sm:grid-cols-[220px_1fr]">
                 <aside className="hidden border-r border-separator bg-surface-2/60 p-4 sm:block">
                   <div className="mb-5 flex items-center gap-2 text-[14px] font-semibold"><span className="size-6 rounded-[7px] bg-gradient-to-b from-[#3D9BFF] to-[#0062E0]" /> Lumen Studio</div>
                   {["Calendar", "Bookings", "Services", "Team", "Availability"].map((x, i) => (
@@ -97,7 +97,7 @@ export default async function Home() {
         <section id="features" className="mx-auto max-w-6xl px-5 py-20">
           <h2 className="text-center text-[34px] font-bold tracking-tight sm:text-[44px]">Everything in its right place.</h2>
           <p className="mx-auto mt-3 max-w-lg text-center text-[17px] text-label-2">Thoughtful defaults, no clutter. Just the tools you reach for every day.</p>
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {features.map((f) => (
               <div key={f.title} className="rounded-[22px] bg-surface p-6 shadow-sm hairline transition-transform duration-300 hover:-translate-y-0.5">
                 <div className="grid size-11 place-items-center rounded-[12px] text-white" style={{ background: `linear-gradient(180deg, ${f.color}cc, ${f.color})` }}>
@@ -112,9 +112,9 @@ export default async function Home() {
       </main>
 
       <footer className="border-t border-separator py-8 text-center text-[13px] text-label-3">
-        <div className="mb-2 flex justify-center gap-5 font-medium">
-          <Link href="/privacy" className="hover:text-label-2">Privacy Policy</Link>
-          <Link href="/terms" className="hover:text-label-2">Terms of Service</Link>
+        <div className="mb-2 flex justify-center gap-2 font-medium">
+          <Link href="/privacy" className="inline-block px-3 py-3 hover:text-label-2">Privacy Policy</Link>
+          <Link href="/terms" className="inline-block px-3 py-3 hover:text-label-2">Terms of Service</Link>
         </div>
         © {new Date().getFullYear()} Tempo. Made with care.
       </footer>

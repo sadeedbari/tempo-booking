@@ -197,7 +197,7 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
               )}
             </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input name="customer_name" placeholder="Full name" className="sm:col-span-2" />
               <Input name="customer_email" type="email" placeholder="Email" />
               <Input name="customer_phone" type="tel" placeholder="Phone (optional)" />

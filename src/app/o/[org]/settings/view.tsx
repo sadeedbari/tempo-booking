@@ -49,7 +49,7 @@ export function SettingsView({
           className="space-y-10"
         >
           <Section title="Business" description="Shown on your booking page and in emails.">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Name"><Input name="name" defaultValue={org.name} required /></Field>
               <Field label="Booking link" hint={`/${org.slug}`}><Input name="slug" defaultValue={org.slug} required /></Field>
               <Field label="About" className="sm:col-span-2"><Textarea name="description" defaultValue={org.description ?? ""} placeholder="A sentence or two about what you do." className="min-h-20" /></Field>
@@ -69,7 +69,7 @@ export function SettingsView({
               <span className="px-1 text-[13px] font-medium text-label-2">Brand colour</span>
               <div className="flex flex-wrap gap-2.5">
                 {PALETTE.map((c) => (
-                  <button type="button" key={c} onClick={() => setAccent(c)} className="grid size-9 place-items-center rounded-full transition-transform active:scale-90" style={{ background: c }}>
+                  <button type="button" key={c} onClick={() => setAccent(c)} className="grid size-10 place-items-center rounded-full transition-transform active:scale-90" style={{ background: c }}>
                     {accent.toLowerCase() === c.toLowerCase() && <Check className="size-4 text-white" strokeWidth={3} />}
                   </button>
                 ))}
@@ -78,7 +78,7 @@ export function SettingsView({
           </Section>
 
           <Section title="Booking rules" description="Control when customers can book and cancel.">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Minimum notice">
                 <Select name="min_notice_minutes" defaultValue={org.min_notice_minutes}>
                   {[[0, "None"], [15, "15 minutes"], [30, "30 minutes"], [60, "1 hour"], [120, "2 hours"], [240, "4 hours"], [720, "12 hours"], [1440, "1 day"], [2880, "2 days"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -195,7 +195,7 @@ function Section({ title, description, children }: { title: string; description?
 function Integration({ icon, color, title, on, hint }: { icon: React.ReactNode; color: string; title: string; on: boolean; hint: string }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3.5">
-      <span className="grid size-9 place-items-center rounded-[10px] text-white" style={{ background: color }}>{icon}</span>
+      <span className="grid size-10 place-items-center rounded-[10px] text-white" style={{ background: color }}>{icon}</span>
       <div className="min-w-0 flex-1">
         <div className="text-[15px] font-medium">{title}</div>
         <div className="truncate text-[13px] text-label-2">{hint}</div>

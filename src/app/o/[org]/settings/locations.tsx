@@ -110,14 +110,14 @@ function LocationEditor({
         <div className="space-y-2">
           <span className="px-1 text-[13px] font-medium text-label-2">Who works here?</span>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => setSelected([])} className={cn("h-8 rounded-full px-3.5 text-[13px] font-medium transition", selected.length === 0 ? "bg-accent text-white" : "bg-surface-2")}>
+            <button type="button" onClick={() => setSelected([])} className={cn("h-10 sm:h-8 rounded-full px-3.5 text-[13px] font-medium transition", selected.length === 0 ? "bg-accent text-white" : "bg-surface-2")}>
               Everyone
             </button>
             {members.map((m) => {
               const on = selected.includes(m.id);
               return (
                 <button type="button" key={m.id} onClick={() => setSelected((s) => (on ? s.filter((x) => x !== m.id) : [...s, m.id]))}
-                  className={cn("flex h-8 items-center gap-1.5 rounded-full pl-1 pr-3 text-[13px] font-medium transition", on ? "bg-accent text-white" : "bg-surface-2")}>
+                  className={cn("flex h-10 sm:h-8 items-center gap-1.5 rounded-full pl-1 pr-3 text-[13px] font-medium transition", on ? "bg-accent text-white" : "bg-surface-2")}>
                   <Avatar name={m.display_name} color={m.color} size={24} /> {m.display_name}
                 </button>
               );

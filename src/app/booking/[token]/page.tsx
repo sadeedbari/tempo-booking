@@ -124,7 +124,7 @@ export default async function ManageBookingPage(props: PageProps<"/booking/[toke
           </Link>
         </div>
         <div className="mt-10 text-center">
-          <Link href="/" className="inline-flex items-center gap-1.5 text-[12px] font-medium text-label-3"><LogoMark className="size-4" /> Powered by Tempo</Link>
+          <Link href="/" className="inline-flex min-h-10 items-center gap-1.5 text-[12px] font-medium text-label-3"><LogoMark className="size-4" /> Powered by Tempo</Link>
         </div>
       </div>
       {pendingPay && <meta httpEquiv="refresh" content="4" />}

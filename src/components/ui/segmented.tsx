@@ -30,7 +30,7 @@ export function Segmented<T extends string>({
       role="tablist"
       className={cn(
         "relative inline-flex rounded-[10px] bg-surface-2 p-[2px]",
-        size === "sm" ? "h-8 text-[13px]" : "h-9 text-[14px]",
+        size === "sm" ? "h-9 text-[13px] sm:h-8" : "h-10 text-[14px] sm:h-9",
         className,
       )}
     >

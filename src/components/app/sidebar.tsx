@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  House, CalendarDays, CalendarRange, ListChecks, Users2, Sparkles, Clock3, Settings, ExternalLink, ChevronsUpDown, Check, Plus, LogOut, Contact,
+  House, CalendarDays, CalendarRange, ListChecks, Users2, Sparkles, Clock3, Settings, ExternalLink, ChevronsUpDown, Check, Plus, LogOut, Contact, Ellipsis,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoMark } from "./logo";
@@ -23,6 +23,9 @@ const NAV = [
   { href: "settings", label: "Settings", icon: Settings },
 ];
 
+const TABS = NAV.filter((n) => ["dashboard", "calendar", "bookings", "schedule"].includes(n.href));
+const MORE = NAV.filter((n) => !["dashboard", "calendar", "bookings", "schedule"].includes(n.href));
+
 export function Sidebar({
   org,
   orgs,
@@ -37,6 +40,8 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const base = `/o/${org.slug}`;
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreActive = MORE.some((n) => pathname.startsWith(`${base}/${n.href}`));
 
   useEffect(() => {
     document.cookie = `tempo_org=${org.slug}; path=/; max-age=31536000; samesite=lax`;
@@ -58,7 +63,7 @@ export function Sidebar({
                 key={item.href}
                 href={href}
                 className={cn(
-                  "flex h-9 items-center gap-3 rounded-[9px] px-3 text-[14px] font-medium transition-colors duration-150",
+                  "flex h-10 items-center gap-3 rounded-[9px] px-3 text-[14px] font-medium transition-colors duration-150",
                   active ? "bg-accent text-white shadow-sm" : "text-label hover:bg-label-4/40",
                 )}
               >
@@ -77,7 +82,7 @@ export function Sidebar({
           <a
             href={`/${org.slug}`}
             target="_blank"
-            className="flex h-9 items-center gap-3 rounded-[9px] px-3 text-[14px] font-medium text-label-2 transition hover:bg-label-4/40 hover:text-label"
+            className="flex h-10 items-center gap-3 rounded-[9px] px-3 text-[14px] font-medium text-label-2 transition hover:bg-label-4/40 hover:text-label"
           >
             <ExternalLink className="size-[18px]" /> Booking page
           </a>
@@ -88,7 +93,7 @@ export function Sidebar({
               <div className="truncate text-[12px] text-label-3">{me.email}</div>
             </div>
             <form action="/auth/signout" method="post">
-              <button title="Sign out" className="grid size-8 place-items-center rounded-full text-label-3 transition hover:bg-label-4/40 hover:text-label">
+              <button title="Sign out" className="grid size-10 place-items-center sm:size-8 rounded-full text-label-3 transition hover:bg-label-4/40 hover:text-label">
                 <LogOut className="size-4" />
               </button>
             </form>
@@ -97,18 +102,37 @@ export function Sidebar({
       </aside>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between glass border-b border-separator px-4 lg:hidden">
+      <header className="sticky top-0 z-30 flex min-h-14 items-center justify-between glass border-b border-separator px-4 pt-[env(safe-area-inset-top)] lg:hidden">
         <OrgSwitcher org={org} orgs={orgs} compact />
-        <a href={`/${org.slug}`} target="_blank" className="text-[15px] font-medium text-accent">Booking page</a>
+        <a href={`/${org.slug}`} target="_blank" className="inline-flex min-h-10 items-center text-[15px] font-medium text-accent">Booking page</a>
       </header>
 
-      {/* Mobile tab bar */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 flex glass border-t border-separator pb-[env(safe-area-inset-bottom)] lg:hidden">
-        {NAV.filter((n) => ["dashboard", "calendar", "bookings", "schedule", "team", "settings"].includes(n.href)).map((item) => {
+      {/* Mobile tab bar: four main pages, then "More" for the rest */}
+      {moreOpen && <button aria-label="Close menu" className="fixed inset-0 z-30 bg-black/30 lg:hidden" onClick={() => setMoreOpen(false)} />}
+      {moreOpen && (
+        <div className="fixed inset-x-3 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-40 overflow-hidden rounded-[18px] glass-strong hairline p-1.5 shadow-lg animate-pop lg:hidden">
+          {MORE.map((item) => {
+            const href = `${base}/${item.href}`;
+            return (
+              <Link key={item.href} href={href} onClick={() => setMoreOpen(false)} className={cn("flex h-12 items-center gap-3 rounded-[12px] px-3 text-[16px] font-medium", pathname.startsWith(href) ? "bg-accent-soft text-accent" : "text-label")}>
+                <item.icon className="size-5" /> {item.label}
+              </Link>
+            );
+          })}
+          <form action="/auth/signout" method="post" className="mt-1 border-t border-separator pt-1">
+            <button className="flex h-12 w-full items-center gap-3 rounded-[12px] px-3 text-left text-[16px] font-medium text-label-2">
+              <LogOut className="size-5" /> Sign out
+              <span className="ml-auto truncate text-[13px] font-normal text-label-3">{me.email}</span>
+            </button>
+          </form>
+        </div>
+      )}
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex glass border-t border-separator pb-[env(safe-area-inset-bottom)] lg:hidden">
+        {TABS.map((item) => {
           const href = `${base}/${item.href}`;
-          const active = pathname.startsWith(href);
+          const active = pathname.startsWith(href) && !moreOpen;
           return (
-            <Link key={item.href} href={href} className={cn("flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium", active ? "text-accent" : "text-label-3")}>
+            <Link key={item.href} href={href} onClick={() => setMoreOpen(false)} className={cn("flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium", active ? "text-accent" : "text-label-3")}>
               <span className="relative">
                 <item.icon className="size-6" strokeWidth={active ? 2.2 : 1.8} />
                 {item.href === "bookings" && pendingApprovals > 0 && <span className="absolute -right-1.5 -top-1 size-2.5 rounded-full bg-orange" />}
@@ -117,6 +141,10 @@ export function Sidebar({
             </Link>
           );
         })}
+        <button onClick={() => setMoreOpen((o) => !o)} aria-expanded={moreOpen} className={cn("flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium", moreOpen || moreActive ? "text-accent" : "text-label-3")}>
+          <Ellipsis className="size-6" strokeWidth={moreOpen || moreActive ? 2.2 : 1.8} />
+          More
+        </button>
       </nav>
     </>
   );

@@ -116,9 +116,9 @@ export function ScheduleView(p: Props) {
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1">
-          <button onClick={() => go(shiftPeriod(p.period, p.start, -1))} className="grid size-8 place-items-center rounded-[8px] text-label-2 hover:bg-surface-2" aria-label="Previous"><ChevronLeft className="size-5" /></button>
-          <button onClick={() => go(p.today)} className="h-8 rounded-[8px] px-3 text-[14px] font-medium hover:bg-surface-2">Today</button>
-          <button onClick={() => go(shiftPeriod(p.period, p.start, 1))} className="grid size-8 place-items-center rounded-[8px] text-label-2 hover:bg-surface-2" aria-label="Next"><ChevronRight className="size-5" /></button>
+          <button onClick={() => go(shiftPeriod(p.period, p.start, -1))} className="grid size-10 place-items-center sm:size-8 rounded-[8px] text-label-2 hover:bg-surface-2" aria-label="Previous"><ChevronLeft className="size-5" /></button>
+          <button onClick={() => go(p.today)} className="h-10 rounded-[8px] px-3 sm:h-8 text-[14px] font-medium hover:bg-surface-2">Today</button>
+          <button onClick={() => go(shiftPeriod(p.period, p.start, 1))} className="grid size-10 place-items-center sm:size-8 rounded-[8px] text-label-2 hover:bg-surface-2" aria-label="Next"><ChevronRight className="size-5" /></button>
         </div>
         <h2 className="text-[17px] font-semibold">{label}</h2>
         <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -271,7 +271,7 @@ function DaySheet({
               <Select value={s.end} onChange={(e) => patch(i, { end: e.target.value })} aria-label="End">
                 {TIME_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </Select>
-              <button type="button" onClick={() => setList((l) => l.filter((_, j) => j !== i))} className="grid size-9 shrink-0 place-items-center rounded-full text-red hover:bg-red-soft" aria-label="Remove shift">
+              <button type="button" onClick={() => setList((l) => l.filter((_, j) => j !== i))} className="grid size-10 shrink-0 place-items-center rounded-full text-red hover:bg-red-soft" aria-label="Remove shift">
                 <Trash2 className="size-4" />
               </button>
             </div>
