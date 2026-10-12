@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateTime, formatMoney, formatDuration } from "@/lib/format";
 import { syncBookingCalendar } from "@/lib/calendar/sync";
 import { normalizePhone } from "@/lib/phone";
+import { buildSms } from "@/lib/sms";
 
 type Kind = "confirmation" | "cancellation" | "reminder" | "rescheduled" | "request" | "declined";
 
@@ -130,7 +131,13 @@ export async function notifyBooking(bookingId: string, kind: Kind) {
     if (to && (kind === "reminder" || kind === "confirmation")) {
       await sendSms(
         to,
-        `${b.org.name}: ${kind === "reminder" ? "Reminder" : "Confirmed"} — ${b.service_name}, ${formatDateTime(b.starts_at, b.org.timezone)}. Manage: ${env.appUrl}/booking/${b.manage_token}`,
+        buildSms({
+          kind,
+          orgName: b.org.name,
+          serviceName: b.service_name,
+          when: formatDateTime(b.starts_at, b.org.timezone),
+          manageUrl: `${env.appUrl}/booking/${b.manage_token}`,
+        }),
       );
     }
   } catch (e) {
