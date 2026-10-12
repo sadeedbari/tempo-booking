@@ -19,12 +19,17 @@ export const env = {
   // "common" accepts both work/school and personal Microsoft accounts.
   microsoftTenant: process.env.MICROSOFT_TENANT || "common",
   tokenEncryptionKey: process.env.TOKEN_ENCRYPTION_KEY,
+  vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY,
+  vapidSubject: process.env.VAPID_SUBJECT || "mailto:info@sulosystems.com",
 };
 
 export const features = {
   payments: Boolean(env.stripeSecretKey),
   email: Boolean(env.resendApiKey),
   sms: Boolean(env.twilioSid && env.twilioToken && env.twilioFrom),
+  // Push needs a VAPID key pair and the service-role client (to read everyone's devices).
+  push: Boolean(env.vapidPublicKey && env.vapidPrivateKey && env.supabaseServiceKey),
   // Calendar sync stores tokens through the service-role client, so it needs that key too.
   calendar: Boolean(env.supabaseServiceKey && env.tokenEncryptionKey && ((env.googleClientId && env.googleClientSecret) || (env.microsoftClientId && env.microsoftClientSecret))),
 };

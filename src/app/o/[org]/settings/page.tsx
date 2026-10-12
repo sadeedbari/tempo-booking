@@ -36,6 +36,7 @@ export default async function SettingsPage(props: PageProps<"/o/[org]/settings">
       locations={(locs.data ?? []) as Location[]}
       locationStaff={locationStaff}
       appUrl={env.appUrl}
+      vapidKey={features.push ? env.vapidPublicKey! : ""}
       services={(svcs.data ?? []) as { slug: string; name: string }[]}
       members={members}
       features={features}

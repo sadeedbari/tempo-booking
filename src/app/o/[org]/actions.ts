@@ -237,8 +237,7 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
       .single();
     if (error) return { error: friendly(error) };
 
-    if (v.notify) await notifyBooking(booking.id, "confirmation");
-    else await syncBookingCalendar(booking.id);
+    await notifyBooking(booking.id, "confirmation", { by: userData.user?.id, customer: v.notify });
     refresh(slug);
     return { ok: true, id: booking.id };
   } catch (e) {
@@ -248,13 +247,13 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
 
 export async function setBookingStatus(slug: string, id: string, status: BookingStatus, notify = true): Promise<ActionResult> {
   try {
-    const { org } = await ctxFor(slug);
+    const { org, me } = await ctxFor(slug);
     const supabase = await createClient();
     const patch: Record<string, unknown> = { status };
     if (status === "cancelled") patch.cancelled_at = new Date().toISOString();
     const { error } = await supabase.from("bookings").update(patch).eq("id", id).eq("org_id", org.id);
     if (error) return { error: friendly(error) };
-    if (status === "cancelled" && notify) await notifyBooking(id, "cancellation");
+    if (status === "cancelled") await notifyBooking(id, "cancellation", { by: me.user_id, customer: notify });
     else await syncBookingCalendar(id);
     refresh(slug);
     return { ok: true };
@@ -271,7 +270,7 @@ export async function approveBooking(slug: string, id: string): Promise<ActionRe
     const { data, error } = await supabase.from("bookings").update({ status: "confirmed" }).eq("id", id).eq("org_id", org.id).eq("status", "pending_approval").select("id");
     if (error) return { error: friendly(error) };
     if (!data?.length) return { error: "This request was already handled." };
-    await notifyBooking(id, "confirmation");
+    await notifyBooking(id, "confirmation", { push: false }); // the team already heard about the request
     refresh(slug);
     return { ok: true };
   } catch (e) {
@@ -304,7 +303,7 @@ export async function declineBooking(slug: string, id: string): Promise<ActionRe
 
 export async function rescheduleBooking(slug: string, id: string, startsAt: string, memberId: string): Promise<ActionResult> {
   try {
-    const { org, isAdmin } = await ctxFor(slug);
+    const { org, isAdmin, me } = await ctxFor(slug);
     const supabase = await createClient();
     const { data: b } = await supabase.from("bookings").select("starts_at, ends_at, blocked_until, location_id").eq("id", id).eq("org_id", org.id).single();
     if (!b) return { error: "Booking not found." };
@@ -325,7 +324,7 @@ export async function rescheduleBooking(slug: string, id: string, startsAt: stri
       .eq("id", id)
       .eq("org_id", org.id);
     if (error) return { error: friendly(error) };
-    await notifyBooking(id, "rescheduled");
+    await notifyBooking(id, "rescheduled", { by: me.user_id });
     refresh(slug);
     return { ok: true };
   } catch (e) {
@@ -743,6 +742,7 @@ const orgSchema = z.object({
   cancellation_window_hours: z.coerce.number().int().min(0).max(720),
   reminder_hours_before: z.coerce.number().int().min(0).max(168),
   booking_confirmation: z.enum(["auto", "manual"]),
+  notify_push: z.enum(["on", ""]).optional(), // the switch sends "on" when enabled, "" when off
 });
 
 export async function updateOrg(slug: string, formData: FormData): Promise<ActionResult> {
@@ -757,6 +757,7 @@ export async function updateOrg(slug: string, formData: FormData): Promise<Actio
       .from("organizations")
       .update({
         ...v,
+        notify_push: v.notify_push === "on",
         description: v.description || null,
         address: v.address || null,
         phone: v.phone || null,

@@ -5,6 +5,8 @@ import { PageHeader, Notice, Badge } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { buttonClass } from "@/components/ui/button-class";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { PushDeviceCard } from "@/components/app/push-device";
 import { useToast } from "@/components/ui/toast";
 import { PALETTE } from "@/lib/utils";
 import { allTimeZones, CURRENCIES } from "@/lib/timezones";
@@ -14,10 +16,11 @@ import { EmbedSection } from "./embed";
 import { deleteOrg, updateOrg } from "../actions";
 
 export function SettingsView({
-  slug, org, isAdmin, isOwner, features, stripeStatus, stripeReason, locations, locationStaff, members, appUrl, services,
+  slug, org, isAdmin, isOwner, features, stripeStatus, stripeReason, locations, locationStaff, members, appUrl, services, vapidKey,
 }: {
+  vapidKey: string;
   slug: string; org: Organization; appUrl: string; services: { slug: string; name: string }[]; locations: Location[]; locationStaff: Record<string, string[]>; members: Membership[]; isAdmin: boolean; isOwner: boolean;
-  features: { payments: boolean; email: boolean; sms: boolean }; stripeStatus?: string; stripeReason?: string;
+  features: { payments: boolean; email: boolean; sms: boolean; push: boolean }; stripeStatus?: string; stripeReason?: string;
 }) {
   const toast = useToast();
   const [pending, start] = useTransition();
@@ -29,7 +32,10 @@ export function SettingsView({
     return (
       <>
         <PageHeader title="Settings" />
-        <Notice tone="blue">Only owners and admins can change team settings. You can update your own profile and hours from Team and Availability.</Notice>
+        <div className="max-w-3xl space-y-6">
+          <Notice tone="blue">Only owners and admins can change team settings. You can update your own profile and hours from Team and Availability.</Notice>
+          {vapidKey && <PushDeviceCard vapidKey={vapidKey} teamEnabled={org.notify_push} />}
+        </div>
       </>
     );
   }
@@ -100,6 +106,12 @@ export function SettingsView({
                   <option value="manual">Approved by me first</option>
                 </Select>
               </Field>
+              <Field label="Booking alerts for your team" hint="Push notification to owners, admins and the booked team member when a booking is made, requested, rescheduled or cancelled.">
+                <div className="flex h-11 items-center gap-3">
+                  <Switch name="notify_push" defaultChecked={org.notify_push} label="Booking alerts for your team" />
+                  <span className="text-[14px] text-label-2">{features.push ? "On by default" : "Needs server setup (VAPID keys)"}</span>
+                </div>
+              </Field>
               <Field label="Customers can cancel or reschedule until">
                 <Select name="cancellation_window_hours" defaultValue={org.cancellation_window_hours}>
                   {[[0, "Any time"], [2, "2 hours before"], [12, "12 hours before"], [24, "24 hours before"], [48, "48 hours before"], [72, "3 days before"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -159,7 +171,9 @@ export function SettingsView({
           )}
         </Section>
 
-        <Section title="Notifications" description="Confirmations, cancellations and reminders sent to customers.">
+        <Section title="Notifications" description="Alerts for you and your team, and the messages sent to customers.">
+          {vapidKey && <div className="mb-4"><PushDeviceCard vapidKey={vapidKey} teamEnabled={org.notify_push} /></div>}
+          <h3 className="mb-2 text-[14px] font-medium text-label-2">Messages to customers</h3>
           <div className="overflow-hidden rounded-[16px] bg-surface shadow-sm hairline divide-y divide-separator">
             <Integration icon={<Mail className="size-5" />} color="#007AFF" title="Email" on={features.email} hint="Powered by Resend — set RESEND_API_KEY and EMAIL_FROM." />
             <Integration icon={<MessageSquare className="size-5" />} color="#34C759" title="SMS" on={features.sms} hint="Powered by Twilio — set TWILIO_* variables." />

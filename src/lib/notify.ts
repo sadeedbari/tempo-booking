@@ -6,6 +6,7 @@ import { formatDateTime, formatMoney, formatDuration } from "@/lib/format";
 import { syncBookingCalendar } from "@/lib/calendar/sync";
 import { normalizePhone } from "@/lib/phone";
 import { buildSms } from "@/lib/sms";
+import { pushBookingEvent } from "@/lib/push";
 
 type Kind = "confirmation" | "cancellation" | "reminder" | "rescheduled" | "request" | "declined";
 
@@ -23,9 +24,10 @@ interface BookingForEmail {
   manage_token: string;
   location: { name: string; address: string | null } | null;
   customer: { name: string; email: string; phone: string | null; sms_consent_at: string | null } | null;
+  member_id: string;
   member: { display_name: string } | null;
   service: { location_type: string; location_detail: string | null; duration_minutes: number } | null;
-  org: { name: string; slug: string; timezone: string; address: string | null; phone: string | null; accent_color: string };
+  org: { id: string; name: string; slug: string; timezone: string; address: string | null; phone: string | null; accent_color: string; notify_push: boolean };
 }
 
 async function loadBooking(bookingId: string): Promise<BookingForEmail | null> {
@@ -34,7 +36,7 @@ async function loadBooking(bookingId: string): Promise<BookingForEmail | null> {
   const { data } = await admin
     .from("bookings")
     .select(
-      "id, customer_address, starts_at, ends_at, status, service_name, price_cents, deposit_cents, currency, payment_status, manage_token, customer:customers(name, email, phone, sms_consent_at), location:locations(name, address), member:memberships(display_name), service:services(location_type, location_detail, duration_minutes), org:organizations(name, slug, timezone, address, phone, accent_color)",
+      "id, member_id, customer_address, starts_at, ends_at, status, service_name, price_cents, deposit_cents, currency, payment_status, manage_token, customer:customers(name, email, phone, sms_consent_at), location:locations(name, address), member:memberships(display_name), service:services(location_type, location_detail, duration_minutes), org:organizations(id, name, slug, timezone, address, phone, accent_color, notify_push)",
     )
     .eq("id", bookingId)
     .single();
@@ -114,11 +116,18 @@ async function sendSms(to: string, body: string) {
  * Sends booking emails (and SMS when configured). Never throws — a failed
  * notification must not break the booking itself.
  */
-export async function notifyBooking(bookingId: string, kind: Kind) {
+export async function notifyBooking(bookingId: string, kind: Kind, opts: { by?: string; push?: boolean; customer?: boolean } = {}) {
   await syncBookingCalendar(bookingId);
   try {
     const b = await loadBooking(bookingId);
-    if (!b?.customer) return;
+    if (!b) return;
+    // Tell the team (push) about new, requested, rescheduled and cancelled bookings.
+    // `by` is the signed-in person who made the change, so they aren't pinged about their own action.
+    if (opts.push !== false && (kind === "confirmation" || kind === "request" || kind === "rescheduled" || kind === "cancellation")) {
+      await pushBookingEvent(b, kind, opts.by);
+    }
+    // `customer: false` = staff chose not to email/text the customer.
+    if (opts.customer === false || !b.customer) return;
     if (features.email) {
       const resend = new Resend(env.resendApiKey);
       const { subject, html, text } = renderEmail(kind, b);

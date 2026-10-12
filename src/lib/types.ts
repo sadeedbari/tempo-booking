@@ -29,6 +29,7 @@ export interface Organization {
   reminder_hours_before: number;
   schedule_mode: ScheduleMode;
   booking_confirmation: ConfirmationMode;
+  notify_push: boolean;
   stripe_account_id: string | null;
   stripe_charges_enabled: boolean;
 }

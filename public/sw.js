@@ -13,3 +13,31 @@ self.addEventListener("fetch", (e) => {
     fetch(e.request).catch(() => new Response(OFFLINE, { headers: { "Content-Type": "text/html; charset=utf-8" } })),
   );
 });
+
+/* Push notifications about bookings. */
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { title: "Tempo", body: e.data ? e.data.text() : "" }; }
+  e.waitUntil(
+    self.registration.showNotification(d.title || "Tempo", {
+      body: d.body || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: d.tag, // a newer update for the same booking replaces the older one
+      data: { url: d.url || "/app" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || "/app";
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if ("focus" in c) { c.navigate(url).catch(() => {}); return c.focus(); }
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
+});
