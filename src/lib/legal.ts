@@ -2,6 +2,6 @@
 export const LEGAL = {
   operator: "Sulo Systems",
   product: "Tempo",
-  contactEmail: "privacy@sulosystems.com",
-  updated: "October 10, 2026",
+  contactEmail: "info@sulosystems.com",
+  updated: "October 12, 2026",
 };
