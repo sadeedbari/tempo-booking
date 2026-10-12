@@ -10,7 +10,7 @@ import { refundDeposit } from "@/lib/bookings";
 import { decrypt } from "@/lib/calendar/crypto";
 import { getProvider } from "@/lib/calendar/providers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { RESERVED_SLUGS, slugify } from "@/lib/utils";
+import { PALETTE, RESERVED_SLUGS, slugify } from "@/lib/utils";
 import { copyPairs, periodDays, type SchedulePeriod } from "@/lib/schedule";
 import { normalizePhone } from "@/lib/phone";
 import { withUnit } from "@/lib/address";
@@ -256,7 +256,7 @@ export async function setBookingStatus(slug: string, id: string, status: Booking
     if (status === "cancelled") patch.cancelled_at = new Date().toISOString();
     const { error } = await supabase.from("bookings").update(patch).eq("id", id).eq("org_id", org.id);
     if (error) return { error: friendly(error) };
-    if (status === "cancelled") await notifyBooking(id, "cancellation", { by: me.user_id, customer: notify });
+    if (status === "cancelled") await notifyBooking(id, "cancellation", { by: me.user_id ?? undefined, customer: notify });
     else await syncBookingCalendar(id);
     refresh(slug);
     return { ok: true };
@@ -327,7 +327,7 @@ export async function rescheduleBooking(slug: string, id: string, startsAt: stri
       .eq("id", id)
       .eq("org_id", org.id);
     if (error) return { error: friendly(error) };
-    await notifyBooking(id, "rescheduled", { by: me.user_id });
+    await notifyBooking(id, "rescheduled", { by: me.user_id ?? undefined });
     refresh(slug);
     return { ok: true };
   } catch (e) {
@@ -590,23 +590,82 @@ export async function deleteCustomer(slug: string, id: string): Promise<ActionRe
 
 /* ───────────────────────────── Team ───────────────────────────── */
 
+const emailOk = (v: string) => z.string().email().max(254).safeParse(v).success;
+
+/**
+ * Adds a team member who doesn't need a login: just a name (and optionally a title and email).
+ * With `invite` on, an invitation is also sent so they can sign in later; their login is then linked to this
+ * same team member, keeping their hours and bookings.
+ */
+export async function addTeamMember(slug: string, formData: FormData): Promise<ActionResult> {
+  try {
+    const { org, members, me } = await ctxFor(slug, true);
+    const name = String(formData.get("name") || "").trim();
+    const title = String(formData.get("title") || "").trim();
+    const email = String(formData.get("email") || "").trim().toLowerCase();
+    const invite = formData.get("invite") === "on";
+    const role = (formData.get("role") === "admin" ? "admin" : "member") as OrgRole;
+    if (!name) return { error: "Enter a name." };
+    if (name.length > 80 || title.length > 80) return { error: "That name or title is too long." };
+    if (email && !emailOk(email)) return { error: "Enter a valid email address, or leave it blank." };
+    if (invite && !email) return { error: "Add their email address to send an invitation." };
+
+    const supabase = await createClient();
+    const { data: memberId, error } = await supabase.rpc("add_team_member", {
+      p_org: org.id,
+      p_name: name,
+      p_title: title,
+      p_email: email,
+      p_color: PALETTE[members.length % PALETTE.length],
+    });
+    if (error) return { error: friendly(error) };
+
+    let token: string | undefined;
+    if (invite) {
+      const sent = await createInvite(org, me.display_name, email, role, memberId as string);
+      if ("error" in sent) return { error: `${name} was added, but the invitation failed: ${sent.error}` };
+      token = sent.token;
+    }
+    refresh(slug);
+    return { ok: true, id: token };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+async function createInvite(org: { id: string; name: string }, inviter: string, email: string, role: OrgRole, memberId?: string): Promise<{ token: string } | { error: string }> {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from("invitations")
+    .insert({ org_id: org.id, email, role, invited_by: userData.user?.id, member_id: memberId ?? null })
+    .select("token")
+    .single();
+  if (error) return { error: friendly(error) ?? error.message };
+  await sendInviteEmail({ to: email, orgName: org.name, inviter: inviter || "Your teammate", token: data.token });
+  return { token: data.token as string };
+}
+
+/** Invites someone by email. With `member_id`, the invitation is for a team member who was added without a login. */
 export async function inviteMember(slug: string, formData: FormData): Promise<ActionResult> {
   try {
     const { org, me } = await ctxFor(slug, true);
     const email = String(formData.get("email") || "").trim().toLowerCase();
     const role = (formData.get("role") === "admin" ? "admin" : "member") as OrgRole;
-    if (!z.string().email().safeParse(email).success) return { error: "Enter a valid email address." };
+    const memberId = String(formData.get("member_id") || "");
+    if (!emailOk(email)) return { error: "Enter a valid email address." };
+
     const supabase = await createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    const { data, error } = await supabase
-      .from("invitations")
-      .insert({ org_id: org.id, email, role, invited_by: userData.user?.id })
-      .select("token")
-      .single();
-    if (error) return { error: friendly(error) };
-    await sendInviteEmail({ to: email, orgName: org.name, inviter: me.display_name || "Your teammate", token: data.token });
+    if (memberId) {
+      const { data: m } = await supabase.from("memberships").select("id, user_id").eq("id", memberId).eq("org_id", org.id).single();
+      if (!m) return { error: "Team member not found." };
+      if (m.user_id) return { error: "This person already has a login." };
+      await supabase.from("memberships").update({ email }).eq("id", memberId).eq("org_id", org.id);
+    }
+    const sent = await createInvite(org, me.display_name, email, role, memberId || undefined);
+    if ("error" in sent) return { error: sent.error };
     refresh(slug);
-    return { ok: true, id: data.token };
+    return { ok: true, id: sent.token };
   } catch (e) {
     return { error: (e as Error).message };
   }
@@ -637,8 +696,16 @@ export async function updateMember(slug: string, formData: FormData): Promise<Ac
       bookable: formData.get("bookable") === "on",
     };
     const role = formData.get("role");
-    if (isAdmin && (role === "owner" || role === "admin" || role === "member")) patch.role = role;
     const supabase = await createClient();
+    const { data: target } = await supabase.from("memberships").select("user_id").eq("id", id).eq("org_id", org.id).single();
+    if (!target) return { error: "Team member not found." };
+    // Someone without a login stays Staff until they're invited and can sign in.
+    if (isAdmin && target.user_id && (role === "owner" || role === "admin" || role === "member")) patch.role = role;
+    if (isAdmin && !target.user_id && formData.has("email")) {
+      const email = String(formData.get("email") || "").trim().toLowerCase();
+      if (email && !emailOk(email)) return { error: "Enter a valid email address, or leave it blank." };
+      patch.email = email || null;
+    }
     const { error } = await supabase.from("memberships").update(patch).eq("id", id).eq("org_id", org.id);
     if (error) return { error: friendly(error) };
     refresh(slug);

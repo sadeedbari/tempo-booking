@@ -13,7 +13,7 @@ export async function startConnect(request: NextRequest, id: ProviderId) {
   const { org, me } = await getOrgContext(slug);
   const provider = getProvider(id);
   if (!provider) return NextResponse.redirect(new URL(`/o/${slug}/team?calendar=unavailable`, request.url));
-  const state = signState({ org: org.id, slug, member: me.id, user: me.user_id, provider: id });
+  const state = signState({ org: org.id, slug, member: me.id, user: me.user_id ?? "", provider: id });
   return NextResponse.redirect(provider.authUrl(state));
 }
 
@@ -32,7 +32,7 @@ export async function finishConnect(request: NextRequest, id: ProviderId) {
 
   // The person finishing the flow must be the one who started it.
   const { org, me } = await getOrgContext(slug);
-  if (me.id !== state.member || me.user_id !== state.user || org.id !== state.org) return back("error");
+  if (me.id !== state.member || (me.user_id ?? "") !== state.user || org.id !== state.org) return back("error");
 
   try {
     const t = await provider.exchangeCode(sp.get("code")!);

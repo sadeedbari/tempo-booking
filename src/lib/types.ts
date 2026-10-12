@@ -45,7 +45,10 @@ export interface Location {
 export interface Membership {
   id: string;
   org_id: string;
-  user_id: string;
+  /** null for a team member who has no login (added by an owner/admin without an invitation). */
+  user_id: string | null;
+  /** Optional contact email for a team member without a login. */
+  email: string | null;
   role: OrgRole;
   display_name: string;
   title: string | null;
@@ -149,6 +152,8 @@ export interface Booking {
 export interface Invitation {
   id: string;
   org_id: string;
+  /** Set when the invitation is for a team member that already exists (added without a login). */
+  member_id: string | null;
   email: string;
   role: OrgRole;
   token: string;

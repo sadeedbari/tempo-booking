@@ -14,7 +14,7 @@ const read = async (sheets: Sheet[]) => {
 const names = (wb: ExcelJS.Workbook) => wb.worksheets.map((w) => w.name);
 
 const tz = "America/Toronto";
-const member = (id: string, name: string): Membership => ({ id, org_id: "o", user_id: id, role: "member", display_name: name, title: null, color: "#007AFF", bookable: true, created_at: "2026-01-01T00:00:00Z" });
+const member = (id: string, name: string): Membership => ({ id, org_id: "o", user_id: id, email: null, role: "member", display_name: name, title: null, color: "#007AFF", bookable: true, created_at: "2026-01-01T00:00:00Z" });
 const members = [member("m1", "Maya Chen"), member("m2", "Jordan Lee")];
 
 test("writes a tidy workbook: header styling, frozen header, number formats, real dates", async () => {
