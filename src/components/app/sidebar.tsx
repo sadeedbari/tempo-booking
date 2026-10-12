@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  House, CalendarDays, CalendarRange, ListChecks, Users2, Sparkles, Clock3, Settings, ExternalLink, ChevronsUpDown, Check, Plus, LogOut, Contact, Ellipsis,
+  House, CalendarDays, CalendarRange, ListChecks, Users2, Sparkles, Clock3, Settings, ExternalLink, ChevronsUpDown, Check, Plus, LogOut, Contact, Ellipsis, Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoMark } from "./logo";
@@ -18,6 +18,7 @@ const NAV = [
   { href: "schedule", label: "Schedule", icon: CalendarRange },
   { href: "customers", label: "Customers", icon: Contact },
   { href: "services", label: "Services", icon: Sparkles },
+  { href: "workflows", label: "Workflows", icon: Workflow },
   { href: "team", label: "Team", icon: Users2 },
   { href: "availability", label: "Availability", icon: Clock3 },
   { href: "settings", label: "Settings", icon: Settings },

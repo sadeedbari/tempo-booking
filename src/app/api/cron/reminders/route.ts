@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyBooking } from "@/lib/notify";
+import { runTimedWorkflows } from "@/lib/messaging";
 import { env } from "@/lib/env";
 import { refundDeposit } from "@/lib/bookings";
 
@@ -30,33 +31,8 @@ export async function GET(request: Request) {
     await notifyBooking(b.id, "declined");
   }
 
-  // 2. Reminders — look ahead up to the longest reminder window (48h).
-  const { data: due } = await admin
-    .from("bookings")
-    .select("id, starts_at, org:organizations(reminder_hours_before)")
-    .eq("status", "confirmed")
-    .is("reminder_sent_at", null)
-    .gt("starts_at", now.toISOString())
-    .lt("starts_at", new Date(now.getTime() + 48 * 3600_000).toISOString())
-    .limit(500);
-
-  let sent = 0;
-  for (const b of due ?? []) {
-    const hours = (b.org as unknown as { reminder_hours_before: number })?.reminder_hours_before ?? 0;
-    if (!hours) continue;
-    if (new Date(b.starts_at).getTime() - now.getTime() > hours * 3600_000) continue;
-    // Claim it first so parallel runs never double-send.
-    const { data: claimed } = await admin
-      .from("bookings")
-      .update({ reminder_sent_at: now.toISOString() })
-      .eq("id", b.id)
-      .is("reminder_sent_at", null)
-      .select("id");
-    if (claimed?.length) {
-      await notifyBooking(b.id, "reminder");
-      sent++;
-    }
-  }
+  // 2. Timed messages: reminders and "after the appointment" messages from each business's workflows.
+  const sent = await runTimedWorkflows(now);
 
   // 3. Auto-complete bookings that ended more than 12 hours ago.
   await admin
@@ -65,5 +41,5 @@ export async function GET(request: Request) {
     .eq("status", "confirmed")
     .lt("ends_at", new Date(now.getTime() - 12 * 3600_000).toISOString());
 
-  return Response.json({ ok: true, reminders: sent });
+  return Response.json({ ok: true, messages: sent });
 }

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
-import { Check, CreditCard, Mail, MessageSquare, ExternalLink } from "lucide-react";
+import Link from "next/link";
+import { Check, ChevronRight, CreditCard, Mail, MessageSquare, ExternalLink } from "lucide-react";
 import { PageHeader, Notice, Badge } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { buttonClass } from "@/components/ui/button-class";
@@ -111,11 +112,6 @@ export function SettingsView({
                   {[[0, "Any time"], [2, "2 hours before"], [12, "12 hours before"], [24, "24 hours before"], [48, "48 hours before"], [72, "3 days before"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </Select>
               </Field>
-              <Field label="Send reminder">
-                <Select name="reminder_hours_before" defaultValue={org.reminder_hours_before}>
-                  {[[0, "Don't send"], [2, "2 hours before"], [12, "12 hours before"], [24, "24 hours before"], [48, "48 hours before"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </Select>
-              </Field>
             </div>
           </Section>
 
@@ -168,6 +164,13 @@ export function SettingsView({
         <Section title="Notifications" description="Alerts for you and your team, and the messages sent to customers.">
           {vapidKey && <div className="mb-4"><PushDeviceCard vapidKey={vapidKey} teamEnabled={org.notify_push} /></div>}
           <h3 className="mb-2 text-[14px] font-medium text-label-2">Messages to customers</h3>
+          <Link href={`/o/${slug}/workflows`} className="mb-3 flex items-center gap-3 rounded-[16px] bg-surface p-4 shadow-sm hairline transition hover:shadow-md">
+            <div className="min-w-0 flex-1">
+              <div className="text-[15px] font-medium">Edit your emails and texts</div>
+              <div className="text-[13px] text-label-2">Confirmations, reminders, cancellations and more. Write them your way and choose when they send.</div>
+            </div>
+            <ChevronRight className="size-4 shrink-0 text-label-3" />
+          </Link>
           <div className="overflow-hidden rounded-[16px] bg-surface shadow-sm hairline divide-y divide-separator">
             <Integration icon={<Mail className="size-5" />} color="#007AFF" title="Email" on={features.email} hint="Powered by Resend — set RESEND_API_KEY and EMAIL_FROM." />
             <Integration icon={<MessageSquare className="size-5" />} color="#34C759" title="SMS" on={features.sms} hint="Powered by Twilio — set TWILIO_* variables." />

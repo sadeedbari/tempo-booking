@@ -743,7 +743,6 @@ const orgSchema = z.object({
   max_advance_days: z.coerce.number().int().min(1).max(365),
   slot_interval_minutes: z.coerce.number().int(),
   cancellation_window_hours: z.coerce.number().int().min(0).max(720),
-  reminder_hours_before: z.coerce.number().int().min(0).max(168),
   notify_push: z.enum(["on", ""]).optional(), // the switch sends "on" when enabled, "" when off
 });
 

@@ -15,7 +15,7 @@ const SINGLE_QUOTES = chars(0x2018, 0x2019);
 const DOUBLE_QUOTES = chars(0x201c, 0x201d);
 
 /** Swaps look-alike characters for plain ones. */
-function plain(s: string) {
+export function plain(s: string) {
   return s.replace(SPACES, " ").replace(DASHES, "-").replace(SINGLE_QUOTES, "'").replace(DOUBLE_QUOTES, '"');
 }
 
@@ -28,4 +28,24 @@ export function buildSms(opts: {
 }) {
   const lead = opts.kind === "reminder" ? "Reminder" : "Confirmed";
   return plain(`${opts.orgName}: ${lead} - ${opts.serviceName}, ${opts.when}. Manage: ${opts.manageUrl} ${OPT_OUT}`);
+}
+
+/** Final text for a custom SMS template: plain characters, and always ends with the opt-out line. */
+export function finalizeSms(body: string) {
+  const t = plain(body).trim().replace(/\n{3,}/g, "\n\n");
+  return t.includes(OPT_OUT) ? t : `${t} ${OPT_OUT}`;
+}
+
+/**
+ * How many text-message segments a message will use. Plain ASCII uses the cheap alphabet (160 characters,
+ * or 153 per part when it needs several); anything else switches to the 70-character alphabet. Characters
+ * like { } [ ] ~ ^ | count twice. This is an estimate to warn people, not a billing guarantee.
+ */
+export function smsInfo(text: string) {
+  const unicode = /[^\x20-\x7e\n]/.test(text) || text.includes("`");
+  const length = unicode ? text.length : [...text].reduce((n, c) => n + ("^{}\[]~|".includes(c) ? 2 : 1), 0);
+  const single = unicode ? 70 : 160;
+  const multi = unicode ? 67 : 153;
+  const segments = length === 0 ? 0 : length <= single ? 1 : Math.ceil(length / multi);
+  return { length, segments, unicode };
 }

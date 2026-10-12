@@ -13,6 +13,9 @@ import { BookingPreview } from "../booking-preview";
 import { org, members, services, rules, customers, bookings, dashboardSample } from "../fixtures";
 import { DashboardView } from "@/app/o/[org]/dashboard/view";
 import { buildDashboard } from "@/lib/dashboard";
+import { WorkflowsView } from "@/app/o/[org]/workflows/view";
+import { WorkflowEditor } from "@/app/o/[org]/workflows/[id]/editor";
+import { DEFAULT_WORKFLOWS, STARTERS, type EditableWorkflow } from "@/lib/workflow-defaults";
 
 export default async function Preview(props: PageProps<"/preview/[page]">) {
   // Design previews with sample data — available in development only.
@@ -29,6 +32,19 @@ export default async function Preview(props: PageProps<"/preview/[page]">) {
   );
   if (page === "calendar")
     return shell(<CalendarView slug="lumen" org={org} view={sp.view === "week" ? "week" : "day"} date={day} rangeStart={day} members={members} meId="m1" bookings={bookings(day)} services={services} rules={rules} timeOff={[]} customers={customers} locations={[]} shifts={[]} />);
+  if (page === "workflows") {
+    const list = DEFAULT_WORKFLOWS.map((d, i) => ({ id: `w${i}`, name: d.name, trigger: d.trigger, offset_minutes: d.offset_minutes, active: i !== 2, all_services: i !== 5, default_key: d.key, steps: d.steps.map((x) => ({ channel: x.channel, enabled: true })), services: i === 5 ? [{ service_id: "haircut" }] : [] }));
+    const log = [
+      { id: "l1", workflow_name: "Appointment reminder", channel: "email" as const, recipient: "ada.lovelace@example.com", status: "sent" as const, detail: null, created_at: new Date().toISOString() },
+      { id: "l2", workflow_name: "Booking confirmed", channel: "sms" as const, recipient: "+14165551234", status: "failed" as const, detail: "Twilio error 30032", created_at: new Date().toISOString() },
+    ];
+    return shell(<WorkflowsView slug="lumen" timezone={org.timezone} workflows={list} log={log} tab={sp.tab === "activity" ? "activity" : "workflows"} emailReady smsReady={false} />);
+  }
+  if (page === "workflow") {
+    const d = DEFAULT_WORKFLOWS[sp.k === "confirmed" ? 0 : 5];
+    const w: EditableWorkflow = sp.new ? { ...STARTERS[1], active: true, all_services: true, service_ids: [], default_key: null, steps: STARTERS[1].steps.map((x) => ({ ...x, enabled: true })) } : { id: "00000000-0000-0000-0000-000000000000", name: d.name, trigger: d.trigger, offset_minutes: d.offset_minutes, active: true, all_services: true, service_ids: [], default_key: d.key, steps: d.steps.map((x) => ({ ...x, enabled: true })) };
+    return shell(<WorkflowEditor slug="lumen" initial={w} services={services.map((x) => ({ id: x.id, name: x.name, color: x.color }))} business={{ name: org.name, phone: org.phone, accent: org.accent_color }} />);
+  }
   if (page === "dashboard") {
     const rangeDays = [7, 30, 90].includes(Number(sp.range)) ? Number(sp.range) : 30;
     const nowD = new Date();
