@@ -150,7 +150,7 @@ function OrgSwitcher({ org, orgs, compact }: { org: OrgLite; orgs: OrgLite[]; co
         <div className="absolute left-0 top-full z-50 mt-1.5 w-[250px] overflow-hidden rounded-[14px] glass-strong hairline p-1.5 shadow-lg animate-pop">
           <div className="px-2.5 pt-1.5 pb-1 text-[12px] font-medium text-label-3">Teams</div>
           {orgs.map((o) => (
-            <Link key={o.id} href={`/o/${o.slug}/calendar`} onClick={() => setOpen(false)} className="flex items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-[14px] hover:bg-accent hover:text-white">
+            <Link key={o.id} href={`/o/${o.slug}/dashboard`} onClick={() => setOpen(false)} className="flex items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-[14px] hover:bg-accent hover:text-white">
               <span className="grid size-6 place-items-center rounded-[7px] text-[11px] font-bold text-white" style={{ background: o.accent_color }}>{o.name[0]?.toUpperCase()}</span>
               <span className="flex-1 truncate">{o.name}</span>
               {o.id === org.id && <Check className="size-4" />}

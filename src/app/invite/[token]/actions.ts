@@ -10,5 +10,5 @@ export async function acceptInvite(_: { error?: string } | undefined, formData: 
   });
   if (error) return { error: error.message };
   const { data: org } = await supabase.from("organizations").select("slug").eq("id", orgId).single();
-  redirect(`/o/${org?.slug}/calendar`);
+  redirect(`/o/${org?.slug}/dashboard`);
 }
