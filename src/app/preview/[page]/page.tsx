@@ -10,7 +10,9 @@ import { periodDays, periodStart } from "@/lib/schedule";
 import { weekdayOfKey } from "@/lib/format";
 import type { Shift } from "@/lib/types";
 import { BookingPreview } from "../booking-preview";
-import { org, members, services, rules, customers, bookings } from "../fixtures";
+import { org, members, services, rules, customers, bookings, dashboardSample } from "../fixtures";
+import { DashboardView } from "@/app/o/[org]/dashboard/view";
+import { buildDashboard } from "@/lib/dashboard";
 
 export default async function Preview(props: PageProps<"/preview/[page]">) {
   // Design previews with sample data — available in development only.
@@ -27,6 +29,13 @@ export default async function Preview(props: PageProps<"/preview/[page]">) {
   );
   if (page === "calendar")
     return shell(<CalendarView slug="lumen" org={org} view={sp.view === "week" ? "week" : "day"} date={day} rangeStart={day} members={members} meId="m1" bookings={bookings(day)} services={services} rules={rules} timeOff={[]} customers={customers} locations={[]} shifts={[]} />);
+  if (page === "dashboard") {
+    const rangeDays = [7, 30, 90].includes(Number(sp.range)) ? Number(sp.range) : 30;
+    const nowD = new Date();
+    const { list, custs } = dashboardSample(day);
+    const dash = buildDashboard({ bookings: list, customers: custs, rules, shifts: [], scheduleMode: "availability", memberIds: members.map((m) => m.id), tz: org.timezone, today: day, rangeDays, now: nowD });
+    return shell(<DashboardView slug="lumen" org={org} me={members[0]} members={members} isAdmin={sp.as !== "staff"} d={dash} rangeDays={rangeDays} now={nowD} today={day} basePath="/preview/dashboard" facts={{ services: 5, hasHours: true, hasOnlineBooking: false }} />);
+  }
   if (page === "schedule") {
     const period = sp.view === "month" ? "month" : "week";
     const start = periodStart(period, day);

@@ -1,3 +1,5 @@
+import { addDaysToKey, weekdayOfKey } from "@/lib/format";
+import type { DBooking } from "@/lib/dashboard";
 import { TZDate } from "@date-fns/tz";
 import type { Booking, Membership, Organization, Service, AvailabilityRule, Customer, PublicOrg } from "@/lib/types";
 export const tz = "America/Toronto";
@@ -14,3 +16,31 @@ export function bookings(day: string): Booking[] {
   return [b("b1", "m1", services[0], 9, 0, 0), b("b2", "m1", services[1], 11, 30, 1), b("b3", "m1", services[0], 15, 0, 2), b("b4", "m2", services[2], 9, 30, 3), b("b5", "m2", services[2], 13, 0, 4), b("b6", "m3", services[3], 10, 0, 5), b("b7", "m3", services[4], 12, 0, 0, "pending_payment"), b("b8", "m3", services[3], 14, 30, 2)];
 }
 export const publicData: PublicOrg = { org: { ...org, payments_enabled: true }, services: services.map((x) => ({ ...x, staff_ids: [] })), locations: [{ id: "l1", name: "Queen West", address: "214 Queen St W, Toronto", phone: null, staff_ids: [] }, { id: "l2", name: "Leslieville", address: "1120 Queen St E, Toronto", phone: null, staff_ids: [] }], staff: members.map((x) => ({ id: x.id, display_name: x.display_name, title: x.title, color: x.color, avatar_url: null })), availability: rules };
+
+/** ~70 days of history plus the coming week for the dashboard preview, generated deterministically. */
+export function dashboardSample(day: string) {
+  let seed = 7;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const custs = customers.map((c, i) => ({ id: c.id, name: c.name, created_at: at(addDaysToKey(day, -(75 - i * 12)), 9) }));
+  const list: DBooking[] = [];
+  for (let off = -70; off <= 6; off++) {
+    const d = addDaysToKey(day, off);
+    if (weekdayOfKey(d) === 0) continue;
+    const n = 2 + Math.floor(rnd() * 5);
+    for (let k = 0; k < n; k++) {
+      const hour = 9 + Math.floor(rnd() * 8);
+      const svc = services[Math.floor(rnd() * 4)];
+      const mem = members[Math.floor(rnd() * members.length)];
+      const cust = custs[Math.floor(rnd() * custs.length)];
+      const r = rnd();
+      const status: DBooking["status"] = off < 0 ? (r < 0.84 ? "completed" : r < 0.92 ? "no_show" : "cancelled") : r < 0.88 ? "confirmed" : "pending_approval";
+      const startsAt = at(d, hour, rnd() < 0.5 ? 0 : 30);
+      list.push({
+        id: `d${off}-${k}`, starts_at: startsAt, ends_at: new Date(new Date(startsAt).getTime() + svc.duration_minutes * 60000).toISOString(),
+        status, price_cents: svc.price_cents, deposit_cents: 0, payment_status: "none", service_id: svc.id, service_name: svc.name,
+        member_id: mem.id, customer_id: cust.id, customer_name: cust.name, source: rnd() < 0.7 ? "online" : "manual",
+      });
+    }
+  }
+  return { list, custs };
+}
