@@ -9,6 +9,8 @@ const base = {
   manageUrl: "https://tempo.sulosystems.com/booking/" + "a".repeat(48),
 };
 
+const ch = (...codes: number[]) => String.fromCharCode(...codes);
+
 test("confirmation and reminder texts read correctly and end with the opt-out line", () => {
   const c = buildSms({ ...base, kind: "confirmation" });
   const r = buildSms({ ...base, kind: "reminder" });
@@ -32,9 +34,9 @@ test("look-alike characters from the date formatter or business name are convert
   const m = buildSms({
     ...base,
     kind: "reminder",
-    orgName: "Joe’s Detailing", // curly apostrophe
-    serviceName: "Full — Interior", // em dash
-    when: "Monday, October 14 at 2:00 PM", // narrow no-break space, as newer ICU data emits
+    orgName: `Joe${ch(0x2019)}s Detailing`, // curly apostrophe
+    serviceName: `Full ${ch(0x2014)} Interior`, // em dash
+    when: `Monday, October 14 at 2:00${ch(0x202f)}PM`, // narrow no-break space, as newer ICU data emits
   });
   assert.ok(/^[\x20-\x7e]*$/.test(m), m);
   assert.match(m, /^Joe's Detailing: Reminder - Full - Interior, Monday, October 14 at 2:00 PM\./);
