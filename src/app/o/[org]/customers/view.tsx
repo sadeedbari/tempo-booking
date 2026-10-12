@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
-import { Contact, Plus, Search } from "lucide-react";
+import { Contact, Download, Plus, Search } from "lucide-react";
 import { PageHeader, EmptyState, Avatar, Notice } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/input";
@@ -11,9 +11,9 @@ import type { Customer, Organization } from "@/lib/types";
 import { deleteCustomer, saveCustomer } from "../actions";
 
 export function CustomersView({
-  slug, org, customers, stats, canDelete,
+  slug, org, customers, stats, canDelete, canExport,
 }: {
-  slug: string; org: Organization; canDelete: boolean; customers: Customer[]; stats: Record<string, { visits: number; last: string | null; spent: number }>;
+  slug: string; org: Organization; canDelete: boolean; canExport: boolean; customers: Customer[]; stats: Record<string, { visits: number; last: string | null; spent: number }>;
 }) {
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<Partial<Customer> | null>(null);
@@ -32,7 +32,20 @@ export function CustomersView({
       <PageHeader
         title="Customers"
         subtitle={`${customers.length} ${customers.length === 1 ? "person" : "people"}`}
-        actions={<Button pill onClick={() => { setError(null); setConfirmDelete(false); setEditing({}); }}><Plus className="size-4" strokeWidth={2.5} /> Add</Button>}
+        actions={
+          <div className="flex items-center gap-2">
+            {canExport && (
+              <a
+                href={`/api/export/customers?org=${encodeURIComponent(slug)}`}
+                className="inline-flex h-10 items-center gap-1.5 rounded-full bg-surface-2 px-4 text-[15px] font-medium transition hover:bg-surface-3"
+                title="Download all customers as an Excel file"
+              >
+                <Download className="size-4" /> Export
+              </a>
+            )}
+            <Button pill onClick={() => { setError(null); setConfirmDelete(false); setEditing({}); }}><Plus className="size-4" strokeWidth={2.5} /> Add</Button>
+          </div>
+        }
       />
       <div className="relative mb-5 max-w-md">
         <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-label-3" />

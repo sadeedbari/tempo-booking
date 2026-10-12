@@ -1,13 +1,11 @@
 import Link from "next/link";
-import { AlertCircle, CalendarClock, Check, ChevronRight, Circle, Clock, Lightbulb } from "lucide-react";
+import { AlertCircle, CalendarClock, Check, ChevronRight, Circle, Clock, Download, Lightbulb } from "lucide-react";
 import { formatDate, formatTime, STATUS_LABEL } from "@/lib/format";
-import { change, type Dashboard } from "@/lib/dashboard";
+import { change, RANGES, type Dashboard } from "@/lib/dashboard";
 import { Avatar, Badge, statusTone } from "@/components/ui/misc";
 import type { Membership, Organization } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { BarChart, BarRow, Card, Delta, Empty, Heatmap, Kpi, money, pct, StackedBar } from "./widgets";
-
-export const RANGES = [7, 30, 90] as const;
 
 export interface DashboardViewProps {
   slug: string;
@@ -70,6 +68,7 @@ export function DashboardView({ slug, org, me, members, isAdmin, d, rangeDays, n
             {formatDate(now, tz)} · {d.todayList.filter((b) => b.status !== "no_show").length} appointment{d.todayList.length === 1 ? "" : "s"} today
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded-[10px] bg-surface-2 p-[2px]" role="tablist" aria-label="Date range">
           {RANGES.map((r) => (
             <Link
@@ -80,6 +79,14 @@ export function DashboardView({ slug, org, me, members, isAdmin, d, rangeDays, n
               Last {r} days
             </Link>
           ))}
+        </div>
+        <a
+          href={`/api/export/home?org=${encodeURIComponent(slug)}&range=${rangeDays}`}
+          className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-surface-2 px-3.5 text-[13px] font-medium transition hover:bg-surface-3"
+          title="Download these statistics as an Excel file"
+        >
+          <Download className="size-4" /> Export to Excel
+        </a>
         </div>
       </div>
 

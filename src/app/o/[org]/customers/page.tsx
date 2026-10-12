@@ -22,5 +22,5 @@ export default async function CustomersPage(props: PageProps<"/o/[org]/customers
     if (!a.last || b.starts_at > a.last) a.last = b.starts_at;
     if (b.status === "completed") a.spent += b.price_cents;
   });
-  return <CustomersView slug={slug} org={org} canDelete={isAdmin} customers={(customers ?? []) as Customer[]} stats={agg} />;
+  return <CustomersView slug={slug} org={org} canDelete={isAdmin} canExport={isAdmin} customers={(customers ?? []) as Customer[]} stats={agg} />;
 }

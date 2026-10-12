@@ -232,3 +232,7 @@ export function buildDashboard(i: DashInput) {
 }
 
 export type Dashboard = ReturnType<typeof buildDashboard>;
+
+/** Date ranges the Home page offers. */
+export const RANGES = [7, 30, 90] as const;
+export const parseRange = (v: unknown) => ((RANGES as readonly number[]).includes(Number(v)) ? Number(v) : 30);

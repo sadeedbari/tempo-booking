@@ -1,9 +1,10 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, ChevronLeft, ChevronRight, Copy, Plus, Trash2, Wand2 } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, Copy, Download, Plus, Trash2, Wand2 } from "lucide-react";
 import { PageHeader, Avatar, Notice } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
+import { buttonClass } from "@/components/ui/button-class";
 import { Select } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { Sheet } from "@/components/ui/sheet";
@@ -125,6 +126,13 @@ export function ScheduleView(p: Props) {
             <Segmented size="sm" value={scope} onChange={setScope} options={[{ value: "me", label: "Just me" }, { value: "all", label: "Everyone" }]} />
           )}
           <Segmented size="sm" value={p.period} onChange={(v) => go(p.start, v)} options={[{ value: "week", label: "Week" }, { value: "month", label: "Month" }]} />
+          <a
+            href={`/api/export/schedule?org=${encodeURIComponent(p.slug)}&view=${p.period}&date=${p.start}`}
+            className={buttonClass("gray", "sm")}
+            title={`Download this ${p.period}'s schedule as an Excel file`}
+          >
+            <Download className="size-3.5" /> Export to Excel
+          </a>
           {p.isAdmin && (
             <>
               <Button size="sm" variant="gray" onClick={() => setCopying(true)}><Copy className="size-3.5" /> Copy previous {p.period}</Button>

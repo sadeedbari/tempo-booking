@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  LayoutDashboard, CalendarDays, CalendarRange, ListChecks, Users2, Sparkles, Clock3, Settings, ExternalLink, ChevronsUpDown, Check, Plus, LogOut, Contact,
+  House, CalendarDays, CalendarRange, ListChecks, Users2, Sparkles, Clock3, Settings, ExternalLink, ChevronsUpDown, Check, Plus, LogOut, Contact,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoMark } from "./logo";
@@ -12,7 +12,7 @@ import { Avatar } from "@/components/ui/misc";
 type OrgLite = { id: string; name: string; slug: string; accent_color: string; role: string };
 
 const NAV = [
-  { href: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "dashboard", label: "Home", icon: House },
   { href: "calendar", label: "Calendar", icon: CalendarDays },
   { href: "bookings", label: "Bookings", icon: ListChecks },
   { href: "schedule", label: "Schedule", icon: CalendarRange },
