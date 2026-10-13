@@ -12,18 +12,18 @@ import { Avatar } from "@/components/ui/misc";
 
 type OrgLite = { id: string; name: string; slug: string; accent_color: string; role: string };
 
-/** `tone` is [light, rich]: each page gets its own glossy gradient tile. */
+/** `tone` is [light, rich]: each page gets its own frosted-glass tile. */
 const NAV = [
-  { href: "dashboard", label: "Home", icon: House, tone: ["#9CC0FF", "#4F86EA"], group: "Today" },
-  { href: "calendar", label: "Calendar", icon: CalendarDays, tone: ["#FFB08E", "#E8643A"], group: "Today" },
-  { href: "bookings", label: "Bookings", icon: ListChecks, tone: ["#7FDCC0", "#22A585"], group: "Today" },
-  { href: "schedule", label: "Schedule", icon: CalendarRange, tone: ["#BDA8FA", "#7B5CDB"], group: "Today" },
-  { href: "customers", label: "Customers", icon: Contact, tone: ["#FFA9C9", "#DD5A90"], group: "Business" },
-  { href: "services", label: "Services", icon: Sparkles, tone: ["#FFD875", "#E09A12"], group: "Business" },
-  { href: "workflows", label: "Workflows", icon: Workflow, tone: ["#8BD3F2", "#2E9BCB"], group: "Business" },
-  { href: "team", label: "Team", icon: Users2, tone: ["#A9BACF", "#6A7D96"], group: "Business" },
-  { href: "availability", label: "Availability", icon: Clock3, tone: ["#86DDD6", "#2BAAA2"], group: "Business" },
-  { href: "settings", label: "Settings", icon: Settings, tone: ["#BEC3CC", "#868C97"], group: "Account" },
+  { href: "dashboard", label: "Home", icon: House, tone: ["#8EB4FF", "#5A8FEF"], group: "Today" },
+  { href: "calendar", label: "Calendar", icon: CalendarDays, tone: ["#FFA98A", "#EF7E58"], group: "Today" },
+  { href: "bookings", label: "Bookings", icon: ListChecks, tone: ["#6FD6B8", "#2FA98A"], group: "Today" },
+  { href: "schedule", label: "Schedule", icon: CalendarRange, tone: ["#B3A0FF", "#8466E0"], group: "Today" },
+  { href: "customers", label: "Customers", icon: Contact, tone: ["#FFA0C4", "#E0679A"], group: "Business" },
+  { href: "services", label: "Services", icon: Sparkles, tone: ["#FFCB6B", "#E3A21E"], group: "Business" },
+  { href: "workflows", label: "Workflows", icon: Workflow, tone: ["#6CC8F0", "#2F9BCB"], group: "Business" },
+  { href: "team", label: "Team", icon: Users2, tone: ["#9DAEC8", "#6F82A0"], group: "Business" },
+  { href: "availability", label: "Availability", icon: Clock3, tone: ["#6AD7CF", "#2FA9A1"], group: "Business" },
+  { href: "settings", label: "Settings", icon: Settings, tone: ["#AEB5C3", "#7C8494"], group: "Account" },
 ];
 
 type NavItem = (typeof NAV)[number];
@@ -37,17 +37,20 @@ function SectionLabel({ children, first, large }: { children: React.ReactNode; f
   );
 }
 
-/** Glossy gradient squircle with a white icon. */
-function NavTile({ item, size = 28 }: { item: NavItem; size?: number }) {
+/** Frosted-glass squircle: a translucent tint with a bright top edge and a tinted icon. `onAccent` turns the icon white on the blue active row. */
+function NavTile({ item, size = 28, onAccent }: { item: NavItem; size?: number; onAccent?: boolean }) {
+  const [light, rich] = item.tone;
   return (
     <span
-      className="grid shrink-0 place-items-center text-white"
+      className="grid shrink-0 place-items-center"
       style={{
         width: size,
         height: size,
         borderRadius: size * 0.29,
-        background: `linear-gradient(160deg, ${item.tone[0]}, ${item.tone[1]})`,
-        boxShadow: `0 1px 3px ${item.tone[1]}66, inset 0 1px 0 rgba(255,255,255,0.45)`,
+        color: onAccent ? "#fff" : rich,
+        background: `linear-gradient(160deg, ${light}66, ${rich}55)`,
+        border: `0.5px solid ${onAccent ? "rgba(255,255,255,0.55)" : `${rich}66`}`,
+        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -2px 4px ${rich}22, 0 2px 6px -2px ${rich}55`,
       }}
     >
       <item.icon style={{ width: size * 0.55, height: size * 0.55 }} strokeWidth={2.2} />
@@ -100,7 +103,7 @@ export function Sidebar({
                     active ? "bg-accent text-white shadow-sm" : "text-label hover:bg-label-4/40",
                   )}
                 >
-                  <NavTile item={item} size={26} />
+                  <NavTile item={item} size={26} onAccent={active} />
                   {item.label}
                   {item.href === "bookings" && pendingApprovals > 0 && (
                     <span className={cn("ml-auto grid min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold leading-5", active ? "bg-white text-accent" : "bg-orange text-white")}>
@@ -176,7 +179,7 @@ export function Sidebar({
           return (
             <Link key={item.href} href={href} onClick={() => setMoreOpen(false)} className={cn("flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium", active ? "text-accent" : "text-label-3")}>
               <span className="relative">
-                <span className={cn("block transition-all duration-200", active ? "scale-110" : "opacity-80 saturate-[0.85]")}><NavTile item={item} size={28} /></span>
+                <span className={cn("block transition-all duration-200", active ? "scale-110" : "")}><NavTile item={item} size={28} /></span>
                 {item.href === "bookings" && pendingApprovals > 0 && <span className="absolute -right-1.5 -top-1 size-2.5 rounded-full bg-orange" />}
               </span>
               {item.label}
