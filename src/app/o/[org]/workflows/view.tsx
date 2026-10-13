@@ -52,8 +52,8 @@ export function WorkflowsView({
       />
 
       <div className="max-w-3xl space-y-5">
-        {!emailReady && <Notice tone="blue">Email isn&apos;t set up on this server yet, so emails can&apos;t be sent. Add RESEND_API_KEY and EMAIL_FROM to turn it on.</Notice>}
-        {!smsReady && <Notice tone="blue">Texting isn&apos;t set up on this server yet. You can still write texts; they send once Twilio is connected.</Notice>}
+        {!emailReady && <Notice tone="blue">Email isn&apos;t available yet, so these messages can&apos;t be sent. Contact Tempo support to turn it on.</Notice>}
+        {!smsReady && <Notice tone="blue">Text messaging isn&apos;t available yet. You can still write your texts; they&apos;ll send as soon as it&apos;s turned on.</Notice>}
 
         <Segmented value={tab} onChange={setTab} options={[{ value: "workflows", label: "Workflows" }, { value: "activity", label: "Activity" }]} />
 

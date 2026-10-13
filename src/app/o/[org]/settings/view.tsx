@@ -106,7 +106,7 @@ export function SettingsView({
               <Field label="Booking alerts for your team" hint="Push notification to owners, admins and the booked team member when a booking is made, requested, rescheduled or cancelled.">
                 <div className="flex h-11 items-center gap-3">
                   <Switch name="notify_push" defaultChecked={org.notify_push} label="Booking alerts for your team" />
-                  <span className="text-[14px] text-label-2">{features.push ? "On by default" : "Needs server setup (VAPID keys)"}</span>
+                  <span className="text-[14px] text-label-2">{features.push ? "Your team gets an alert on their phone or computer." : "Push alerts aren't available yet."}</span>
                 </div>
               </Field>
               <Field label="Customers can cancel or reschedule until">
@@ -135,7 +135,7 @@ export function SettingsView({
                 Stripe {org.stripe_charges_enabled ? <Badge tone="green">Connected</Badge> : org.stripe_account_id ? <Badge tone="orange">Setup incomplete</Badge> : null}
               </div>
               <div className="text-[14px] text-label-2">
-                {!features.payments ? "Add STRIPE_SECRET_KEY to the server environment to enable payments." : org.stripe_charges_enabled ? "You're ready to accept deposits." : "Connect your Stripe account to start collecting deposits."}
+                {!features.payments ? "Online payments aren't available yet. Contact Tempo support to turn them on." : org.stripe_charges_enabled ? "You're ready to accept deposits." : "Connect your Stripe account to start collecting deposits."}
               </div>
             </div>
             {features.payments && (
@@ -154,9 +154,9 @@ export function SettingsView({
             <div className="mt-3">
               <Notice>
                 {stripeReason === "connect_disabled"
-                  ? "Stripe Connect isn't turned on for the Stripe account behind this server's key yet. In the Stripe dashboard, open Settings → Connect and click Get started, then try again."
+                  ? "We can't connect Stripe accounts just yet. Please contact Tempo support and we'll sort it out."
                   : stripeReason === "bad_key"
-                    ? "Stripe rejected this server's secret key. Check that STRIPE_SECRET_KEY is the right key for the right mode (test or live), then redeploy."
+                    ? "We couldn't verify Tempo's connection to Stripe. Please contact Tempo support."
                     : "We couldn't reach Stripe just now. Please try again in a moment."}
               </Notice>
             </div>
@@ -176,8 +176,8 @@ export function SettingsView({
             <ChevronRight className="size-4 shrink-0 text-label-3" />
           </Link>
           <div className="overflow-hidden rounded-[16px] bg-surface shadow-sm hairline divide-y divide-separator">
-            <Integration icon={<Mail className="size-5" />} color="#007AFF" title="Email" on={features.email} hint="Powered by Resend — set RESEND_API_KEY and EMAIL_FROM." />
-            <Integration icon={<MessageSquare className="size-5" />} color="#34C759" title="SMS" on={features.sms} hint="Powered by Twilio — set TWILIO_* variables." />
+            <Integration icon={<Mail className="size-5" />} color="#007AFF" title="Email" on={features.email} hint={features.email ? "Confirmations, reminders and updates are emailed to your customers." : "Email isn't available yet. Contact Tempo support to turn it on."} />
+            <Integration icon={<MessageSquare className="size-5" />} color="#34C759" title="SMS" on={features.sms} hint={features.sms ? "Text reminders and updates are sent to customers who agree to receive texts." : "Text messaging isn't available yet. Contact Tempo support to turn it on."} />
           </div>
         </Section>
 
@@ -213,9 +213,9 @@ function Integration({ icon, color, title, on, hint }: { icon: React.ReactNode; 
       <span className="grid size-10 place-items-center rounded-[10px] text-white" style={{ background: color }}>{icon}</span>
       <div className="min-w-0 flex-1">
         <div className="text-[15px] font-medium">{title}</div>
-        <div className="truncate text-[13px] text-label-2">{hint}</div>
+        <div className="text-[13px] text-label-2">{hint}</div>
       </div>
-      <Badge tone={on ? "green" : "gray"}>{on ? "Active" : "Not set up"}</Badge>
+      <Badge tone={on ? "green" : "gray"}>{on ? "On" : "Unavailable"}</Badge>
     </div>
   );
 }
