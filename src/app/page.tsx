@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarDays, CreditCard, BellRing, Users, Link2, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/app/logo";
 import { buttonClass } from "@/components/ui/button-class";
+import { ThemeSlider } from "@/components/app/theme-switch";
 import { createClient } from "@/lib/supabase/server";
 
 const features = [
@@ -25,9 +26,10 @@ export default async function Home() {
         style={{ background: "radial-gradient(40% 50% at 30% 40%, rgba(0,122,255,0.20), transparent), radial-gradient(35% 45% at 70% 30%, rgba(175,82,222,0.16), transparent), radial-gradient(30% 40% at 55% 70%, rgba(52,199,89,0.12), transparent)" }} />
 
       <header className="sticky top-0 z-40 glass border-b border-separator">
-        <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5">
+        <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-5">
           <Logo />
           <div className="flex items-center gap-2">
+            <ThemeSlider />
             {signedIn ? (
               <Link href="/app" className={buttonClass("filled", "sm", true)}>Open Tempo</Link>
             ) : (

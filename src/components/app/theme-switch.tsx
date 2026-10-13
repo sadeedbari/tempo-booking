@@ -78,3 +78,28 @@ export function ThemeToggleButton() {
     </button>
   );
 }
+
+/** Small sun/moon slider for public pages (top right of the landing page). */
+export function ThemeSlider() {
+  const { dark, choose } = useThemePref();
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={dark}
+      aria-label="Dark mode"
+      title={dark ? "Switch to light mode" : "Switch to dark mode"}
+      onClick={() => choose(dark ? "light" : "dark")}
+      className="relative inline-flex h-8 w-[58px] shrink-0 items-center rounded-full bg-surface-3 p-[3px] transition-colors"
+    >
+      <Sun className="absolute left-2 size-3.5 text-label-3" aria-hidden />
+      <Moon className="absolute right-2 size-3.5 text-label-3" aria-hidden />
+      <span
+        className="relative grid size-[26px] place-items-center rounded-full bg-surface text-label shadow-[0_2px_6px_rgba(0,0,0,0.2)] transition-transform duration-300 ease-[var(--ease-apple)]"
+        style={{ transform: dark ? "translateX(26px)" : "translateX(0)" }}
+      >
+        {dark ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
+      </span>
+    </button>
+  );
+}
