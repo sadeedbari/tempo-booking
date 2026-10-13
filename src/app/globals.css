@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 /* ──────────────────────────────────────────────────────────────
    Tempo design tokens — modelled on Apple's Human Interface
    Guidelines: system colours, grouped backgrounds, vibrancy.
@@ -47,8 +48,45 @@
   --ring: 0 0 0 4px rgba(0, 122, 255, 0.22);
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #000000;
+  --surface: #1c1c1e;
+  --surface-2: #2c2c2e;
+  --surface-3: #3a3a3c;
+  --glass: rgba(28, 28, 30, 0.7);
+  --glass-strong: rgba(28, 28, 30, 0.86);
+
+  --label: #f5f5f7;
+  --label-2: rgba(235, 235, 245, 0.66);
+  --label-3: rgba(235, 235, 245, 0.4);
+  --label-4: rgba(235, 235, 245, 0.18);
+
+  --separator: rgba(84, 84, 88, 0.5);
+  --separator-strong: rgba(84, 84, 88, 0.8);
+
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-soft: rgba(10, 132, 255, 0.18);
+  --green: #30d158;
+  --orange: #ff9f0a;
+  --red: #ff453a;
+  --red-soft: rgba(255, 69, 58, 0.18);
+  --yellow: #ffd60a;
+  --purple: #bf5af2;
+  --pink: #ff375f;
+  --teal: #40c8e0;
+  --indigo: #5e5ce6;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.6);
+  --ring: 0 0 0 4px rgba(10, 132, 255, 0.35);
+}
+
+/* No-JS fallback: follow the system setting until the theme script has run. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     color-scheme: dark;
     --canvas: #000000;
     --surface: #1c1c1e;

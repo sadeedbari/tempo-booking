@@ -8,6 +8,7 @@ import { buttonClass } from "@/components/ui/button-class";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { PushDeviceCard } from "@/components/app/push-device";
+import { ThemeSwitch } from "@/components/app/theme-switch";
 import { useToast } from "@/components/ui/toast";
 import { PALETTE } from "@/lib/utils";
 import { allTimeZones, CURRENCIES } from "@/lib/timezones";
@@ -36,6 +37,7 @@ export function SettingsView({
         <div className="max-w-3xl space-y-6">
           <Notice tone="blue">Only owners and admins can change team settings. You can update your own profile and hours from Team and Availability.</Notice>
           {vapidKey && <PushDeviceCard vapidKey={vapidKey} teamEnabled={org.notify_push} />}
+          <Section title="Appearance" description="Light, dark, or follow your device. Saved on this device only."><ThemeSwitch /></Section>
         </div>
       </>
     );
@@ -160,6 +162,8 @@ export function SettingsView({
             </div>
           )}
         </Section>
+
+        <Section title="Appearance" description="Light, dark, or follow your device. Saved on this device only."><ThemeSwitch /></Section>
 
         <Section title="Notifications" description="Alerts for you and your team, and the messages sent to customers.">
           {vapidKey && <div className="mb-4"><PushDeviceCard vapidKey={vapidKey} teamEnabled={org.notify_push} /></div>}

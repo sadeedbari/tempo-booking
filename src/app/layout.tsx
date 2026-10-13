@@ -21,9 +21,15 @@ export const viewport: Viewport = {
   ],
 };
 
+const THEME_SCRIPT = `(function(){try{var p=localStorage.getItem("tempo-theme")||"system";var d=p==="dark"||(p==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}})()`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Applies the saved Light / Dark / System choice before first paint, so there is no flash. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="min-h-dvh">
         <ToastProvider>{children}</ToastProvider>
         <RegisterSW />

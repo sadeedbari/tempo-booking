@@ -7,22 +7,53 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoMark } from "./logo";
+import { ThemeSwitch, ThemeToggleButton } from "./theme-switch";
 import { Avatar } from "@/components/ui/misc";
 
 type OrgLite = { id: string; name: string; slug: string; accent_color: string; role: string };
 
+/** `tone` is [light, rich]: each page gets its own glossy gradient tile. */
 const NAV = [
-  { href: "dashboard", label: "Home", icon: House },
-  { href: "calendar", label: "Calendar", icon: CalendarDays },
-  { href: "bookings", label: "Bookings", icon: ListChecks },
-  { href: "schedule", label: "Schedule", icon: CalendarRange },
-  { href: "customers", label: "Customers", icon: Contact },
-  { href: "services", label: "Services", icon: Sparkles },
-  { href: "workflows", label: "Workflows", icon: Workflow },
-  { href: "team", label: "Team", icon: Users2 },
-  { href: "availability", label: "Availability", icon: Clock3 },
-  { href: "settings", label: "Settings", icon: Settings },
+  { href: "dashboard", label: "Home", icon: House, tone: ["#9CC0FF", "#4F86EA"], group: "Today" },
+  { href: "calendar", label: "Calendar", icon: CalendarDays, tone: ["#FFB08E", "#E8643A"], group: "Today" },
+  { href: "bookings", label: "Bookings", icon: ListChecks, tone: ["#7FDCC0", "#22A585"], group: "Today" },
+  { href: "schedule", label: "Schedule", icon: CalendarRange, tone: ["#BDA8FA", "#7B5CDB"], group: "Today" },
+  { href: "customers", label: "Customers", icon: Contact, tone: ["#FFA9C9", "#DD5A90"], group: "Business" },
+  { href: "services", label: "Services", icon: Sparkles, tone: ["#FFD875", "#E09A12"], group: "Business" },
+  { href: "workflows", label: "Workflows", icon: Workflow, tone: ["#8BD3F2", "#2E9BCB"], group: "Business" },
+  { href: "team", label: "Team", icon: Users2, tone: ["#A9BACF", "#6A7D96"], group: "Business" },
+  { href: "availability", label: "Availability", icon: Clock3, tone: ["#86DDD6", "#2BAAA2"], group: "Business" },
+  { href: "settings", label: "Settings", icon: Settings, tone: ["#BEC3CC", "#868C97"], group: "Account" },
 ];
+
+type NavItem = (typeof NAV)[number];
+
+/** Small uppercase heading that starts a group of menu items. */
+function SectionLabel({ children, first, large }: { children: React.ReactNode; first?: boolean; large?: boolean }) {
+  return (
+    <div className={cn("font-semibold uppercase tracking-[0.12em] text-label-3", large ? "px-3 pb-1 text-[11px]" : "px-2.5 pb-1.5 text-[10.5px]", first ? "pt-1" : large ? "pt-3" : "pt-4")}>
+      {children}
+    </div>
+  );
+}
+
+/** Glossy gradient squircle with a white icon. */
+function NavTile({ item, size = 28 }: { item: NavItem; size?: number }) {
+  return (
+    <span
+      className="grid shrink-0 place-items-center text-white"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size * 0.29,
+        background: `linear-gradient(160deg, ${item.tone[0]}, ${item.tone[1]})`,
+        boxShadow: `0 1px 3px ${item.tone[1]}66, inset 0 1px 0 rgba(255,255,255,0.45)`,
+      }}
+    >
+      <item.icon style={{ width: size * 0.55, height: size * 0.55 }} strokeWidth={2.2} />
+    </span>
+  );
+}
 
 const TABS = NAV.filter((n) => ["dashboard", "calendar", "bookings", "schedule"].includes(n.href));
 const MORE = NAV.filter((n) => !["dashboard", "calendar", "bookings", "schedule"].includes(n.href));
@@ -55,27 +86,29 @@ export function Sidebar({
         <div className="p-3 pt-4">
           <OrgSwitcher org={org} orgs={orgs} />
         </div>
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">
-          {NAV.map((item) => {
+        <nav className="flex-1 overflow-y-auto px-3 py-2">
+          {NAV.map((item, i) => {
             const href = `${base}/${item.href}`;
             const active = pathname.startsWith(href);
             return (
-              <Link
-                key={item.href}
-                href={href}
-                className={cn(
-                  "flex h-10 items-center gap-3 rounded-[9px] px-3 text-[14px] font-medium transition-colors duration-150",
-                  active ? "bg-accent text-white shadow-sm" : "text-label hover:bg-label-4/40",
-                )}
-              >
-                <item.icon className={cn("size-[18px]", active ? "text-white" : "text-accent")} strokeWidth={2} />
-                {item.label}
-                {item.href === "bookings" && pendingApprovals > 0 && (
-                  <span className={cn("ml-auto grid min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold leading-5", active ? "bg-white text-accent" : "bg-orange text-white")}>
-                    {pendingApprovals}
-                  </span>
-                )}
-              </Link>
+              <div key={item.href}>
+                {NAV[i - 1]?.group !== item.group && <SectionLabel first={i === 0}>{item.group}</SectionLabel>}
+                <Link
+                  href={href}
+                  className={cn(
+                    "mb-0.5 flex h-10 items-center gap-3 rounded-[10px] px-2.5 text-[14px] font-medium transition-colors duration-150",
+                    active ? "bg-accent text-white shadow-sm" : "text-label hover:bg-label-4/40",
+                  )}
+                >
+                  <NavTile item={item} size={26} />
+                  {item.label}
+                  {item.href === "bookings" && pendingApprovals > 0 && (
+                    <span className={cn("ml-auto grid min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold leading-5", active ? "bg-white text-accent" : "bg-orange text-white")}>
+                      {pendingApprovals}
+                    </span>
+                  )}
+                </Link>
+              </div>
             );
           })}
         </nav>
@@ -93,6 +126,7 @@ export function Sidebar({
               <div className="truncate text-[13px] font-semibold">{me.name}</div>
               <div className="truncate text-[12px] text-label-3">{me.email}</div>
             </div>
+            <ThemeToggleButton />
             <form action="/auth/signout" method="post">
               <button title="Sign out" className="grid size-10 place-items-center sm:size-8 rounded-full text-label-3 transition hover:bg-label-4/40 hover:text-label">
                 <LogOut className="size-4" />
@@ -112,15 +146,22 @@ export function Sidebar({
       {moreOpen && <button aria-label="Close menu" className="fixed inset-0 z-30 bg-black/30 lg:hidden" onClick={() => setMoreOpen(false)} />}
       {moreOpen && (
         <div className="fixed inset-x-3 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-40 overflow-hidden rounded-[18px] glass-strong hairline p-1.5 shadow-lg animate-pop lg:hidden">
-          {MORE.map((item) => {
+          {MORE.map((item, i) => {
             const href = `${base}/${item.href}`;
             return (
-              <Link key={item.href} href={href} onClick={() => setMoreOpen(false)} className={cn("flex h-12 items-center gap-3 rounded-[12px] px-3 text-[16px] font-medium", pathname.startsWith(href) ? "bg-accent-soft text-accent" : "text-label")}>
-                <item.icon className="size-5" /> {item.label}
-              </Link>
+              <div key={item.href}>
+                {MORE[i - 1]?.group !== item.group && <SectionLabel first={i === 0} large>{item.group}</SectionLabel>}
+                <Link href={href} onClick={() => setMoreOpen(false)} className={cn("flex h-12 items-center gap-3 rounded-[12px] px-3 text-[16px] font-medium", pathname.startsWith(href) ? "bg-accent-soft text-accent" : "text-label")}>
+                  <NavTile item={item} size={30} /> {item.label}
+                </Link>
+              </div>
             );
           })}
-          <form action="/auth/signout" method="post" className="mt-1 border-t border-separator pt-1">
+          <div className="mt-1 flex items-center justify-between gap-3 border-t border-separator px-3 py-2">
+            <span className="text-[15px] font-medium text-label">Appearance</span>
+            <ThemeSwitch />
+          </div>
+          <form action="/auth/signout" method="post" className="border-t border-separator pt-1">
             <button className="flex h-12 w-full items-center gap-3 rounded-[12px] px-3 text-left text-[16px] font-medium text-label-2">
               <LogOut className="size-5" /> Sign out
               <span className="ml-auto truncate text-[13px] font-normal text-label-3">{me.email}</span>
@@ -135,7 +176,7 @@ export function Sidebar({
           return (
             <Link key={item.href} href={href} onClick={() => setMoreOpen(false)} className={cn("flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium", active ? "text-accent" : "text-label-3")}>
               <span className="relative">
-                <item.icon className="size-6" strokeWidth={active ? 2.2 : 1.8} />
+                <span className={cn("block transition-all duration-200", active ? "scale-110" : "opacity-80 saturate-[0.85]")}><NavTile item={item} size={28} /></span>
                 {item.href === "bookings" && pendingApprovals > 0 && <span className="absolute -right-1.5 -top-1 size-2.5 rounded-full bg-orange" />}
               </span>
               {item.label}
