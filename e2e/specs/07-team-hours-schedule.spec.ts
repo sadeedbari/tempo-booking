@@ -152,7 +152,7 @@ test.describe("weekly hours and time off", () => {
     await page.getByRole("button", { name: "Add" }).last().click();
     await page.getByLabel("Reason (optional)").fill("E2E holiday");
     await page.getByLabel("From").fill(day);
-    await page.getByLabel("To").fill(day);
+    await page.getByLabel("To", { exact: true }).fill(day);
     await page.getByRole("button", { name: "Add time off" }).click();
     await expect(page.getByText("Time off added")).toBeVisible();
     await expect(page.getByText("E2E holiday")).toBeVisible();

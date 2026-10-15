@@ -6,6 +6,8 @@ export TEMPO_E2E=1
 export RESEND_API_KEY=re_mock RESEND_BASE_URL=http://127.0.0.1:4010
 export TWILIO_ACCOUNT_SID=ACmock TWILIO_AUTH_TOKEN=mock TWILIO_FROM_NUMBER=+15005550006 TWILIO_API_BASE=http://127.0.0.1:4010
 export STRIPE_SECRET_KEY=sk_test_mock STRIPE_MOCK_URL=http://127.0.0.1:4010
-export NEXT_PUBLIC_APP_URL=http://localhost:3000
+# E2E_PORT lets the tests run beside a normal `npm run dev` on port 3000 (the specs read E2E_BASE_URL).
+export E2E_PORT="${E2E_PORT:-3000}"
+export NEXT_PUBLIC_APP_URL="http://localhost:$E2E_PORT"
 node e2e/mock-services.mjs &
-npm run build && npm run start
+npm run build && npm run start -- -p "$E2E_PORT"

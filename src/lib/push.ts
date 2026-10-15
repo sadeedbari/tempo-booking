@@ -51,32 +51,57 @@ export async function pushBookingEvent(b: PushBooking, kind: PushKind, actorUser
     ];
     if (!userIds.length) return;
 
-    const { data: subs } = await admin.from("push_subscriptions").select("id, endpoint, p256dh, auth").in("user_id", userIds);
-    if (!subs?.length) return;
-
-    webpush.setVapidDetails(env.vapidSubject, env.vapidPublicKey!, env.vapidPrivateKey!);
     const { title, body } = pushMessage(kind, b);
-    const payload = JSON.stringify({
+    await deliverPush(userIds, {
       title,
       body,
       url: `/o/${b.org.slug}/${kind === "request" ? "bookings" : "calendar"}`,
       tag: `booking-${b.id}`,
     });
-
-    const dead: string[] = [];
-    await Promise.all(
-      subs.map(async (s) => {
-        try {
-          await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 60 * 60 * 24 });
-        } catch (e) {
-          const code = (e as { statusCode?: number }).statusCode;
-          if (code === 404 || code === 410) dead.push(s.id); // the phone removed the subscription
-          else console.error("[push]", code ?? e);
-        }
-      }),
-    );
-    if (dead.length) await admin.from("push_subscriptions").delete().in("id", dead);
   } catch (e) {
     console.error("[push]", e);
   }
+}
+
+/** Pushes "new message from <name>" to the owners and admins of the team. Never throws. */
+export async function pushInquiryEvent(inq: { id: string; name: string; service_name: string; org: { id: string; slug: string; notify_push: boolean } }) {
+  try {
+    if (!features.push || !inq.org.notify_push) return;
+    const admin = createAdminClient();
+    const { data: members } = await admin.from("memberships").select("user_id, role").eq("org_id", inq.org.id);
+    const userIds = [...new Set((members ?? []).filter((m) => m.role === "owner" || m.role === "admin").map((m) => m.user_id as string).filter(Boolean))];
+    if (!userIds.length) return;
+    await deliverPush(userIds, {
+      title: "New message",
+      body: inq.service_name ? `${inq.name} · ${inq.service_name}` : `${inq.name} sent a message`,
+      url: `/o/${inq.org.slug}/inquiries`,
+      tag: `inquiry-${inq.id}`,
+    });
+  } catch (e) {
+    console.error("[push]", e);
+  }
+}
+
+/** Sends one notification to every device registered by these people, and forgets devices that no longer exist. */
+async function deliverPush(userIds: string[], message: { title: string; body: string; url: string; tag: string }) {
+  const admin = createAdminClient();
+  const { data: subs } = await admin.from("push_subscriptions").select("id, endpoint, p256dh, auth").in("user_id", userIds);
+  if (!subs?.length) return;
+
+  webpush.setVapidDetails(env.vapidSubject, env.vapidPublicKey!, env.vapidPrivateKey!);
+  const payload = JSON.stringify(message);
+
+  const dead: string[] = [];
+  await Promise.all(
+    subs.map(async (s) => {
+      try {
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 60 * 60 * 24 });
+      } catch (e) {
+        const code = (e as { statusCode?: number }).statusCode;
+        if (code === 404 || code === 410) dead.push(s.id); // the phone removed the subscription
+        else console.error("[push]", code ?? e);
+      }
+    }),
+  );
+  if (dead.length) await admin.from("push_subscriptions").delete().in("id", dead);
 }

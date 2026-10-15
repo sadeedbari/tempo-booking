@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  House, CalendarDays, CalendarRange, ListChecks, Users2, Sparkles, Clock3, Settings, ExternalLink, ChevronsUpDown, Check, Plus, LogOut, Contact, Ellipsis, Workflow,
+  House, CalendarDays, CalendarRange, ListChecks, Users2, Sparkles, Clock3, Settings, ExternalLink, ChevronsUpDown, Check, Plus, LogOut, Contact, Ellipsis, Workflow, MessageSquareText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoMark } from "./logo";
@@ -19,6 +19,7 @@ const NAV = [
   { href: "bookings", label: "Bookings", icon: ListChecks, tone: ["#6FD6B8", "#2FA98A"], group: "Today" },
   { href: "schedule", label: "Schedule", icon: CalendarRange, tone: ["#B3A0FF", "#8466E0"], group: "Today" },
   { href: "customers", label: "Customers", icon: Contact, tone: ["#FFA0C4", "#E0679A"], group: "Business" },
+  { href: "inquiries", label: "Inquiries", icon: MessageSquareText, tone: ["#A5B0F7", "#5E6EDD"], group: "Business" },
   { href: "services", label: "Services", icon: Sparkles, tone: ["#FFCB6B", "#E3A21E"], group: "Business" },
   { href: "workflows", label: "Workflows", icon: Workflow, tone: ["#6CC8F0", "#2F9BCB"], group: "Business" },
   { href: "team", label: "Team", icon: Users2, tone: ["#9DAEC8", "#6F82A0"], group: "Business" },
@@ -66,12 +67,15 @@ export function Sidebar({
   orgs,
   me,
   pendingApprovals = 0,
+  newInquiries = 0,
 }: {
   org: OrgLite;
   orgs: OrgLite[];
   me: { name: string; email: string; color: string };
   /** Online booking requests waiting for approval. */
   pendingApprovals?: number;
+  /** Website messages nobody has handled yet. */
+  newInquiries?: number;
 }) {
   const pathname = usePathname();
   const base = `/o/${org.slug}`;
@@ -105,11 +109,14 @@ export function Sidebar({
                 >
                   <NavTile item={item} size={26} onAccent={active} />
                   {item.label}
-                  {item.href === "bookings" && pendingApprovals > 0 && (
-                    <span className={cn("ml-auto grid min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold leading-5", active ? "bg-white text-accent" : "bg-orange text-white")}>
-                      {pendingApprovals}
-                    </span>
-                  )}
+                  {(() => {
+                    const n = item.href === "bookings" ? pendingApprovals : item.href === "inquiries" ? newInquiries : 0;
+                    return n > 0 ? (
+                      <span className={cn("ml-auto grid min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold leading-5", active ? "bg-white text-accent" : "bg-orange text-white")}>
+                        {n}
+                      </span>
+                    ) : null;
+                  })()}
                 </Link>
               </div>
             );

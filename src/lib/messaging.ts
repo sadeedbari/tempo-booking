@@ -91,10 +91,10 @@ export function fromAddress(businessName: string) {
   return name ? `${name} <${address}>` : env.emailFrom;
 }
 
-export async function sendEmail(o: { to: string; businessName: string; subject: string; html: string; text: string }): Promise<{ ok: boolean; error?: string }> {
+export async function sendEmail(o: { to: string; businessName: string; subject: string; html: string; text: string; replyTo?: string }): Promise<{ ok: boolean; error?: string }> {
   if (!features.email) return { ok: false, error: "Email isn't set up on this server." };
   try {
-    const { error } = await new Resend(env.resendApiKey).emails.send({ from: fromAddress(o.businessName), to: o.to, subject: o.subject, html: o.html, text: o.text });
+    const { error } = await new Resend(env.resendApiKey).emails.send({ from: fromAddress(o.businessName), to: o.to, subject: o.subject, html: o.html, text: o.text, ...(o.replyTo ? { replyTo: o.replyTo } : {}) });
     return error ? { ok: false, error: error.message } : { ok: true };
   } catch (e) {
     return { ok: false, error: (e as Error).message };

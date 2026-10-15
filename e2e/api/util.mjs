@@ -58,7 +58,7 @@ export const TECHNICAL = /violates|constraint|duplicate key|null value|syntax er
 export { admin, signedIn };
 
 export const MOCK = "http://127.0.0.1:4010";
-export const APP = "http://localhost:3000";
+export const APP = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 export const mock = {
   async sent() { return await (await fetch(`${MOCK}/__sent`)).json(); },
   async clear() { await fetch(`${MOCK}/__sent`, { method: "DELETE" }); },

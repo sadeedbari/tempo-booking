@@ -15,6 +15,7 @@ import { allTimeZones, CURRENCIES } from "@/lib/timezones";
 import type { Location, Membership, Organization } from "@/lib/types";
 import { LocationsSection } from "./locations";
 import { EmbedSection } from "./embed";
+import { ContactEmbedSection } from "./contact-embed";
 import { deleteOrg, updateOrg } from "../actions";
 
 export function SettingsView({
@@ -109,6 +110,15 @@ export function SettingsView({
                   <span className="text-[14px] text-label-2">{features.push ? "Your team gets an alert on their phone or computer." : "Push alerts aren't available yet."}</span>
                 </div>
               </Field>
+              <Field label="Website contact form" hint="Lets visitors send you a question before they book. Each message arrives in Inquiries and becomes a customer.">
+                <div className="flex h-11 items-center gap-3">
+                  <Switch name="inquiries_enabled" defaultChecked={org.inquiries_enabled} label="Website contact form" />
+                  <span className="text-[14px] text-label-2">{org.inquiries_enabled ? "Accepting messages" : "Turned off"}</span>
+                </div>
+              </Field>
+              <Field label="Email new messages to" hint="Leave empty to email every owner and admin.">
+                <Input name="inquiry_notify_email" type="email" defaultValue={org.inquiry_notify_email ?? ""} placeholder="you@yourbusiness.com" maxLength={254} />
+              </Field>
               <Field label="Customers can cancel or reschedule until">
                 <Select name="cancellation_window_hours" defaultValue={org.cancellation_window_hours}>
                   {[[0, "Any time"], [2, "2 hours before"], [12, "12 hours before"], [24, "24 hours before"], [48, "48 hours before"], [72, "3 days before"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -126,6 +136,8 @@ export function SettingsView({
         <LocationsSection slug={slug} locations={locations} staffMap={locationStaff} members={members.filter((m) => m.bookable)} />
 
         <EmbedSection appUrl={appUrl} slug={org.slug} accent={org.accent_color} services={services} />
+
+        <ContactEmbedSection appUrl={appUrl} slug={org.slug} services={services} enabled={org.inquiries_enabled} />
 
         <Section title="Payments" description="Take deposits when customers book. Funds go straight to your Stripe account.">
           <div className="flex flex-wrap items-center gap-4 rounded-[16px] bg-surface p-5 shadow-sm hairline">

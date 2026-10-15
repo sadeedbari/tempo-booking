@@ -817,6 +817,8 @@ const orgSchema = z.object({
   slot_interval_minutes: z.coerce.number().int(),
   cancellation_window_hours: z.coerce.number().int().min(0).max(720),
   notify_push: z.enum(["on", ""]).optional(), // the switch sends "on" when enabled, "" when off
+  inquiries_enabled: z.enum(["on", ""]).optional(),
+  inquiry_notify_email: z.string().trim().max(254).refine((v) => v === "" || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v), "Enter a valid email address for new messages, or leave it empty.").optional(),
 });
 
 export async function updateOrg(slug: string, formData: FormData): Promise<ActionResult> {
@@ -832,6 +834,8 @@ export async function updateOrg(slug: string, formData: FormData): Promise<Actio
       .update({
         ...v,
         notify_push: v.notify_push === "on",
+        inquiries_enabled: v.inquiries_enabled === "on",
+        inquiry_notify_email: v.inquiry_notify_email || null,
         description: v.description || null,
         address: v.address || null,
         phone: v.phone || null,

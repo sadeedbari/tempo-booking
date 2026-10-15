@@ -28,6 +28,10 @@ export interface Organization {
   reminder_hours_before: number;
   schedule_mode: ScheduleMode;
   notify_push: boolean;
+  /** Whether the website contact form accepts messages. */
+  inquiries_enabled: boolean;
+  /** One address for new-inquiry emails; empty = every owner and admin. */
+  inquiry_notify_email: string | null;
   stripe_account_id: string | null;
   stripe_charges_enabled: boolean;
 }
@@ -208,6 +212,30 @@ export interface PublicOrg {
   staff: PublicStaff[];
   locations: PublicLocation[];
   availability: AvailabilityRule[];
+}
+
+/** What the website contact form needs (get_public_contact). */
+export interface PublicContact {
+  org: Pick<Organization, "id" | "name" | "slug" | "description" | "accent_color" | "logo_url" | "phone" | "currency" | "inquiries_enabled">;
+  services: { id: string; name: string; slug: string }[];
+}
+
+export type InquiryStatus = "new" | "handled" | "archived";
+
+export interface Inquiry {
+  id: string;
+  org_id: string;
+  customer_id: string | null;
+  service_id: string | null;
+  service_name: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  message: string;
+  status: InquiryStatus;
+  note: string | null;
+  created_at: string;
+  handled_at: string | null;
 }
 
 export interface BusyInterval {

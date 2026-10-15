@@ -93,7 +93,7 @@ test.describe("settings", () => {
     await page.goto(`${base}/settings`);
     await page.getByLabel("About").fill("We cut hair & \"style\" it <b>nicely</b>.");
     await page.getByLabel("Phone").fill("416-555-0100");
-    await page.getByLabel("Website").fill("https://example.test");
+    await page.getByLabel("Website", { exact: true }).fill("https://example.test");
     await page.getByLabel("Address").first().fill("1 Test Street, Toronto");
     await page.getByLabel("Minimum notice").selectOption({ index: 2 });
     await page.getByLabel("Book up to").selectOption({ label: "30 days ahead" });
