@@ -64,6 +64,7 @@ function InquiryCard({ i, slug, timezone, orgName, isAdmin }: { i: Inquiry; slug
   const [pending, start] = useTransition();
   const [note, setNote] = useState(i.note ?? "");
   const [noteOpen, setNoteOpen] = useState(Boolean(i.note));
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const noteChanged = note.trim() !== (i.note ?? "");
 
   const act = (fn: () => Promise<{ ok?: boolean; error?: string }>, done: string) =>
@@ -119,15 +120,22 @@ function InquiryCard({ i, slug, timezone, orgName, isAdmin }: { i: Inquiry; slug
           </Button>
         )}
         {!noteOpen && <button type="button" onClick={() => setNoteOpen(true)} className="min-h-10 px-2 text-[14px] font-medium text-accent">Add a note</button>}
-        {isAdmin && (
+        {isAdmin && !confirmingDelete && (
           <button
             type="button"
             disabled={pending}
-            onClick={() => { if (confirm(`Delete the message from ${i.name}? This can't be undone.`)) act(() => deleteInquiry(slug, i.id), "Deleted"); }}
+            onClick={() => setConfirmingDelete(true)}
             className="ml-auto inline-flex min-h-10 items-center gap-1 px-2 text-[13px] text-label-3 transition hover:text-red"
           >
             <Trash2 className="size-4" /> Delete
           </button>
+        )}
+        {isAdmin && confirmingDelete && (
+          <span className="ml-auto flex flex-wrap items-center gap-2" role="group" aria-label={`Delete the message from ${i.name}?`}>
+            <span className="text-[13px] text-label-2">Delete this message for good?</span>
+            <Button size="sm" variant="destructive" disabled={pending} onClick={() => act(() => deleteInquiry(slug, i.id), "Deleted")}>Yes, delete</Button>
+            <Button size="sm" variant="gray" disabled={pending} onClick={() => setConfirmingDelete(false)}>Keep it</Button>
+          </span>
         )}
       </div>
 

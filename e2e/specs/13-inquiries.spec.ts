@@ -282,11 +282,12 @@ test.describe("the team's Inquiries page", () => {
     const owner = await pageAs("ownerA");
     await owner.goto(`/o/${slug}/inquiries`);
     await owner.getByRole("tab", { name: /Handled/ }).click();
-    owner.once("dialog", (d) => d.dismiss());
     await owner.getByRole("button", { name: "Delete" }).click();
+    await expect(owner.getByText("Delete this message for good?")).toBeVisible();
+    await owner.getByRole("button", { name: "Keep it" }).click();
     await expect(owner.getByTestId("inquiry")).toHaveCount(1); // cancelled: still there
-    owner.once("dialog", (d) => d.accept());
     await owner.getByRole("button", { name: "Delete" }).click();
+    await owner.getByRole("button", { name: "Yes, delete" }).click();
     await expect(owner.getByText("Deleted")).toBeVisible();
     await expect(owner.getByTestId("inquiry")).toHaveCount(0);
   });

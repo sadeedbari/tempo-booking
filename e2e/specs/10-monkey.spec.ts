@@ -7,8 +7,8 @@ import type { Page } from "@playwright/test";
  * into any form that opens. Nothing may throw an uncaught error, show the error screen, or answer with a 5xx.
  */
 const base = `/o/${S.orgA.slug}`;
-const PAGES = ["dashboard", "calendar", "bookings", "schedule", "customers", "services", "workflows", "team", "availability", "settings"];
-const SKIP = /sign out|log out|logout|delete team|turn on notifications|connect stripe|connect (google|outlook)|open stripe|export to excel|booking page/i;
+const PAGES = ["dashboard", "calendar", "bookings", "schedule", "customers", "inquiries", "services", "workflows", "team", "availability", "settings"];
+const SKIP = /sign out|log out|logout|delete team|yes, delete|turn on notifications|connect stripe|connect (google|outlook)|open stripe|export to excel|booking page/i;
 const NASTY = ["<script>alert(1)</script>", "'; DROP TABLE bookings;--", "Zoë 李雷 ‮", "x".repeat(600), "   ", "-1", "9".repeat(30)];
 
 function trap(page: Page) {
