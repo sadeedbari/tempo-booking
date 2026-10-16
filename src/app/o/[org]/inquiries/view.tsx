@@ -97,7 +97,7 @@ function InquiryCard({ i, slug, timezone, orgName, isAdmin }: { i: Inquiry; slug
         </a>
         {i.customer_id && i.status !== "archived" && (
           <Link
-            href={`/o/${slug}/calendar?newFor=${i.customer_id}${i.service_id ? `&service=${i.service_id}` : ""}`}
+            href={`/o/${slug}/calendar?newFor=${i.customer_id}&inquiry=${i.id}${i.service_id ? `&service=${i.service_id}` : ""}`}
             className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-surface-2 px-4 text-[14px] font-medium transition hover:bg-surface-3"
           >
             <CalendarPlus className="size-4" /> Create booking

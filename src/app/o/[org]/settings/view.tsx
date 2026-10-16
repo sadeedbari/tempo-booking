@@ -22,7 +22,7 @@ export function SettingsView({
   slug, org, isAdmin, isOwner, features, stripeStatus, stripeReason, locations, locationStaff, members, appUrl, services, vapidKey,
 }: {
   vapidKey: string;
-  slug: string; org: Organization; appUrl: string; services: { slug: string; name: string }[]; locations: Location[]; locationStaff: Record<string, string[]>; members: Membership[]; isAdmin: boolean; isOwner: boolean;
+  slug: string; org: Organization; appUrl: string; services: { id: string; slug: string; name: string; contact_form: boolean }[]; locations: Location[]; locationStaff: Record<string, string[]>; members: Membership[]; isAdmin: boolean; isOwner: boolean;
   features: { payments: boolean; email: boolean; sms: boolean; push: boolean }; stripeStatus?: string; stripeReason?: string;
 }) {
   const toast = useToast();
@@ -137,7 +137,7 @@ export function SettingsView({
 
         <EmbedSection appUrl={appUrl} slug={org.slug} accent={org.accent_color} services={services} />
 
-        <ContactEmbedSection appUrl={appUrl} slug={org.slug} services={services} enabled={org.inquiries_enabled} />
+        <ContactEmbedSection appUrl={appUrl} slug={org.slug} services={services} enabled={org.inquiries_enabled} successMessage={org.inquiry_success_message ?? ""} />
 
         <Section title="Payments" description="Take deposits when customers book. Funds go straight to your Stripe account.">
           <div className="flex flex-wrap items-center gap-4 rounded-[16px] bg-surface p-5 shadow-sm hairline">

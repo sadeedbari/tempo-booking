@@ -234,6 +234,11 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
     if (error) return { error: friendly(error) };
 
     await notifyBooking(booking.id, "confirmation", { by: userData.user?.id, customer: v.notify });
+    // A booking made from a website message answers it: mark that message handled.
+    const fromInquiry = String(formData.get("inquiry_id") ?? "");
+    if (/^[0-9a-f-]{36}$/i.test(fromInquiry)) {
+      await supabase.from("inquiries").update({ status: "handled" }).eq("id", fromInquiry).eq("org_id", org.id).eq("status", "new");
+    }
     refresh(slug);
     return { ok: true, id: booking.id };
   } catch (e) {
@@ -848,6 +853,40 @@ export async function updateOrg(slug: string, formData: FormData): Promise<Actio
     return { ok: true };
   } catch (e) {
     if ((e as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) throw e;
+    return { error: (e as Error).message };
+  }
+}
+
+const contactOptionsSchema = z.object({
+  success_message: z.string().trim().max(500, "Keep the thank-you message under 500 characters.").optional(),
+});
+
+/** Which services the website contact form offers, and the text visitors see after sending. */
+export async function saveContactFormOptions(slug: string, formData: FormData): Promise<ActionResult> {
+  try {
+    const { org } = await ctxFor(slug, true);
+    const parsed = contactOptionsSchema.safeParse({ success_message: formData.get("success_message") ?? "" });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const listed = formData.getAll("service_ids").map(String).filter((v) => /^[0-9a-f-]{36}$/i.test(v));
+    const supabase = await createClient();
+    const { error: e1 } = await supabase.from("organizations").update({ inquiry_success_message: parsed.data.success_message || null }).eq("id", org.id);
+    if (e1) return { error: friendly(e1) };
+    // Every service of this team is either listed or not.
+    const { data: all } = await supabase.from("services").select("id").eq("org_id", org.id);
+    const ids = (all ?? []).map((s) => s.id as string);
+    const on = ids.filter((id) => listed.includes(id));
+    const off = ids.filter((id) => !listed.includes(id));
+    if (on.length) {
+      const { error } = await supabase.from("services").update({ contact_form: true }).eq("org_id", org.id).in("id", on);
+      if (error) return { error: friendly(error) };
+    }
+    if (off.length) {
+      const { error } = await supabase.from("services").update({ contact_form: false }).eq("org_id", org.id).in("id", off);
+      if (error) return { error: friendly(error) };
+    }
+    revalidatePath(`/o/${slug}/settings`);
+    return { ok: true };
+  } catch (e) {
     return { error: (e as Error).message };
   }
 }

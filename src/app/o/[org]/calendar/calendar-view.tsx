@@ -31,7 +31,7 @@ interface Props {
   /** Scheduled shifts for the visible range; only loaded when the business schedules by shifts. */
   shifts: Shift[];
   welcome?: boolean;
-  prefill?: { customerId: string; serviceId?: string };
+  prefill?: { customerId: string; serviceId?: string; inquiryId?: string };
 }
 
 function minutesInDay(iso: string, tz: string) {
@@ -387,6 +387,7 @@ export function CalendarView(props: Props) {
         }}
         defaultCustomerId={props.prefill?.customerId}
         defaultServiceId={props.prefill?.serviceId}
+        fromInquiryId={props.prefill?.inquiryId}
         slug={p.slug}
         org={p.org}
         defaultStart={newAt?.start}

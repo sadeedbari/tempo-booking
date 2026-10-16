@@ -163,6 +163,9 @@ export function Sidebar({
                 {MORE[i - 1]?.group !== item.group && <SectionLabel first={i === 0} large>{item.group}</SectionLabel>}
                 <Link href={href} onClick={() => setMoreOpen(false)} className={cn("flex h-12 items-center gap-3 rounded-[12px] px-3 text-[16px] font-medium", pathname.startsWith(href) ? "bg-accent-soft text-accent" : "text-label")}>
                   <NavTile item={item} size={30} /> {item.label}
+                  {item.href === "inquiries" && newInquiries > 0 && (
+                    <span className="ml-auto grid min-w-6 place-items-center rounded-full bg-orange px-1.5 text-[12px] font-bold leading-6 text-white">{newInquiries}</span>
+                  )}
                 </Link>
               </div>
             );
@@ -194,7 +197,10 @@ export function Sidebar({
           );
         })}
         <button onClick={() => setMoreOpen((o) => !o)} aria-expanded={moreOpen} className={cn("flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium", moreOpen || moreActive ? "text-accent" : "text-label-3")}>
-          <Ellipsis className="size-6" strokeWidth={moreOpen || moreActive ? 2.2 : 1.8} />
+          <span className="relative">
+            <Ellipsis className="size-6" strokeWidth={moreOpen || moreActive ? 2.2 : 1.8} />
+            {newInquiries > 0 && !moreOpen && <span className="absolute -right-1 -top-0.5 size-2.5 rounded-full bg-orange" aria-label={`${newInquiries} new website message${newInquiries === 1 ? "" : "s"}`} />}
+          </span>
           More
         </button>
       </nav>

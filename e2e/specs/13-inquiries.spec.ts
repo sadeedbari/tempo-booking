@@ -10,6 +10,17 @@ const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 /** The form refuses anything sent within two seconds of opening (a robot), so a person-speed pause comes first. */
 const human = (page: import("@playwright/test").Page) => page.waitForTimeout(2300);
 
+/** Opens the hosted contact page, writes a message and sends it. */
+async function ask(page: import("@playwright/test").Page, o: { email: string; name?: string; message?: string }) {
+  await page.goto(`${BASE}/${slug}/contact`);
+  await page.getByLabel("Full name").fill(o.name ?? "Ina Inquirer");
+  await page.getByLabel("Email").fill(o.email);
+  await page.getByLabel("Your message").fill(o.message ?? "Do you have anything open next week?");
+  await human(page);
+  await page.getByRole("button", { name: "Send message" }).click();
+  await expect(page.getByRole("heading", { name: "Message sent" })).toBeVisible();
+}
+
 async function fill(scope: import("@playwright/test").Page | import("@playwright/test").FrameLocator, o: { name?: string; email: string; phone?: string; message?: string; service?: string }) {
   await scope.getByLabel("Full name").fill(o.name ?? "Ina Inquirer");
   await scope.getByLabel("Email").fill(o.email);
@@ -32,7 +43,8 @@ test.afterEach(async () => { for (const s of hosts.splice(0)) await new Promise(
 test.beforeEach(async () => {
   await mock.clear();
   await sb().from("inquiries").delete().eq("org_id", S.orgA.id);
-  await sb().from("organizations").update({ inquiries_enabled: true, inquiry_notify_email: null }).eq("id", S.orgA.id);
+  await sb().from("organizations").update({ inquiries_enabled: true, inquiry_notify_email: null, inquiry_success_message: null }).eq("id", S.orgA.id);
+  await sb().from("services").update({ contact_form: true }).eq("org_id", S.orgA.id);
   // the "message received" workflow back to how a business starts: on, for every service
   const { data: wfs } = await sb().from("workflows").select("id").eq("org_id", S.orgA.id).eq("trigger", "inquiry_received");
   for (const w of wfs ?? []) {
@@ -492,6 +504,11 @@ test.describe("phase 2: the visitor's confirmation, booking from a message, Home
     const { data: b } = await sb().from("bookings").select("customer_id, service_name").eq("org_id", S.orgA.id).eq("customer_id", cust!.id);
     expect(b).toHaveLength(1);
     expect(b![0].service_name).toBe("Haircut");
+    // answering the message with a booking marks it handled
+    await expect(page.getByText("The message is marked as handled")).toBeVisible();
+    const { data: inq } = await sb().from("inquiries").select("status, handled_at").eq("org_id", S.orgA.id).eq("customer_id", cust!.id).single();
+    expect(inq!.status).toBe("handled");
+    expect(inq!.handled_at).toBeTruthy();
   });
 
   test("Home counts unanswered messages and links to them; handling them clears the line", async ({ pageAs }) => {
@@ -529,3 +546,109 @@ function futureDay() {
   while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1);
   return d.toISOString().slice(0, 10);
 }
+
+test.describe("contact form options: services listed and the thank-you text", () => {
+  test("services can be left out of the form's list, and the form shows only the rest", async ({ pageAs, browser }) => {
+    const owner = await pageAs("ownerA");
+    await owner.goto(`/o/${slug}/settings`);
+    const box = owner.locator("#contact-form");
+    await expect(box.getByRole("checkbox", { name: "Haircut" })).toBeChecked();
+    await box.getByRole("checkbox", { name: "Haircut" }).uncheck();
+    await box.getByRole("button", { name: "Save contact form options" }).click();
+    await expect(owner.getByText("Contact form options saved")).toBeVisible();
+
+    const ctx = await browser.newContext();
+    const v = await ctx.newPage();
+    await v.goto(`${BASE}/${slug}/contact`);
+    const options = await v.getByLabel("Service you're interested in").locator("option").allTextContents();
+    expect(options).toContain("Not sure yet");
+    expect(options).not.toContain("Haircut");
+    expect(options.length).toBeGreaterThan(1); // the other services are still there
+
+    await owner.reload();
+    await expect(owner.locator("#contact-form").getByRole("checkbox", { name: "Haircut" })).not.toBeChecked();
+    await ctx.close();
+  });
+
+  test("with every service unticked the service question disappears, and the message still sends", async ({ pageAs, browser }) => {
+    const owner = await pageAs("ownerA");
+    await owner.goto(`/o/${slug}/settings`);
+    const box = owner.locator("#contact-form");
+    for (const cb of await box.getByRole("checkbox").all()) await cb.uncheck();
+    await box.getByRole("button", { name: "Save contact form options" }).click();
+    await expect(owner.getByText("Contact form options saved")).toBeVisible();
+    const ctx = await browser.newContext();
+    const v = await ctx.newPage();
+    await v.goto(`${BASE}/${slug}/contact`);
+    await expect(v.getByLabel("Service you're interested in")).toHaveCount(0);
+    const email = customerEmail("nosvc");
+    await v.getByLabel("Full name").fill("Nia NoService");
+    await v.getByLabel("Email").fill(email);
+    await v.getByLabel("Your message").fill("A general question");
+    await human(v);
+    await v.getByRole("button", { name: "Send message" }).click();
+    await expect(v.getByRole("heading", { name: "Message sent" })).toBeVisible();
+    const { data } = await sb().from("inquiries").select("service_id").eq("org_id", S.orgA.id).eq("email", email).single();
+    expect(data!.service_id).toBeNull();
+    await ctx.close();
+  });
+
+  test("the business's own thank-you text is shown after sending; empty goes back to the standard one", async ({ pageAs, browser }) => {
+    const owner = await pageAs("ownerA");
+    await owner.goto(`/o/${slug}/settings`);
+    const box = owner.locator("#contact-form");
+    await box.getByLabel("Message after they send").fill("Thanks! Sara will phone you before 5pm today.");
+    await box.getByRole("button", { name: "Save contact form options" }).click();
+    await expect(owner.getByText("Contact form options saved")).toBeVisible();
+
+    const ctx = await browser.newContext();
+    const v = await ctx.newPage();
+    await ask(v, { email: customerEmail("custom") });
+    await expect(v.getByText("Thanks! Sara will phone you before 5pm today.")).toBeVisible();
+
+    await owner.reload();
+    await owner.locator("#contact-form").getByLabel("Message after they send").fill("   ");
+    await owner.locator("#contact-form").getByRole("button", { name: "Save contact form options" }).click();
+    await expect(owner.getByText("Contact form options saved")).toBeVisible();
+    await ask(v, { email: customerEmail("default") });
+    await expect(v.getByText(/Thank you\. E2E Salon will get back to you/)).toBeVisible();
+    await ctx.close();
+  });
+
+  test("a thank-you text with HTML is shown as plain text", async ({ pageAs, browser }) => {
+    const owner = await pageAs("ownerA");
+    await owner.goto(`/o/${slug}/settings`);
+    await owner.locator("#contact-form").getByLabel("Message after they send").fill("<b>bold</b> <script>window.__x=1</script>");
+    await owner.locator("#contact-form").getByRole("button", { name: "Save contact form options" }).click();
+    await expect(owner.getByText("Contact form options saved")).toBeVisible();
+    const ctx = await browser.newContext();
+    const v = await ctx.newPage();
+    await ask(v, { email: customerEmail("html") });
+    await expect(v.getByText("<b>bold</b>")).toBeVisible();
+    expect(await v.evaluate(() => (window as any).__x)).toBeUndefined();
+    await ctx.close();
+  });
+});
+
+test.describe("on a phone", () => {
+  test("unread website messages show as a dot on More and a count in the menu", async ({ pageAs }) => {
+    const email = customerEmail("phone");
+    await createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!).rpc("create_public_inquiry", {
+      p_org: S.orgA.id, p_service: null, p_name: "Phone Pat", p_email: email, p_phone: "", p_message: "Seen on a phone", p_ip_hash: null,
+    });
+    const page = await pageAs("ownerA");
+    await page.setViewportSize({ width: 375, height: 812 }); // the shared signed-in session doesn't inherit the file's viewport
+    await page.goto(`/o/${slug}/dashboard`);
+    const more = page.getByRole("button", { name: /More/ });
+    await expect(more.getByLabel("1 new website message")).toBeVisible();
+    await more.click();
+    const row = page.getByRole("link", { name: /Inquiries/ });
+    await expect(row).toContainText("1");
+    await row.click();
+    await expect(page).toHaveURL(/\/inquiries/);
+    await page.getByTestId("inquiry").first().getByRole("button", { name: "Mark handled" }).click();
+    await expect(page.getByText("Marked as handled")).toBeVisible();
+    await page.goto(`/o/${slug}/dashboard`);
+    await expect(page.getByRole("button", { name: /More/ }).getByLabel(/new website message/)).toHaveCount(0);
+  });
+});

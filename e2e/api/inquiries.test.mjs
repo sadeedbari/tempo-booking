@@ -119,7 +119,7 @@ test("a business that turned the form off refuses messages, and the form says so
 test("get_public_contact shows only what a visitor needs", async () => {
   const c = await pub.rpc("get_public_contact", { p_slug: st.orgA.slug });
   assert.equal(c.error, null);
-  assert.deepEqual(Object.keys(c.data.org).sort(), ["accent_color", "currency", "description", "id", "inquiries_enabled", "logo_url", "name", "phone", "slug"]);
+  assert.deepEqual(Object.keys(c.data.org).sort(), ["accent_color", "currency", "description", "id", "inquiries_enabled", "logo_url", "name", "phone", "slug", "success_message"]);
   assert.ok(c.data.services.length > 0);
   for (const s of c.data.services) assert.deepEqual(Object.keys(s).sort(), ["id", "name", "slug"]);
   const none = await pub.rpc("get_public_contact", { p_slug: "no-such-business" });
@@ -188,6 +188,41 @@ test("'a website message is received' is a workflow trigger; made-up triggers ar
   const log = await admin.from("message_log").insert({ org_id: st.orgA.id, inquiry_id: r.data.id, workflow_id: ok.data.id, workflow_name: "Inquiry check", channel: "email", recipient: "x@x.co", status: "sent" }).select("id").single();
   assert.equal(log.error, null, log.error?.message);
   await admin.from("workflows").delete().eq("id", ok.data.id);
+});
+
+test("services can be hidden from the form: not listed, and not attachable by a hand-made request", async () => {
+  const slug = st.orgA.slug;
+  const hidden = st.orgA.services.haircut;
+  await admin.from("services").update({ contact_form: false }).eq("id", hidden);
+  try {
+    const c = await pub.rpc("get_public_contact", { p_slug: slug });
+    assert.ok(!c.data.services.some((s) => s.id === hidden), "hidden service is still listed");
+    assert.ok(c.data.services.length > 0, "other services stay listed");
+    const r = await send({ service: hidden });
+    assert.equal(r.error, null);
+    const { data: row } = await admin.from("inquiries").select("service_id, service_name").eq("id", r.data.id).single();
+    assert.equal(row.service_id, null);
+    assert.equal(row.service_name, "");
+  } finally {
+    await admin.from("services").update({ contact_form: true }).eq("id", hidden);
+  }
+  const back = await pub.rpc("get_public_contact", { p_slug: slug });
+  assert.ok(back.data.services.some((s) => s.id === hidden));
+});
+
+test("the thank-you text is returned to the form, empty by default, and capped at 500 characters", async () => {
+  const none = await pub.rpc("get_public_contact", { p_slug: st.orgA.slug });
+  assert.equal(none.data.org.success_message, null);
+  const set = await admin.from("organizations").update({ inquiry_success_message: "We will call you today." }).eq("id", st.orgA.id);
+  assert.equal(set.error, null);
+  try {
+    const c = await pub.rpc("get_public_contact", { p_slug: st.orgA.slug });
+    assert.equal(c.data.org.success_message, "We will call you today.");
+    const tooLong = await admin.from("organizations").update({ inquiry_success_message: "x".repeat(501) }).eq("id", st.orgA.id);
+    assert.ok(tooLong.error, "501 characters must be refused");
+  } finally {
+    await admin.from("organizations").update({ inquiry_success_message: null }).eq("id", st.orgA.id);
+  }
 });
 
 test("deleting a customer keeps the message; deleting the business removes everything", async () => {

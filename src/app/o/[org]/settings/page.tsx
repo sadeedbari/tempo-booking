@@ -23,7 +23,7 @@ export default async function SettingsPage(props: PageProps<"/o/[org]/settings">
   const [locs, links, svcs] = await Promise.all([
     supabase.from("locations").select("*").eq("org_id", org.id).order("position").order("created_at"),
     supabase.from("member_locations").select("location_id, member_id"),
-    supabase.from("services").select("slug, name").eq("org_id", org.id).eq("active", true).order("position"),
+    supabase.from("services").select("id, slug, name, contact_form").eq("org_id", org.id).eq("active", true).order("position"),
   ]);
   const locationStaff: Record<string, string[]> = {};
   (links.data ?? []).forEach((r) => (locationStaff[r.location_id] ??= []).push(r.member_id));
@@ -37,7 +37,7 @@ export default async function SettingsPage(props: PageProps<"/o/[org]/settings">
       locationStaff={locationStaff}
       appUrl={env.appUrl}
       vapidKey={features.push ? env.vapidPublicKey! : ""}
-      services={(svcs.data ?? []) as { slug: string; name: string }[]}
+      services={(svcs.data ?? []) as { id: string; slug: string; name: string; contact_form: boolean }[]}
       members={members}
       features={features}
       stripeStatus={typeof sp.stripe === "string" ? sp.stripe : undefined}

@@ -32,6 +32,8 @@ export interface Organization {
   inquiries_enabled: boolean;
   /** One address for new-inquiry emails; empty = every owner and admin. */
   inquiry_notify_email: string | null;
+  /** Shown to a visitor after they send a website message; empty = the default thank-you. */
+  inquiry_success_message: string | null;
   stripe_account_id: string | null;
   stripe_charges_enabled: boolean;
 }
@@ -79,6 +81,8 @@ export interface Service {
   /** true: online bookings are confirmed automatically; false: they arrive as requests to approve. */
   auto_approve: boolean;
   active: boolean;
+  /** Offered in the website contact form's service list. */
+  contact_form: boolean;
   position: number;
 }
 
@@ -216,7 +220,7 @@ export interface PublicOrg {
 
 /** What the website contact form needs (get_public_contact). */
 export interface PublicContact {
-  org: Pick<Organization, "id" | "name" | "slug" | "description" | "accent_color" | "logo_url" | "phone" | "currency" | "inquiries_enabled">;
+  org: Pick<Organization, "id" | "name" | "slug" | "description" | "accent_color" | "logo_url" | "phone" | "currency" | "inquiries_enabled"> & { success_message: string | null };
   services: { id: string; name: string; slug: string }[];
 }
 

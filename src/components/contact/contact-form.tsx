@@ -101,7 +101,7 @@ export function ContactForm({ data, embed, initialService }: { data: PublicConta
             <CheckCircle2 className="mx-auto size-12" style={{ color: accent }} strokeWidth={1.75} />
             <h2 className="mt-4 text-[22px] font-bold">Message sent</h2>
             <p className="mx-auto mt-1.5 max-w-sm text-[15px] leading-relaxed text-label-2">
-              Thank you. {org.name} will get back to you by email{org.phone ? ` or phone` : ""} as soon as they can.
+              {org.success_message?.trim() || `Thank you. ${org.name} will get back to you by email${org.phone ? " or phone" : ""} as soon as they can.`}
             </p>
             <button type="button" onClick={() => setSent(false)} className="mt-5 text-[15px] font-medium text-accent">Send another message</button>
           </div>

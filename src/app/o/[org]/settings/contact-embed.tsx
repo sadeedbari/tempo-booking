@@ -1,8 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Check, Copy } from "lucide-react";
-import { Select } from "@/components/ui/input";
+import { Field, Select, Textarea } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Notice } from "@/components/ui/misc";
+import { saveContactFormOptions } from "../actions";
 import { Segmented } from "@/components/ui/segmented";
 import { useToast } from "@/components/ui/toast";
 
@@ -10,10 +13,12 @@ type Kind = "popup" | "inline" | "link";
 
 /** Copy-paste snippets for putting the "send us a message" form on another website. */
 export function ContactEmbedSection({
-  appUrl, slug, services, enabled,
+  appUrl, slug, services, enabled, successMessage,
 }: {
-  appUrl: string; slug: string; services: { slug: string; name: string }[]; enabled: boolean;
+  appUrl: string; slug: string; services: { id: string; slug: string; name: string; contact_form: boolean }[]; enabled: boolean; successMessage: string;
 }) {
+  const [pending, startSave] = useTransition();
+  const [saveError, setSaveError] = useState<string | null>(null);
   const toast = useToast();
   const [kind, setKind] = useState<Kind>("popup");
   const [service, setService] = useState("");
@@ -47,6 +52,38 @@ export function ContactEmbedSection({
             The contact form is turned off. Turn it on in the Business section above and save, or visitors will see a &ldquo;not taking messages&rdquo; notice.
           </p>
         )}
+        <form
+          action={(fd) =>
+            startSave(async () => {
+              const r = await saveContactFormOptions(slug, fd);
+              if (r.error) setSaveError(r.error);
+              else { setSaveError(null); toast("Contact form options saved"); }
+            })
+          }
+          className="space-y-4 border-b border-separator pb-5"
+        >
+          <h3 className="text-[15px] font-semibold">What visitors see</h3>
+          {services.length > 0 && (
+            <fieldset className="space-y-1">
+              <legend className="px-1 text-[13px] font-medium text-label-2">Services offered in the form</legend>
+              <p className="px-1 pb-1 text-[12px] text-label-3">Visitors pick the service they are asking about. Untick the ones you don&apos;t want listed. If none are ticked, the question is hidden.</p>
+              <div className="grid gap-1 sm:grid-cols-2">
+                {services.map((s) => (
+                  <label key={s.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-[11px] bg-surface-2 px-3.5 text-[15px]">
+                    <input type="checkbox" name="service_ids" value={s.id} defaultChecked={s.contact_form} className="size-[18px] shrink-0 accent-[var(--accent)]" />
+                    {s.name}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          <Field label="Message after they send" hint="Leave empty to use the standard thank-you. 500 characters at most.">
+            <Textarea name="success_message" defaultValue={successMessage} maxLength={500} placeholder="Thank you. We will get back to you by email as soon as we can." className="min-h-20" />
+          </Field>
+          {saveError && <Notice>{saveError}</Notice>}
+          <Button type="submit" pill loading={pending}>Save contact form options</Button>
+        </form>
+
         <div className="flex flex-wrap items-center gap-3">
           <Segmented
             size="sm"

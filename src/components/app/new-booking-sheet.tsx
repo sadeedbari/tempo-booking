@@ -30,6 +30,8 @@ interface NewProps {
   /** Start with this customer and service chosen (a booking made from a website message). */
   defaultCustomerId?: string;
   defaultServiceId?: string;
+  /** The website message this booking answers; it is marked handled once the booking is saved. */
+  fromInquiryId?: string;
 }
 
 export function NewBookingSheet(props: NewProps) {
@@ -38,7 +40,7 @@ export function NewBookingSheet(props: NewProps) {
   return <NewBookingSheetInner key={`${props.defaultStart}-${props.defaultMemberId}-${props.defaultCustomerId}`} {...props} />;
 }
 
-function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultMemberId, locations, defaultLocationId, members, services, customers, defaultCustomerId, defaultServiceId }: NewProps) {
+function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultMemberId, locations, defaultLocationId, members, services, customers, defaultCustomerId, defaultServiceId, fromInquiryId }: NewProps) {
   const tz = org.timezone;
   const toast = useToast();
   const initial = defaultStart ? splitInZone(defaultStart, tz) : { date: todayKey(tz), time: "09:00" };
@@ -73,6 +75,7 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
   function submit(formData: FormData) {
     setError(null);
     formData.set("service_id", serviceId);
+    if (fromInquiryId) formData.set("inquiry_id", fromInquiryId);
     formData.set("member_id", memberId);
     formData.set("location_id", locationId);
     formData.set("starts_at", joinInZone(date, time, tz));
@@ -81,7 +84,7 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
       const r = await createManualBooking(slug, formData);
       if (r.error) setError(r.error);
       else {
-        toast("Booking added");
+        toast(fromInquiryId ? "Booking added. The message is marked as handled." : "Booking added");
         onClose();
       }
     });
