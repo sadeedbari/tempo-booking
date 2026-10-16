@@ -19,7 +19,7 @@ async function adminCtx(slug: string) {
 const schema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1, "Give the workflow a name").max(LIMITS.name),
-  trigger: z.enum(["booking_confirmed", "booking_requested", "booking_declined", "booking_cancelled", "booking_rescheduled", "before_start", "after_end"]),
+  trigger: z.enum(["booking_confirmed", "booking_requested", "booking_declined", "booking_cancelled", "booking_rescheduled", "before_start", "after_end", "inquiry_received"]),
   offset_minutes: z.number().int().min(0).max(10080),
   active: z.boolean(),
   all_services: z.boolean(),

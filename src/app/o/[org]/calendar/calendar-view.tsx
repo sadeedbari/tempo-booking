@@ -31,6 +31,7 @@ interface Props {
   /** Scheduled shifts for the visible range; only loaded when the business schedules by shifts. */
   shifts: Shift[];
   welcome?: boolean;
+  prefill?: { customerId: string; serviceId?: string };
 }
 
 function minutesInDay(iso: string, tz: string) {
@@ -77,7 +78,7 @@ export function CalendarView(props: Props) {
   const tz = p.org.timezone;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [staffFilter, setStaffFilter] = useState<string>("all");
-  const [newAt, setNewAt] = useState<{ start: string; memberId: string } | null>(null);
+  const [newAt, setNewAt] = useState<{ start: string; memberId: string } | null>(props.prefill ? { start: "", memberId: props.meId } : null);
   const [selected, setSelected] = useState<Booking | null>(null);
   const [now, setNow] = useState<Date | null>(null);
 
@@ -380,7 +381,12 @@ export function CalendarView(props: Props) {
 
       <NewBookingSheet
         open={!!newAt}
-        onClose={() => setNewAt(null)}
+        onClose={() => {
+          setNewAt(null);
+          if (props.prefill) router.replace(`/o/${p.slug}/calendar`); // so a reload doesn't reopen it
+        }}
+        defaultCustomerId={props.prefill?.customerId}
+        defaultServiceId={props.prefill?.serviceId}
         slug={p.slug}
         org={p.org}
         defaultStart={newAt?.start}

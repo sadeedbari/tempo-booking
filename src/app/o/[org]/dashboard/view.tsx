@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertCircle, CalendarClock, Check, ChevronRight, Clock, Download, Lightbulb } from "lucide-react";
+import { AlertCircle, CalendarClock, Check, ChevronRight, Clock, Download, Lightbulb, MessageSquareText } from "lucide-react";
 import { formatDate, formatTime, STATUS_LABEL } from "@/lib/format";
 import { change, RANGES, type Dashboard } from "@/lib/dashboard";
 import { Avatar, Badge, statusTone } from "@/components/ui/misc";
@@ -22,9 +22,11 @@ export interface DashboardViewProps {
   facts: { services: number; hasHours: boolean; hasOnlineBooking: boolean };
   /** Base path for the range links (the preview page uses its own). */
   basePath?: string;
+  /** Website messages nobody has handled yet. */
+  newInquiries?: number;
 }
 
-export function DashboardView({ slug, org, me, members, isAdmin, d, rangeDays, now, today, facts, basePath }: DashboardViewProps) {
+export function DashboardView({ slug, org, me, members, isAdmin, d, rangeDays, now, today, facts, basePath, newInquiries = 0 }: DashboardViewProps) {
   const tz = org.timezone;
   const cur = org.currency;
   const memberById = new Map(members.map((m) => [m.id, m]));
@@ -172,7 +174,7 @@ export function DashboardView({ slug, org, me, members, isAdmin, d, rangeDays, n
 
         <div className="space-y-4">
           <Card title="Needs your attention">
-            {d.pendingApprovals + d.awaitingPayment === 0 && insights.length === 0 ? (
+            {d.pendingApprovals + d.awaitingPayment + newInquiries === 0 && insights.length === 0 ? (
               <p className="flex items-center gap-2 text-[14px] text-label-2"><Check className="size-4 text-green" strokeWidth={3} /> You&apos;re all caught up.</p>
             ) : (
               <ul className="space-y-2.5">
@@ -181,6 +183,15 @@ export function DashboardView({ slug, org, me, members, isAdmin, d, rangeDays, n
                     <Link href={`/o/${slug}/bookings`} className="flex items-center gap-2.5 rounded-[12px] bg-orange-soft px-3 py-2.5 text-[14px] font-medium text-orange">
                       <AlertCircle className="size-4 shrink-0" />
                       <span className="flex-1">{d.pendingApprovals} booking request{d.pendingApprovals === 1 ? "" : "s"} to approve</span>
+                      <ChevronRight className="size-4" />
+                    </Link>
+                  </li>
+                )}
+                {newInquiries > 0 && (
+                  <li>
+                    <Link href={`/o/${slug}/inquiries`} className="flex items-center gap-2.5 rounded-[12px] bg-accent-soft px-3 py-2.5 text-[14px] font-medium text-accent">
+                      <MessageSquareText className="size-4 shrink-0" />
+                      <span className="flex-1">{newInquiries} new website message{newInquiries === 1 ? "" : "s"} to answer</span>
                       <ChevronRight className="size-4" />
                     </Link>
                   </li>

@@ -27,38 +27,48 @@ interface NewProps {
   members: Membership[];
   services: Service[];
   customers: Customer[];
+  /** Start with this customer and service chosen (a booking made from a website message). */
+  defaultCustomerId?: string;
+  defaultServiceId?: string;
 }
 
 export function NewBookingSheet(props: NewProps) {
   if (!props.open) return null;
   // Keyed so the form starts fresh for every new slot that's tapped.
-  return <NewBookingSheetInner key={`${props.defaultStart}-${props.defaultMemberId}`} {...props} />;
+  return <NewBookingSheetInner key={`${props.defaultStart}-${props.defaultMemberId}-${props.defaultCustomerId}`} {...props} />;
 }
 
-function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultMemberId, locations, defaultLocationId, members, services, customers }: NewProps) {
+function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultMemberId, locations, defaultLocationId, members, services, customers, defaultCustomerId, defaultServiceId }: NewProps) {
   const tz = org.timezone;
   const toast = useToast();
   const initial = defaultStart ? splitInZone(defaultStart, tz) : { date: todayKey(tz), time: "09:00" };
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [serviceId, setServiceId] = useState(services[0]?.id ?? "");
+  const [serviceId, setServiceId] = useState(services.find((s) => s.id === defaultServiceId)?.id ?? services[0]?.id ?? "");
   const [memberId, setMemberId] = useState(
     defaultMemberId && members.some((m) => m.id === defaultMemberId) ? defaultMemberId : members[0]?.id ?? "",
   );
   const [locationId, setLocationId] = useState(defaultLocationId ?? locations[0]?.id ?? "");
   const [date, setDate] = useState(initial.date);
   const [time, setTime] = useState(initial.time);
+  const presetCustomer = customers.find((c) => c.id === defaultCustomerId)?.id ?? "";
   const [mode, setMode] = useState<"existing" | "new">(customers.length ? "existing" : "new");
   const [query, setQuery] = useState("");
-  const [customerId, setCustomerId] = useState("");
+  const [customerId, setCustomerId] = useState(presetCustomer);
 
   const selectedService = services.find((s) => s.id === serviceId) ?? null;
   const selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return customers.filter((c) => !q || c.name.toLowerCase().includes(q) || c.email.includes(q)).slice(0, 6);
-  }, [customers, query]);
+    const list = customers.filter((c) => !q || c.name.toLowerCase().includes(q) || c.email.includes(q)).slice(0, 6);
+    // A customer chosen up front (from a website message) always shows, even if they'd be further down the list.
+    if (!q && presetCustomer && !list.some((c) => c.id === presetCustomer)) {
+      const c = customers.find((x) => x.id === presetCustomer);
+      if (c) list.unshift(c);
+    }
+    return list;
+  }, [customers, query, presetCustomer]);
 
   function submit(formData: FormData) {
     setError(null);

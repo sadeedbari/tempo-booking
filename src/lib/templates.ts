@@ -15,6 +15,7 @@ export const VARIABLES = [
   { key: "business_name", label: "Business name", sample: "Lumen Studio" },
   { key: "business_phone", label: "Business phone", sample: "416-555-0199" },
   { key: "service_name", label: "Service", sample: "Haircut & style" },
+  { key: "inquiry_message", label: "Their message (website messages)", sample: "Do you have anything open next week?" },
   { key: "duration", label: "Duration", sample: "1 hr" },
   { key: "date", label: "Date", sample: "Monday, October 12" },
   { key: "time", label: "Time", sample: "9:00 AM" },

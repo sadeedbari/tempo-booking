@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Archive, Inbox, Mail, MessageSquareText, Phone, RotateCcw, Check, Trash2 } from "lucide-react";
+import { Archive, CalendarPlus, Inbox, Mail, MessageSquareText, Phone, RotateCcw, Check, Trash2 } from "lucide-react";
 import { PageHeader, EmptyState, Badge, Notice } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
@@ -95,6 +95,14 @@ function InquiryCard({ i, slug, timezone, orgName, isAdmin }: { i: Inquiry; slug
         <a href={reply} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-accent px-4 text-[14px] font-medium text-white transition hover:bg-accent-hover">
           <Mail className="size-4" /> Reply by email
         </a>
+        {i.customer_id && i.status !== "archived" && (
+          <Link
+            href={`/o/${slug}/calendar?newFor=${i.customer_id}${i.service_id ? `&service=${i.service_id}` : ""}`}
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-surface-2 px-4 text-[14px] font-medium transition hover:bg-surface-3"
+          >
+            <CalendarPlus className="size-4" /> Create booking
+          </Link>
+        )}
         {i.phone && (
           <a href={`tel:${i.phone}`} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-surface-2 px-4 text-[14px] font-medium transition hover:bg-surface-3">
             <Phone className="size-4" /> {i.phone}

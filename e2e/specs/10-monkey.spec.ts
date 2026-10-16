@@ -34,9 +34,10 @@ async function poke(page: Page, url: string, problems: string[], clicks = 25) {
     const n = await targets.count();
     if (n === 0) break;
     const el = targets.nth(Math.floor(rnd() * n));
-    const label = ((await el.innerText().catch(() => "")) + " " + ((await el.getAttribute("aria-label").catch(() => "")) ?? "")).trim();
+    // Short timeouts: a button that re-rendered away mid-pick must not stall the crawl until the test times out.
+    const label = ((await el.innerText({ timeout: 1500 }).catch(() => "")) + " " + ((await el.getAttribute("aria-label", { timeout: 1500 }).catch(() => "")) ?? "")).trim();
     if (SKIP.test(label)) continue;
-    const href = await el.getAttribute("href").catch(() => null);
+    const href = await el.getAttribute("href", { timeout: 1500 }).catch(() => null);
     if (href && /^\/(api|auth|booking|embed|login|signup|invite|onboarding)/.test(href)) continue;
     await el.click({ timeout: 2500, trial: false }).catch(() => {});
     await page.waitForTimeout(150);

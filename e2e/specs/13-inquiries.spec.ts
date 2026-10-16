@@ -33,6 +33,12 @@ test.beforeEach(async () => {
   await mock.clear();
   await sb().from("inquiries").delete().eq("org_id", S.orgA.id);
   await sb().from("organizations").update({ inquiries_enabled: true, inquiry_notify_email: null }).eq("id", S.orgA.id);
+  // the "message received" workflow back to how a business starts: on, for every service
+  const { data: wfs } = await sb().from("workflows").select("id").eq("org_id", S.orgA.id).eq("trigger", "inquiry_received");
+  for (const w of wfs ?? []) {
+    await sb().from("workflows").update({ active: true, all_services: true }).eq("id", w.id);
+    await sb().from("workflow_services").delete().eq("workflow_id", w.id);
+  }
 });
 
 test.describe("the hosted contact page", () => {
@@ -56,13 +62,13 @@ test.describe("the hosted contact page", () => {
     expect(cust).toMatchObject({ name: "Ina Inquirer", phone: "+14165550142" });
 
     // the team (owners and admins) gets an email whose Reply goes to the visitor
-    await expect.poll(async () => (await mock.sent()).emails.length, { timeout: 20_000 }).toBeGreaterThan(0);
+    await expect.poll(async () => (await mock.sent()).emails.length, { timeout: 20_000 }).toBeGreaterThanOrEqual(3); // owner, admin, and the visitor's confirmation
     const mails = (await mock.sent()).emails;
     const to = mails.map((m) => (Array.isArray(m.to) ? m.to[0] : m.to));
     expect(to).toContain(S.people.ownerA.email);
     expect(to).toContain(S.people.adminA.email);
     expect(to).not.toContain(S.people.staffA1.email); // plain staff aren't emailed
-    expect(to).not.toContain(email); // the visitor isn't emailed in phase 1
+    expect(to).toContain(email); // the visitor gets the business's "message received" confirmation
     const m = mails.find((x) => (Array.isArray(x.to) ? x.to[0] : x.to) === S.people.ownerA.email)!;
     expect(m.subject).toBe("New message from Ina Inquirer");
     expect(m.reply_to ?? m.replyTo).toContain(email);
@@ -95,7 +101,9 @@ test.describe("the hosted contact page", () => {
     await expect(page.getByRole("heading", { name: "Message sent" })).toBeVisible();
     const { data } = await sb().from("inquiries").select("id").eq("org_id", S.orgA.id).eq("email", email);
     expect(data).toHaveLength(0);
-    expect((await mock.sent()).emails).toHaveLength(0);
+    // (an email from the previous test can still be on its way, so look only for this robot's address)
+    await page.waitForTimeout(1500);
+    expect(JSON.stringify((await mock.sent()).emails)).not.toContain(email);
   });
 
   test("a form submitted instantly (under two seconds) is treated as a robot too", async ({ page }) => {
@@ -340,13 +348,16 @@ test.describe("contact form settings", () => {
     const v = await browser.newContext();
     const vp = await v.newPage();
     await vp.goto(`/${slug}/contact`.replace(/^/, BASE));
-    await fill(vp, { email: customerEmail("route") });
+    const visitor = customerEmail("route");
+    await fill(vp, { email: visitor });
     await human(vp);
     await vp.getByRole("button", { name: "Send message" }).click();
     await expect(vp.getByRole("heading", { name: "Message sent" })).toBeVisible();
-    await expect.poll(async () => (await mock.sent()).emails.length, { timeout: 20_000 }).toBe(1);
+    await expect.poll(async () => (await mock.sent()).emails.length, { timeout: 20_000 }).toBe(2);
     const to = (await mock.sent()).emails.map((m) => (Array.isArray(m.to) ? m.to[0] : m.to));
-    expect(to).toEqual(["front-desk@customers.tempo-e2e.test"]);
+    // the chosen address instead of the owners and admins, plus the visitor's own confirmation
+    expect(to.filter((a) => a !== visitor)).toEqual(["front-desk@customers.tempo-e2e.test"]);
+    expect(to).toContain(visitor);
 
     await page.reload();
     await page.getByRole("switch", { name: "Website contact form" }).click();
@@ -359,3 +370,162 @@ test.describe("contact form settings", () => {
     await v.close();
   });
 });
+
+const toOf = (m: any) => (Array.isArray(m.to) ? m.to[0] : m.to) as string;
+
+test.describe("phase 2: the visitor's confirmation, booking from a message, Home and customer history", () => {
+  async function ask(page: import("@playwright/test").Page, o: { email: string; name?: string; message?: string; phone?: string; service?: string }) {
+    await page.goto(`/${slug}/contact`);
+    await fill(page, o);
+    await human(page);
+    await page.getByRole("button", { name: "Send message" }).click();
+    await expect(page.getByRole("heading", { name: "Message sent" })).toBeVisible();
+  }
+
+  test("the visitor gets a thank-you email with their message, and no text without their agreement", async ({ page }) => {
+    const email = customerEmail("thanks");
+    await ask(page, { email, name: "Thea Visitor", phone: "(416) 555-0188", service: "Haircut", message: "Is parking available nearby?" });
+    await expect.poll(async () => (await mock.sent()).emails.map(toOf), { timeout: 20_000 }).toContain(email);
+    const mail = (await mock.sent()).emails.find((m) => toOf(m) === email)!;
+    expect(mail.subject).toBe("We received your message, Thea");
+    expect(mail.html).toContain("Is parking available nearby?");
+    expect(mail.html).toContain("E2E Salon");
+    expect(mail.html).toContain("Haircut");
+    expect(mail.html).not.toMatch(/\{\{|undefined|Where:|Price:/); // no leftover placeholders or empty labels
+    expect(mail.from).toContain("E2E Salon");
+    expect((await mock.sent()).sms).toHaveLength(0); // they never agreed to texts
+    const { data: log } = await sb().from("message_log").select("channel, status, inquiry_id, workflow_name").eq("org_id", S.orgA.id).eq("recipient", email);
+    expect(log).toMatchObject([{ channel: "email", status: "sent", workflow_name: "Message received" }]);
+    expect(log![0].inquiry_id).toBeTruthy();
+  });
+
+  test("the same address gets one confirmation a day, however many messages it sends; the team is told every time", async ({ page }) => {
+    const email = customerEmail("again");
+    await ask(page, { email, message: "First question here" });
+    await page.getByRole("button", { name: "Send another message" }).click();
+    await page.getByLabel("Full name").fill("Ina Inquirer");
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Your message").fill("A second question");
+    await page.getByRole("button", { name: "Send message" }).click();
+    await expect(page.getByRole("heading", { name: "Message sent" })).toBeVisible();
+    await expect.poll(async () => (await mock.sent()).emails.filter((m) => toOf(m) === S.people.ownerA.email).length, { timeout: 20_000 }).toBe(2);
+    const sent = (await mock.sent()).emails.map(toOf);
+    expect(sent.filter((a) => a === email)).toHaveLength(1);
+  });
+
+  test("the confirmation is a normal workflow: it is listed, can be switched off, and then nothing is sent", async ({ pageAs, browser }) => {
+    await ask(await (await browser.newContext()).newPage(), { email: customerEmail("seedwf") }); // makes sure the built-in workflow exists
+    const owner = await pageAs("ownerA");
+    await owner.goto(`/o/${slug}/workflows`);
+    const card = owner.getByText("Message received").first();
+    await expect(card).toBeVisible();
+    await expect(owner.getByText("When a website message is received")).toBeVisible();
+    await card.click();
+    await expect(owner.getByLabel("Send when")).toHaveValue("inquiry_received");
+
+    await sb().from("workflows").update({ active: false }).eq("org_id", S.orgA.id).eq("trigger", "inquiry_received");
+    await mock.clear();
+    const email = customerEmail("off");
+    const ctx = await browser.newContext();
+    await ask(await ctx.newPage(), { email });
+    await expect.poll(async () => (await mock.sent()).emails.map(toOf), { timeout: 20_000 }).toContain(S.people.ownerA.email);
+    expect((await mock.sent()).emails.map(toOf)).not.toContain(email);
+    await ctx.close();
+  });
+
+  test("a workflow limited to one service only confirms messages about that service", async ({ page, browser }) => {
+    await ask(page, { email: customerEmail("prime") }); // creates the built-in workflow
+    const { data: wf } = await sb().from("workflows").select("id").eq("org_id", S.orgA.id).eq("trigger", "inquiry_received").single();
+    await sb().from("workflows").update({ all_services: false }).eq("id", wf!.id);
+    await sb().from("workflow_services").insert({ workflow_id: wf!.id, service_id: S.orgA.services.haircut });
+    await mock.clear();
+    const other = customerEmail("noservice");
+    const match = customerEmail("haircut");
+    const ctx = await browser.newContext();
+    const p = await ctx.newPage();
+    await ask(p, { email: other, service: "Not sure yet", message: "No service picked" });
+    await p.getByRole("button", { name: "Send another message" }).click();
+    await p.getByLabel("Full name").fill("Hana Haircut");
+    await p.getByLabel("Email").fill(match);
+    await p.getByLabel("Service you're interested in").selectOption({ label: "Haircut" });
+    await p.getByLabel("Your message").fill("About a haircut");
+    await p.getByRole("button", { name: "Send message" }).click();
+    await expect(p.getByRole("heading", { name: "Message sent" })).toBeVisible();
+    await expect.poll(async () => (await mock.sent()).emails.map(toOf), { timeout: 20_000 }).toContain(match);
+    expect((await mock.sent()).emails.map(toOf)).not.toContain(other);
+    await ctx.close();
+  });
+
+  async function seedMessage(name: string) {
+    const email = customerEmail("p2");
+    const r = await createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!).rpc("create_public_inquiry", {
+      p_org: S.orgA.id, p_service: S.orgA.services.haircut, p_name: name, p_email: email, p_phone: "+14165550177", p_message: `Message from ${name}`, p_ip_hash: null,
+    });
+    expect(r.error).toBeNull();
+    return email;
+  }
+
+  test("Create booking opens the new-booking form with that customer and service already chosen", async ({ pageAs }) => {
+    await seedMessage("Booker Bea");
+    const page = await pageAs("ownerA");
+    await page.goto(`/o/${slug}/inquiries`);
+    await page.getByTestId("inquiry").first().getByRole("link", { name: "Create booking" }).click();
+    await expect(page).toHaveURL(/\/calendar\?newFor=/);
+    const sheet = page.getByRole("dialog");
+    await expect(sheet.getByRole("heading", { name: "New booking" })).toBeVisible();
+    await expect(sheet.locator("button", { hasText: "Booker Bea" })).toContainText("Selected");
+    await expect(sheet.getByRole("button", { name: /^Haircut/ })).toHaveClass(/ring-2/);
+    await sheet.getByRole("button", { name: "Close" }).click();
+    await expect(page).toHaveURL(new RegExp(`/o/${slug}/calendar$`)); // a reload won't reopen it
+  });
+
+  test("a booking made from a message is saved for that customer", async ({ pageAs }) => {
+    const email = await seedMessage("Booked Bruno");
+    const page = await pageAs("ownerA");
+    await page.goto(`/o/${slug}/inquiries`);
+    await page.getByTestId("inquiry").first().getByRole("link", { name: "Create booking" }).click();
+    const sheet = page.getByRole("dialog");
+    await sheet.getByLabel("Date").fill(futureDay());
+    await sheet.getByRole("button", { name: /Add booking|Create|Save/ }).last().click();
+    await expect(page.getByText("Booking added")).toBeVisible({ timeout: 15_000 });
+    const { data: cust } = await sb().from("customers").select("id").eq("org_id", S.orgA.id).eq("email", email).single();
+    const { data: b } = await sb().from("bookings").select("customer_id, service_name").eq("org_id", S.orgA.id).eq("customer_id", cust!.id);
+    expect(b).toHaveLength(1);
+    expect(b![0].service_name).toBe("Haircut");
+  });
+
+  test("Home counts unanswered messages and links to them; handling them clears the line", async ({ pageAs }) => {
+    await seedMessage("Home One");
+    await seedMessage("Home Two");
+    const page = await pageAs("ownerA");
+    await page.goto(`/o/${slug}/dashboard`);
+    const line = page.getByRole("link", { name: /2 new website messages to answer/ });
+    await expect(line).toBeVisible();
+    await line.click();
+    await expect(page).toHaveURL(/\/inquiries/);
+    for (let i = 0; i < 2; i++) {
+      await page.getByTestId("inquiry").first().getByRole("button", { name: "Mark handled" }).click();
+      await expect(page.getByText("Marked as handled")).toBeVisible();
+    }
+    await page.goto(`/o/${slug}/dashboard`);
+    await expect(page.getByText(/new website message/)).toHaveCount(0);
+  });
+
+  test("a customer's sheet lists the messages they sent", async ({ pageAs }) => {
+    await seedMessage("History Hal");
+    const page = await pageAs("ownerA");
+    await page.goto(`/o/${slug}/customers`);
+    await page.getByRole("button", { name: /History Hal/ }).click();
+    const box = page.getByTestId("customer-messages");
+    await expect(box).toBeVisible();
+    await expect(box.getByText("Message from History Hal")).toBeVisible();
+    await expect(box.getByText("Haircut")).toBeVisible();
+    await expect(box.getByRole("link", { name: "Open Inquiries" })).toBeVisible();
+  });
+});
+
+function futureDay() {
+  const d = new Date(Date.now() + 12 * 86400_000);
+  while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}

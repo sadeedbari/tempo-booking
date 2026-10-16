@@ -179,6 +179,17 @@ test("only owners and admins can delete an inquiry", async () => {
   assert.equal(owner.data?.length, 1);
 });
 
+test("'a website message is received' is a workflow trigger; made-up triggers are still refused; the log can name the inquiry", async () => {
+  const ok = await admin.from("workflows").insert({ org_id: st.orgA.id, name: "Inquiry check", trigger: "inquiry_received" }).select("id").single();
+  assert.equal(ok.error, null, ok.error?.message);
+  const bad = await admin.from("workflows").insert({ org_id: st.orgA.id, name: "Bad", trigger: "nonsense" });
+  assert.ok(bad.error, "an unknown trigger must be refused");
+  const r = await send();
+  const log = await admin.from("message_log").insert({ org_id: st.orgA.id, inquiry_id: r.data.id, workflow_id: ok.data.id, workflow_name: "Inquiry check", channel: "email", recipient: "x@x.co", status: "sent" }).select("id").single();
+  assert.equal(log.error, null, log.error?.message);
+  await admin.from("workflows").delete().eq("id", ok.data.id);
+});
+
 test("deleting a customer keeps the message; deleting the business removes everything", async () => {
   const email = `${unique("del")}@customers.tempo-e2e.test`;
   const r = await send({ email });

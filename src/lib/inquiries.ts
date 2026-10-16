@@ -1,7 +1,7 @@
 import "server-only";
 import { env } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendEmail } from "@/lib/messaging";
+import { fireInquiryReceived, sendEmail } from "@/lib/messaging";
 import { pushInquiryEvent } from "@/lib/push";
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -11,11 +11,16 @@ const brandColorOrDefault = (c?: string | null) => (c && /^#[0-9a-fA-F]{6}$/.tes
 const oneLine = (s: string) => s.replace(/[\r\n]+/g, " ").trim();
 
 /**
- * Tells the team about a new website message: an email (to the address the business chose, or to every
- * owner and admin) and a push alert. The email's Reply goes straight to the visitor.
- * Never throws: a failed notification must not lose the message, which is already saved.
+ * After a website message is saved: tells the team (an email to the address the business chose, or to every
+ * owner and admin, plus a push alert; the email's Reply goes straight to the visitor), then sends the visitor
+ * the business's "message received" workflow. Never throws: a failed notification must not lose the message.
  */
 export async function notifyInquiry(inquiryId: string) {
+  await notifyTeam(inquiryId);
+  await fireInquiryReceived(inquiryId);
+}
+
+async function notifyTeam(inquiryId: string) {
   try {
     const admin = createAdminClient();
     const { data: inq } = await admin

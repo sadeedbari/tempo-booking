@@ -13,6 +13,10 @@ export default async function CalendarPage(props: PageProps<"/o/[org]/calendar">
   const { org, members, me } = await getOrgContext(slug);
   const tz = org.timezone;
 
+  // "Create booking" on a website message opens the new-booking form with that customer and service chosen.
+  const isId = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v);
+  const prefill = isId(sp.newFor) ? { customerId: sp.newFor, serviceId: isId(sp.service) ? sp.service : undefined } : undefined;
+
   const view = sp.view === "week" ? "week" : "day";
   const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : todayKey(tz);
   // Weeks start on Monday.
@@ -62,6 +66,7 @@ export default async function CalendarPage(props: PageProps<"/o/[org]/calendar">
       locations={(locations.data ?? []) as Location[]}
       shifts={(shifts.data ?? []) as Shift[]}
       welcome={sp.welcome === "1"}
+      prefill={prefill}
     />
   );
 }

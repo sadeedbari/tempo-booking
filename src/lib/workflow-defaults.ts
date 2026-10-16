@@ -1,6 +1,6 @@
 /** The built-in workflows every business starts with. Pure data, so "Restore default" and first-time setup share it. */
 
-export type Trigger = "booking_confirmed" | "booking_requested" | "booking_declined" | "booking_cancelled" | "booking_rescheduled" | "before_start" | "after_end";
+export type Trigger = "booking_confirmed" | "booking_requested" | "booking_declined" | "booking_cancelled" | "booking_rescheduled" | "before_start" | "after_end" | "inquiry_received";
 export type Channel = "email" | "sms";
 
 export const TRIGGERS: { value: Trigger; label: string; timed: boolean }[] = [
@@ -9,6 +9,7 @@ export const TRIGGERS: { value: Trigger; label: string; timed: boolean }[] = [
   { value: "booking_declined", label: "A booking request is declined", timed: false },
   { value: "booking_cancelled", label: "A booking is cancelled", timed: false },
   { value: "booking_rescheduled", label: "A booking is rescheduled", timed: false },
+  { value: "inquiry_received", label: "A website message is received", timed: false },
   { value: "before_start", label: "Before the appointment starts", timed: true },
   { value: "after_end", label: "After the appointment ends", timed: true },
 ];
@@ -21,6 +22,7 @@ const WHEN: Record<string, string> = {
   booking_declined: "When a booking request is declined",
   booking_cancelled: "When a booking is cancelled",
   booking_rescheduled: "When a booking is rescheduled",
+  inquiry_received: "When a website message is received",
 };
 
 /** "24 hours before the appointment", "When a booking is confirmed", ... */
@@ -115,6 +117,19 @@ export const DEFAULT_WORKFLOWS: WorkflowDef[] = [
         channel: "email",
         subject: "Updated: {{service_name}} with {{business_name}}",
         body: `Hi {{customer_first_name}},\n\nYour booking has changed. Here are the new details:\n\n${DETAILS}\n\n{{manage_button}}`,
+      },
+    ],
+  },
+  {
+    key: "inquiry",
+    name: "Message received",
+    trigger: "inquiry_received",
+    offset_minutes: 0,
+    steps: [
+      {
+        channel: "email",
+        subject: "We received your message, {{customer_first_name}}",
+        body: `Hi {{customer_first_name}},\n\nThank you for getting in touch. {{business_name}} has your message and will reply as soon as possible.\n\nYou asked about: {{service_name}}\nYour message: {{inquiry_message}}\n\nIf it's urgent, you can call us on {{business_phone}}.\n\n{{booking_button}}`,
       },
     ],
   },

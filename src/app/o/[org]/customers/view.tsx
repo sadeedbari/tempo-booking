@@ -1,19 +1,23 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
-import { Contact, Download, Plus, Search } from "lucide-react";
+import Link from "next/link";
+import { Contact, Download, MessageSquareText, Plus, Search } from "lucide-react";
 import { PageHeader, EmptyState, Avatar, Notice } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { formatDate, formatMoney } from "@/lib/format";
+import { Badge } from "@/components/ui/misc";
 import type { Customer, Organization } from "@/lib/types";
 import { deleteCustomer, saveCustomer } from "../actions";
 
 export function CustomersView({
-  slug, org, customers, stats, canDelete, canExport,
+  slug, org, customers, stats, messages = {}, canDelete, canExport,
 }: {
   slug: string; org: Organization; canDelete: boolean; canExport: boolean; customers: Customer[]; stats: Record<string, { visits: number; last: string | null; spent: number }>;
+  /** Website messages each customer sent, newest first. */
+  messages?: Record<string, { id: string; message: string; service_name: string; status: string; created_at: string }[]>;
 }) {
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<Partial<Customer> | null>(null);
@@ -92,6 +96,26 @@ export function CustomersView({
             <Field label="Email"><Input name="email" type="email" defaultValue={editing.email} required /></Field>
             <PhoneWithConsent initialPhone={editing.phone ?? ""} consentAt={editing.sms_consent_at ?? null} timeZone={org.timezone} />
             <Field label="Private notes" hint="Only your team can see these."><Textarea name="notes" defaultValue={editing.notes ?? ""} /></Field>
+            {editing.id && (messages[editing.id]?.length ?? 0) > 0 && (
+              <div className="space-y-2 rounded-[14px] bg-surface-2 p-3.5" data-testid="customer-messages">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-[13px] font-medium text-label-2"><MessageSquareText className="size-4" /> Website messages</span>
+                  <Link href={`/o/${slug}/inquiries`} className="text-[13px] font-medium text-accent">Open Inquiries</Link>
+                </div>
+                <ul className="space-y-2">
+                  {messages[editing.id].slice(0, 5).map((m) => (
+                    <li key={m.id} className="text-[14px]">
+                      <div className="flex flex-wrap items-center gap-2 text-[12px] text-label-3">
+                        {formatDate(m.created_at, org.timezone, { weekday: undefined })}
+                        {m.service_name && <span>· {m.service_name}</span>}
+                        {m.status === "new" && <Badge tone="orange">New</Badge>}
+                      </div>
+                      <p className="line-clamp-3 whitespace-pre-wrap break-words text-label">{m.message}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {error && <Notice>{error}</Notice>}
             <Button type="submit" size="lg" pill className="w-full" loading={pending}>Save</Button>
             {canDelete && editing.id && (

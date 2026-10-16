@@ -175,46 +175,142 @@ export async function ensureDefaultWorkflows(orgId: string, reminderHoursBefore:
   if (steps.length) await admin.from("workflow_steps").insert(steps);
 }
 
-/** Sends one step of a workflow for one booking, and records it. */
-async function deliver(b: BookingForMessage, wf: { id: string; name: string }, step: LoadedStep, opts: { dedupe?: boolean } = {}): Promise<boolean> {
-  if (!b.customer) return false;
-  const vars = bookingVars(b);
+/** Everything needed to send one step of a workflow, whether it is about a booking or a website message. */
+interface SendContext {
+  orgId: string;
+  businessName: string;
+  businessPhone: string | null;
+  accent: string;
+  bookingId: string | null;
+  inquiryId: string | null;
+  vars: Vars;
+  /** When set, a second send with the same key is skipped (reminders, one confirmation per day). */
+  dedupeKey: string | null;
+}
 
-  let to: string | null;
-  if (step.channel === "email") to = b.customer.email;
-  else to = b.customer.phone && b.customer.sms_consent_at ? normalizePhone(b.customer.phone, b.currency) : null; // texts need the customer's agreement
-  if (!to) return false;
-
+/** Sends one step to `to` (an email address or an international phone number) and records it. */
+async function sendStep(c: SendContext, wf: { id: string; name: string }, step: LoadedStep, to: string): Promise<boolean> {
   const admin = createAdminClient();
   const { data: row, error } = await admin
     .from("message_log")
     .insert({
-      org_id: b.org.id,
-      booking_id: b.id,
+      org_id: c.orgId,
+      booking_id: c.bookingId,
+      inquiry_id: c.inquiryId,
       workflow_id: wf.id,
       step_id: step.id,
       workflow_name: wf.name,
       channel: step.channel,
       recipient: to,
       status: "sending",
-      dedupe_key: opts.dedupe ? `${step.id}:${b.id}:${b.starts_at}` : null,
+      dedupe_key: c.dedupeKey,
     })
     .select("id")
     .single();
   if (error) {
-    if (error.code !== "23505") console.error("[messaging] log", error.message); // 23505 = already sent for this appointment time
+    if (error.code !== "23505") console.error("[messaging] log", error.message); // 23505 = already sent
     return false;
   }
 
   let result: { ok: boolean; error?: string };
   if (step.channel === "email") {
-    const e = renderEmail({ subject: step.subject, body: step.body, vars, accent: b.org.accent_color || "#007AFF", phone: b.org.phone });
-    result = await sendEmail({ to, businessName: b.org.name, subject: e.subject, html: e.html, text: e.text });
+    const e = renderEmail({ subject: step.subject, body: step.body, vars: c.vars, accent: c.accent || "#007AFF", phone: c.businessPhone });
+    result = await sendEmail({ to, businessName: c.businessName, subject: e.subject, html: e.html, text: e.text });
   } else {
-    result = await sendSms(to, finalizeSms(renderText(step.body, vars)));
+    result = await sendSms(to, finalizeSms(renderText(step.body, c.vars)));
   }
   await admin.from("message_log").update({ status: result.ok ? "sent" : "failed", detail: result.error?.slice(0, 300) ?? null }).eq("id", row.id);
   return result.ok;
+}
+
+/** Sends one step of a workflow for one booking, and records it. */
+async function deliver(b: BookingForMessage, wf: { id: string; name: string }, step: LoadedStep, opts: { dedupe?: boolean } = {}): Promise<boolean> {
+  if (!b.customer) return false;
+  let to: string | null;
+  if (step.channel === "email") to = b.customer.email;
+  else to = b.customer.phone && b.customer.sms_consent_at ? normalizePhone(b.customer.phone, b.currency) : null; // texts need the customer's agreement
+  if (!to) return false;
+  return sendStep(
+    {
+      orgId: b.org.id,
+      businessName: b.org.name,
+      businessPhone: b.org.phone,
+      accent: b.org.accent_color,
+      bookingId: b.id,
+      inquiryId: null,
+      vars: bookingVars(b),
+      dedupeKey: opts.dedupe ? `${step.id}:${b.id}:${b.starts_at}` : null,
+    },
+    wf,
+    step,
+    to,
+  );
+}
+
+/**
+ * Runs the "a website message is received" workflows for one inquiry: by default a short thank-you email to the
+ * visitor. Each step goes to the same address at most once a day, so the form can't be used to flood someone's inbox.
+ * Texts only go to visitors who already agreed to them. Never throws.
+ */
+export async function fireInquiryReceived(inquiryId: string) {
+  try {
+    if (!env.supabaseServiceKey) return;
+    const admin = createAdminClient();
+    const { data } = await admin
+      .from("inquiries")
+      .select("id, service_id, service_name, name, email, message, customer:customers(phone, sms_consent_at), org:organizations(id, name, slug, accent_color, phone, currency, reminder_hours_before)")
+      .eq("id", inquiryId)
+      .single();
+    if (!data) return;
+    const inq = data as unknown as {
+      id: string; service_id: string | null; service_name: string; name: string; email: string; message: string;
+      customer: { phone: string | null; sms_consent_at: string | null } | null;
+      org: { id: string; name: string; slug: string; accent_color: string; phone: string | null; currency: string; reminder_hours_before: number };
+    };
+
+    await ensureDefaultWorkflows(inq.org.id, inq.org.reminder_hours_before);
+    const { data: wfs } = await admin.from("workflows").select(WORKFLOW_SELECT).eq("org_id", inq.org.id).eq("trigger", "inquiry_received").eq("active", true).order("position");
+
+    const again = `${env.appUrl}/${inq.org.slug}`;
+    const vars: Vars = {
+      customer_name: inq.name,
+      customer_first_name: inq.name.trim().split(/\s+/)[0] || "there",
+      business_name: inq.org.name,
+      business_phone: inq.org.phone ?? "",
+      service_name: inq.service_name,
+      inquiry_message: inq.message,
+      booking_link: again,
+      booking_button: again,
+    };
+    const day = new Date().toISOString().slice(0, 10);
+    const sms = inq.customer?.phone && inq.customer.sms_consent_at ? normalizePhone(inq.customer.phone, inq.org.currency) : null;
+
+    for (const w of (wfs ?? []) as unknown as LoadedWorkflow[]) {
+      if (!appliesTo(w, inq.service_id)) continue;
+      for (const step of [...w.steps].sort((x, y) => x.position - y.position)) {
+        if (!step.enabled) continue;
+        const to = step.channel === "email" ? inq.email : sms;
+        if (!to) continue;
+        await sendStep(
+          {
+            orgId: inq.org.id,
+            businessName: inq.org.name,
+            businessPhone: inq.org.phone,
+            accent: inq.org.accent_color,
+            bookingId: null,
+            inquiryId: inq.id,
+            vars,
+            dedupeKey: `${step.id}:inquiry:${to.toLowerCase()}:${day}`,
+          },
+          w,
+          step,
+          to,
+        );
+      }
+    }
+  } catch (e) {
+    console.error("[messaging] inquiry", e);
+  }
 }
 
 /** Runs every active workflow for an instant trigger (a booking was confirmed, cancelled, ...). */

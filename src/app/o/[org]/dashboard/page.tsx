@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getOrgContext } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 import { parseRange } from "@/lib/dashboard";
 import { loadDashboard } from "@/lib/dashboard-data";
 import { DashboardView } from "./view";
@@ -12,6 +13,11 @@ export default async function HomePage(props: PageProps<"/o/[org]/dashboard">) {
   const ctx = await getOrgContext(slug);
   const rangeDays = parseRange(sp.range);
   const { d, now, today, facts } = await loadDashboard(ctx, rangeDays);
+  const { count: newInquiries } = await (await createClient())
+    .from("inquiries")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", ctx.org.id)
+    .eq("status", "new");
 
   return (
     <DashboardView
@@ -25,6 +31,7 @@ export default async function HomePage(props: PageProps<"/o/[org]/dashboard">) {
       now={now}
       today={today}
       facts={facts}
+      newInquiries={newInquiries ?? 0}
     />
   );
 }
