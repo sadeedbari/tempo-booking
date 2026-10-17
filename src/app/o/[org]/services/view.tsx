@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { Clock, Link2, MapPin, Phone, Plus, Sparkles, Video, Check } from "lucide-react";
+import { Clock, Link2, MapPin, Phone, Plus, Sparkles, Users, Video, Check } from "lucide-react";
 import { PageHeader, EmptyState, Avatar, Notice, Badge } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
@@ -10,7 +10,8 @@ import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { cn, PALETTE } from "@/lib/utils";
 import { formatDuration, formatMoney } from "@/lib/format";
-import type { LocationType, Membership, Organization, Service, ServiceKind, ServiceQuestion } from "@/lib/types";
+import type { Location, LocationType, Membership, Organization, Service, ServiceKind, ServiceQuestion } from "@/lib/types";
+import { NewSessionSheet } from "@/components/app/new-session-sheet";
 import { QuestionsEditor, serializeDrafts, toDrafts, type DraftQuestion } from "./questions-editor";
 import { deleteService, saveService } from "../actions";
 
@@ -18,11 +19,12 @@ const DURATIONS = [5, 10, 15, 20, 30, 45, 60, 75, 90, 105, 120, 150, 180, 240, 3
 const LOC_ICON = { in_person: MapPin, video: Video, phone: Phone };
 
 export function ServicesView({
-  slug, org, services, staffMap, questionMap, members, canEdit,
+  slug, org, services, staffMap, questionMap, members, locations, canEdit,
 }: {
-  slug: string; org: Organization; services: Service[]; staffMap: Record<string, string[]>; questionMap: Record<string, ServiceQuestion[]>; members: Membership[]; canEdit: boolean;
+  slug: string; org: Organization; services: Service[]; staffMap: Record<string, string[]>; questionMap: Record<string, ServiceQuestion[]>; members: Membership[]; locations: Location[]; canEdit: boolean;
 }) {
   const [editing, setEditing] = useState<Partial<Service> | null>(null);
+  const [sessionFor, setSessionFor] = useState<string | null>(null);
   const toast = useToast();
 
   const copy = async (s: Service) => {
@@ -54,10 +56,12 @@ export function ServicesView({
                     {s.description && <p className="mt-0.5 line-clamp-2 text-[14px] text-label-2">{s.description}</p>}
                   </div>
                   {!s.active && <Badge>Hidden</Badge>}
+                  {s.is_class && <Badge tone="blue">Group class</Badge>}
                   {s.active && !s.auto_approve && <Badge tone="orange">Needs approval</Badge>}
                 </div>
                 <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-label-2">
                   <span className="inline-flex items-center gap-1.5"><Clock className="size-3.5" />{formatDuration(s.duration_minutes)}</span>
+                  {s.is_class && <span className="inline-flex items-center gap-1.5"><Users className="size-3.5" />{s.class_capacity} spots</span>}
                   <span className="inline-flex items-center gap-1.5"><Icon className="size-3.5" />{s.location_type === "in_person" ? "In person" : s.location_type === "video" ? "Video" : "Phone"}</span>
                   <span className="font-medium text-label">{formatMoney(s.price_cents, org.currency)}</span>
                   {s.deposit_cents > 0 && <span>{formatMoney(s.deposit_cents, org.currency)} deposit</span>}
@@ -68,6 +72,7 @@ export function ServicesView({
                     {shown.slice(0, 5).map((m) => <Avatar key={m.id} name={m.display_name} color={m.color} size={26} className="ring-2 ring-surface" />)}
                   </div>
                   <div className="flex gap-1.5">
+                    {s.is_class && s.active && <Button size="sm" variant="gray" onClick={() => setSessionFor(s.id)}><Plus className="size-3.5" /> Session</Button>}
                     <Button size="sm" variant="gray" onClick={() => copy(s)}><Link2 className="size-3.5" /> Link</Button>
                     {canEdit && <Button size="sm" variant="tinted" onClick={() => setEditing(s)}>Edit</Button>}
                   </div>
@@ -78,6 +83,16 @@ export function ServicesView({
         </div>
       )}
 
+      <NewSessionSheet
+        open={!!sessionFor}
+        onClose={() => setSessionFor(null)}
+        slug={slug}
+        org={org}
+        members={members}
+        locations={locations}
+        classes={services.filter((s) => s.is_class && s.active)}
+        defaultServiceId={sessionFor ?? undefined}
+      />
       {editing && (
         <ServiceEditor
           slug={slug}
@@ -110,6 +125,7 @@ function ServiceEditor({
   const [drafts, setDrafts] = useState<DraftQuestion[]>(() => toDrafts(questions));
   const [autoApprove, setAutoApprove] = useState(service.auto_approve ?? true);
   const [deposit, setDeposit] = useState(service.deposit_cents ?? 0);
+  const [isClass, setIsClass] = useState(service.is_class ?? false);
 
   const submit = (fd: FormData) => {
     fd.set("questions", serializeDrafts(drafts));
@@ -146,7 +162,7 @@ function ServiceEditor({
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Duration">
+          <Field label={isClass ? "Session length" : "Duration"}>
             <Select name="duration_minutes" defaultValue={service.duration_minutes ?? 30}>
               {DURATIONS.map((d) => <option key={d} value={d}>{formatDuration(d)}</option>)}
             </Select>
@@ -163,6 +179,19 @@ function ServiceEditor({
             <Input name="deposit" type="number" min={0} step="0.01" defaultValue={(service.deposit_cents ?? 0) / 100} onChange={(e) => setDeposit(Math.round(Number(e.target.value) * 100) || 0)} />
           </Field>
         </div>
+
+        <div className="flex items-center justify-between gap-4 rounded-[12px] bg-surface-2 px-4 py-3">
+          <div>
+            <div className="text-[15px] font-medium">This is a group class</div>
+            <div className="text-[13px] text-label-2">Several people share one session, like yoga or a workshop. Customers pick a session instead of a time. The price is per person.</div>
+          </div>
+          <Switch name="is_class" defaultChecked={service.is_class ?? false} onChange={setIsClass} label="This is a group class" />
+        </div>
+        {isClass && (
+          <Field label="Spots per session" hint="The usual number of people. You can change it for any one session.">
+            <Input name="class_capacity" type="number" min={1} max={500} defaultValue={service.class_capacity ?? 10} required />
+          </Field>
+        )}
 
         <div className="space-y-2">
           <span className="px-1 text-[13px] font-medium text-label-2">Location</span>
@@ -224,11 +253,12 @@ function ServiceEditor({
             <div className="text-[15px] font-medium">Customers can book repeating appointments</div>
             <div className="text-[13px] text-label-2">
               Lets a customer book the same time every 1 to 4 weeks, up to 26 times, in one go.
-              {!autoApprove && " Needs automatic approval."}
+              {isClass && " Not available for group classes."}
+              {!isClass && !autoApprove && " Needs automatic approval."}
               {autoApprove && deposit > 0 && org.stripe_charges_enabled && " Not offered online while a deposit is charged."}
             </div>
           </div>
-          <Switch name="allow_series" defaultChecked={service.allow_series ?? false} disabled={!autoApprove} label="Customers can book repeating appointments" />
+          <Switch name="allow_series" defaultChecked={service.allow_series ?? false} disabled={!autoApprove || isClass} label="Customers can book repeating appointments" />
         </div>
 
         <div className="flex items-center justify-between rounded-[12px] bg-surface-2 px-4 py-3">

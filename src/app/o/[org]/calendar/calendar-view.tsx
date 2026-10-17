@@ -2,15 +2,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TZDate } from "@date-fns/tz";
-import { ChevronLeft, ChevronRight, Plus, PartyPopper } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, PartyPopper, Users } from "lucide-react";
 import { Button, buttonClass } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { Avatar } from "@/components/ui/misc";
 import { cn } from "@/lib/utils";
 import { addDaysToKey, dayKey, formatTime, startOfDayInZone, todayKey, weekdayOfKey } from "@/lib/format";
-import type { AvailabilityRule, Booking, Customer, Location, Membership, Shift, Organization, Service, ServiceQuestion, TimeOff } from "@/lib/types";
+import type { AvailabilityRule, Booking, ClassSession, Customer, Location, Membership, Shift, Organization, Service, ServiceQuestion, TimeOff } from "@/lib/types";
 import { NewBookingSheet } from "@/components/app/new-booking-sheet";
 import { BookingSheet } from "@/components/app/booking-sheet";
+import { NewSessionSheet } from "@/components/app/new-session-sheet";
+import { SessionSheet } from "@/components/app/session-sheet";
 
 const HOUR = 64; // px per hour
 
@@ -23,6 +25,8 @@ interface Props {
   members: Membership[];
   meId: string;
   bookings: Booking[];
+  /** Class sessions in the visible range, with how many spots are taken. */
+  sessions: ClassSession[];
   services: Service[];
   rules: AvailabilityRule[];
   timeOff: TimeOff[];
@@ -74,7 +78,13 @@ export function CalendarView(props: Props) {
   const [locationFilter, setLocationFilter] = useState<string>("all");
   // With a location chosen, only that location's bookings are shown.
   const p = useMemo(
-    () => (locationFilter === "all" ? props : { ...props, bookings: props.bookings.filter((b) => b.location_id === locationFilter) }),
+    () => {
+      // Class spots are shown as one block per session, so they're left out of the one-on-one bookings.
+      const solo = props.bookings.filter((b) => !b.session_id);
+      return locationFilter === "all"
+        ? { ...props, bookings: solo }
+        : { ...props, bookings: solo.filter((b) => b.location_id === locationFilter), sessions: props.sessions.filter((s) => s.location_id === locationFilter) };
+    },
     [props, locationFilter],
   );
   const tz = p.org.timezone;
@@ -82,6 +92,8 @@ export function CalendarView(props: Props) {
   const [staffFilter, setStaffFilter] = useState<string>("all");
   const [newAt, setNewAt] = useState<{ start: string; memberId: string } | null>(props.prefill ? { start: "", memberId: props.meId } : null);
   const [selected, setSelected] = useState<Booking | null>(null);
+  const [selectedSession, setSelectedSession] = useState<ClassSession | null>(null);
+  const [newSession, setNewSession] = useState<{ start: string; memberId: string } | null>(null);
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -94,6 +106,7 @@ export function CalendarView(props: Props) {
   }, []);
 
   const serviceById = useMemo(() => new Map(p.services.map((s) => [s.id, s])), [p.services]);
+  const classServices = useMemo(() => p.services.filter((s) => s.is_class && s.active), [p.services]);
   const memberById = useMemo(() => new Map(p.members.map((m) => [m.id, m])), [p.members]);
   const bookable = p.members.filter((m) => m.bookable);
   const visibleMembers = p.view === "day" ? (staffFilter === "all" ? bookable : bookable.filter((m) => m.id === staffFilter)) : bookable;
@@ -103,12 +116,12 @@ export function CalendarView(props: Props) {
     let lo = 8 * 60, hi = 18 * 60;
     const hoursSource = p.org.schedule_mode === "shifts" ? p.shifts : p.rules;
     hoursSource.forEach((r) => { lo = Math.min(lo, toMin(r.start_time)); hi = Math.max(hi, toMin(r.end_time)); });
-    p.bookings.forEach((b) => {
+    [...p.bookings, ...p.sessions].forEach((b) => {
       lo = Math.min(lo, minutesInDay(b.starts_at, tz));
       hi = Math.max(hi, minutesInDay(b.ends_at, tz) || 24 * 60);
     });
     return [Math.max(0, Math.floor(lo / 60) - 1), Math.min(24, Math.ceil(hi / 60) + 1)];
-  }, [p.rules, p.shifts, p.org.schedule_mode, p.bookings, tz]);
+  }, [p.rules, p.shifts, p.org.schedule_mode, p.bookings, p.sessions, tz]);
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
 
   // Columns: in day view, one per staff member; in week view, one per day.
@@ -174,7 +187,10 @@ export function CalendarView(props: Props) {
       <div className="flex flex-wrap items-center gap-3 pb-5">
         <div className="mr-auto">
           <h1 className="text-[28px] font-bold leading-tight sm:text-[34px]">{p.view === "day" ? dayTitle : title}</h1>
-          <p className="text-[14px] text-label-2">{p.bookings.length} booking{p.bookings.length === 1 ? "" : "s"} {p.view === "day" ? "today" : "this week"}</p>
+          <p className="text-[14px] text-label-2">
+            {p.bookings.length} booking{p.bookings.length === 1 ? "" : "s"}
+            {p.sessions.length > 0 && ` and ${p.sessions.length} class${p.sessions.length === 1 ? "" : "es"}`} {p.view === "day" ? "today" : "this week"}
+          </p>
         </div>
         {!viewingToday && (
           <button onClick={() => go(today)} className="h-10 rounded-[11px] bg-surface px-3.5 text-[14px] font-medium text-accent shadow-sm hairline hover:bg-surface-2 sm:h-10">
@@ -195,6 +211,11 @@ export function CalendarView(props: Props) {
           onChange={(v) => go(p.date, v)}
           options={[{ value: "day", label: "Day" }, { value: "week", label: "Week" }]}
         />
+        {classServices.length > 0 && (
+          <Button variant="tinted" onClick={() => setNewSession({ start: "", memberId: p.meId })} pill>
+            <Users className="size-4" /> New class
+          </Button>
+        )}
         <Button onClick={() => setNewAt({ start: "", memberId: p.meId })} pill>
           <Plus className="size-4" strokeWidth={2.5} /> New
         </Button>
@@ -291,13 +312,21 @@ export function CalendarView(props: Props) {
                   : p.rules.filter((r) => c.memberIds.includes(r.member_id) && r.weekday === wd);
               const colBookings = p.bookings.filter((b) => c.memberIds.includes(b.member_id) && dayKey(b.starts_at, tz) === c.day);
               const colOff = p.timeOff.filter((t) => c.memberIds.includes(t.member_id));
-              const events = layout(
-                colBookings.map((b) => ({
+              const colSessions = p.sessions.filter((s) => c.memberIds.includes(s.member_id) && dayKey(s.starts_at, tz) === c.day);
+              const events = layout([
+                ...colBookings.map((b) => ({
                   b,
+                  s: null as ClassSession | null,
                   start: minutesInDay(b.starts_at, tz),
                   end: minutesInDay(b.ends_at, tz) || 24 * 60,
                 })),
-              );
+                ...colSessions.map((s) => ({
+                  b: null as Booking | null,
+                  s,
+                  start: minutesInDay(s.starts_at, tz),
+                  end: minutesInDay(s.ends_at, tz) || 24 * 60,
+                })),
+              ]);
               const clickMember = c.member?.id ?? (staffFilter !== "all" ? staffFilter : p.meId);
 
               return (
@@ -341,7 +370,37 @@ export function CalendarView(props: Props) {
                     </div>
                   )}
                   {/* Events */}
-                  {events.map(({ b, start, end, lane, lanes }) => {
+                  {events.map(({ b, s, start, end, lane, lanes }) => {
+                    if (s) {
+                      const color = serviceById.get(s.service_id)?.color ?? memberById.get(s.member_id)?.color ?? "#007AFF";
+                      const height = Math.max(22, ((end - start) / 60) * HOUR - 2);
+                      const taken = s.booked ?? 0;
+                      return (
+                        <button
+                          key={`s-${s.id}`}
+                          data-event
+                          data-testid="session-block"
+                          onClick={() => setSelectedSession(s)}
+                          className="absolute z-10 overflow-hidden rounded-[8px] px-2 py-1 text-left transition-[transform,box-shadow] duration-150 hover:z-20 hover:shadow-md active:scale-[0.98]"
+                          style={{
+                            top: ((start - startHour * 60) / 60) * HOUR + 1,
+                            height,
+                            left: `calc(${(lane / lanes) * 100}% + 3px)`,
+                            width: `calc(${100 / lanes}% - 6px)`,
+                            background: `color-mix(in srgb, ${color} 22%, var(--surface))`,
+                            borderLeft: `3px solid ${color}`,
+                          }}
+                        >
+                          <div className="flex items-center justify-between gap-1 text-[12px] font-semibold" style={{ color: `color-mix(in srgb, ${color} 75%, var(--label))` }}>
+                            <span className="truncate">{formatTime(s.starts_at, tz)}</span>
+                            <span className="inline-flex shrink-0 items-center gap-0.5"><Users className="size-3" />{taken}/{s.capacity}</span>
+                          </div>
+                          {height > 40 && <div className="truncate text-[12px] font-medium text-label">{serviceById.get(s.service_id)?.name ?? "Class"}</div>}
+                          {height > 58 && p.view === "week" && memberById.get(s.member_id) && <div className="truncate text-[11px] text-label-2">{memberById.get(s.member_id)!.display_name}</div>}
+                        </button>
+                      );
+                    }
+                    if (!b) return null;
                     const svc = b.service_id ? serviceById.get(b.service_id) : undefined;
                     const color = svc?.color ?? memberById.get(b.member_id)?.color ?? "#007AFF";
                     const height = Math.max(22, ((end - start) / 60) * HOUR - 2);
@@ -398,7 +457,29 @@ export function CalendarView(props: Props) {
         locations={p.locations}
         defaultLocationId={locationFilter === "all" ? undefined : locationFilter}
         members={bookable}
-        services={p.services.filter((s) => s.active)}
+        services={p.services.filter((s) => s.active && !s.is_class)}
+        customers={p.customers}
+      />
+      <NewSessionSheet
+        open={!!newSession}
+        onClose={() => setNewSession(null)}
+        slug={p.slug}
+        org={p.org}
+        members={bookable}
+        locations={p.locations}
+        classes={classServices}
+        defaultStart={newSession?.start}
+        defaultMemberId={newSession?.memberId}
+        defaultLocationId={locationFilter === "all" ? undefined : locationFilter}
+      />
+      <SessionSheet
+        session={selectedSession}
+        onClose={() => setSelectedSession(null)}
+        slug={p.slug}
+        org={p.org}
+        service={selectedSession ? serviceById.get(selectedSession.service_id) : undefined}
+        member={selectedSession ? memberById.get(selectedSession.member_id) : undefined}
+        location={selectedSession?.location_id ? p.locations.find((l) => l.id === selectedSession.location_id) : undefined}
         customers={p.customers}
       />
       <BookingSheet

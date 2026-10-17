@@ -92,6 +92,22 @@ export interface Service {
   position: number;
 }
 
+/** One scheduled session of a group class. `booked` is how many spots are in use (everyone not cancelled). */
+export interface ClassSession {
+  id: string;
+  org_id: string;
+  service_id: string;
+  member_id: string;
+  location_id: string | null;
+  starts_at: string;
+  ends_at: string;
+  blocked_until: string;
+  capacity: number;
+  status: "scheduled" | "cancelled";
+  notes: string | null;
+  booked?: number;
+}
+
 export interface AvailabilityRule {
   id?: string;
   member_id: string;
@@ -162,6 +178,8 @@ export interface Booking {
   cancel_reason: string | null;
   /** Intake answers, if the service asks questions. */
   answers?: BookingAnswer[] | null;
+  /** Set when this booking is one spot in a group class session. */
+  session_id?: string | null;
   /** Set when this booking is one date of a repeating series. */
   series_id?: string | null;
   series_index?: number | null;

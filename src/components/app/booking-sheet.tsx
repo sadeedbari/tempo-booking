@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
-import { CalendarClock, ClipboardList, Mail, MapPin, Phone, Repeat, StickyNote, User, CreditCard, CheckCircle2, UserX, XCircle } from "lucide-react";
+import { CalendarClock, ClipboardList, Mail, MapPin, Phone, Repeat, StickyNote, User, Users, CreditCard, CheckCircle2, UserX, XCircle } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
@@ -110,6 +110,7 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
       <div className="space-y-5">
         <div className="overflow-hidden rounded-[14px] bg-surface hairline divide-y divide-separator">
           <Row icon={<CalendarClock />} label={formatDate(booking.starts_at, tz)} sub={`${formatTime(booking.starts_at, tz)} – ${formatTime(booking.ends_at, tz)}${member ? ` · with ${member.display_name}` : ""}`} />
+          {booking.session_id && <Row icon={<Users />} label="Group class" sub="One spot in a class session. Open it from the calendar to see everyone." />}
           {series && (
             <Row icon={<Repeat />} label="Repeating appointment" sub={`${series.index} of ${series.total} · ${series.intervalWeeks === 1 ? "every week" : `every ${series.intervalWeeks} weeks`}`} />
           )}
@@ -190,7 +191,7 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
         ) : (
           active && (
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="tinted" onClick={() => setEditing(true)} className="col-span-2">Reschedule</Button>
+              {!booking.session_id && <Button variant="tinted" onClick={() => setEditing(true)} className="col-span-2">Reschedule</Button>}
               <Button variant="gray" onClick={() => act("completed", "Marked as completed")} disabled={pending}>
                 <CheckCircle2 className="size-4 text-green" /> Completed
               </Button>

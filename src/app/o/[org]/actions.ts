@@ -6,7 +6,7 @@ import { TZDate } from "@date-fns/tz";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/auth";
 import { notifyBooking, sendInviteEmail } from "@/lib/notify";
-import { syncBookingCalendar } from "@/lib/calendar/sync";
+import { syncBookingCalendar, syncSessionCalendar } from "@/lib/calendar/sync";
 import { refundDeposit } from "@/lib/bookings";
 import { decrypt } from "@/lib/calendar/crypto";
 import { getProvider } from "@/lib/calendar/providers";
@@ -27,6 +27,8 @@ export type ActionResult = {
   /** For a repeating appointment: how many dates were booked, and the dates that were skipped (with why). */
   booked?: number;
   skipped?: { startsAt: string; reason: string }[];
+  /** Something that worked but needs a look (for example a refund that didn't go through). */
+  warning?: string;
 };
 
 /** The same time of day `weeks` weeks later in the business's time zone, even across a clock change. */
@@ -63,6 +65,8 @@ const serviceSchema = z.object({
   address_mode: z.enum(["off", "optional", "required"]).default("off"),
   auto_approve: z.boolean(),
   allow_series: z.boolean(),
+  is_class: z.boolean(),
+  class_capacity: z.coerce.number().int().min(1, "A class needs at least 1 spot.").max(500, "A class can have at most 500 spots.").default(10),
   active: z.boolean(),
 });
 
@@ -74,6 +78,7 @@ export async function saveService(slug: string, formData: FormData): Promise<Act
       active: formData.get("active") === "on",
       auto_approve: formData.get("auto_approve") === "on",
       allow_series: formData.get("allow_series") === "on",
+      is_class: formData.get("is_class") === "on",
     });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const v = parsed.data;
@@ -96,11 +101,21 @@ export async function saveService(slug: string, formData: FormData): Promise<Act
       location_detail: v.location_detail || null,
       address_mode: v.address_mode,
       auto_approve: v.auto_approve,
-      allow_series: v.allow_series && v.auto_approve, // repeating appointments are confirmed automatically
+      allow_series: v.allow_series && v.auto_approve && !v.is_class, // repeating appointments are confirmed automatically; classes are booked by session
+      is_class: v.is_class,
+      class_capacity: v.class_capacity,
       active: v.active,
     };
 
     let id = v.id || "";
+    if (id && !v.is_class) {
+      // A class with sessions coming up can't quietly turn back into an ordinary service.
+      const { data: was } = await supabase.from("services").select("is_class").eq("id", id).eq("org_id", org.id).single();
+      if (was?.is_class) {
+        const { count } = await supabase.from("class_sessions").select("id", { count: "exact", head: true }).eq("service_id", id).eq("status", "scheduled").gt("starts_at", new Date().toISOString());
+        if (count) return { error: `This class has ${count} upcoming ${count === 1 ? "session" : "sessions"}. Cancel them first, then switch it back.` };
+      }
+    }
     if (id) {
       const { error } = await supabase.from("services").update(row).eq("id", id).eq("org_id", org.id);
       if (error) return { error: friendly(error) };
@@ -431,6 +446,269 @@ export async function cancelSeriesFollowing(slug: string, bookingId: string, not
     await notifyBooking(bookingId, "cancellation", { by: userData.user?.id, customer: notify });
     refresh(slug);
     return { ok: true, booked: ids.length };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+/* ───────────────────────────── Group classes ───────────────────────────── */
+
+const sessionSchema = z.object({
+  service_id: z.string().uuid({ message: "Choose a class" }),
+  member_id: z.string().uuid({ message: "Choose who leads it" }),
+  location_id: z.string().uuid().optional().or(z.literal("")),
+  starts_at: z.string().min(10),
+  capacity: z.coerce.number().int().min(1, "A class needs at least 1 spot.").max(500, "A class can have at most 500 spots."),
+  notes: z.string().trim().max(500, "Keep the notes under 500 characters.").optional(),
+});
+
+/** Adds a class session, or the same session every few weeks. Dates that clash are skipped and reported; the first has to work. */
+export async function createSessions(slug: string, formData: FormData): Promise<ActionResult> {
+  try {
+    const { org } = await ctxFor(slug);
+    const parsed = sessionSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const v = parsed.data;
+    const supabase = await createClient();
+    const { data: userData } = await supabase.auth.getUser();
+    const { data: service } = await supabase.from("services").select("*").eq("id", v.service_id).eq("org_id", org.id).single();
+    if (!service?.is_class) return { error: "Choose a class service for this session." };
+    const start = new Date(v.starts_at);
+    if (isNaN(start.getTime())) return { error: "Pick a valid date and time." };
+    if (start.getTime() <= Date.now()) return { error: "Pick a time in the future." };
+
+    const repeatWeeks = Number(formData.get("repeat_weeks") || 0);
+    const repeatCount = Number(formData.get("repeat_count") || 0);
+    const repeat = Number.isInteger(repeatWeeks) && repeatWeeks >= 1 && repeatWeeks <= 4 && Number.isInteger(repeatCount) && repeatCount >= 2 && repeatCount <= 52 ? { weeks: repeatWeeks, count: repeatCount } : null;
+    if (repeatWeeks && !repeat) return { error: "Choose how often it repeats and how many sessions (2 to 52)." };
+
+    const created: string[] = [];
+    const skipped: { startsAt: string; reason: string }[] = [];
+    for (let i = 0; i < (repeat?.count ?? 1); i++) {
+      const at = repeat ? addWeeksLocal(start, i * repeat.weeks, org.timezone) : start;
+      const end = new Date(at.getTime() + service.duration_minutes * 60_000);
+      const blocked = new Date(end.getTime() + service.buffer_after_minutes * 60_000);
+      const { data, error } = await supabase
+        .from("class_sessions")
+        .insert({
+          org_id: org.id,
+          service_id: service.id,
+          member_id: v.member_id,
+          location_id: v.location_id || null,
+          starts_at: at.toISOString(),
+          ends_at: end.toISOString(),
+          blocked_until: blocked.toISOString(),
+          capacity: v.capacity,
+          notes: v.notes || null,
+          created_by: userData.user?.id,
+        })
+        .select("id")
+        .single();
+      if (error) {
+        const reason = friendly(error) ?? "That time couldn't be used.";
+        if (i === 0) return { error: reason };
+        skipped.push({ startsAt: at.toISOString(), reason });
+      } else created.push(data.id);
+    }
+    for (const id of created) await syncSessionCalendar(id);
+    refresh(slug);
+    return { ok: true, id: created[0], booked: created.length, skipped };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+export interface SessionAttendee {
+  bookingId: string;
+  customerId: string | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  status: BookingStatus;
+  notes: string | null;
+  paid: boolean;
+  answers: { id: string; label: string; value: string | string[] }[];
+}
+
+/** Who is in a session, for the roster. */
+export async function getSessionRoster(slug: string, sessionId: string): Promise<{ attendees: SessionAttendee[] } | null> {
+  try {
+    const { org } = await ctxFor(slug);
+    const supabase = await createClient();
+    const { data: rows, error } = await supabase
+      .from("bookings")
+      .select("id, status, notes, answers, payment_status, customer:customers(id, name, email, phone)")
+      .eq("session_id", sessionId)
+      .eq("org_id", org.id)
+      .order("created_at");
+    if (error) return null;
+    const attendees = (rows ?? []).map((r) => {
+      const c = r.customer as unknown as { id: string; name: string; email: string; phone: string | null } | null;
+      return {
+        bookingId: r.id as string,
+        customerId: c?.id ?? null,
+        name: c?.name ?? "Customer",
+        email: c?.email ?? null,
+        phone: c?.phone ?? null,
+        status: r.status as BookingStatus,
+        notes: (r.notes as string | null) ?? null,
+        paid: r.payment_status === "paid",
+        answers: Array.isArray(r.answers) ? (r.answers as SessionAttendee["answers"]) : [],
+      };
+    });
+    return { attendees };
+  } catch {
+    return null;
+  }
+}
+
+/** Changes a session's number of spots or notes. The database refuses fewer spots than people already in it. */
+export async function updateSession(slug: string, sessionId: string, input: { capacity: number; notes: string }): Promise<ActionResult> {
+  try {
+    const { org } = await ctxFor(slug);
+    const parsed = sessionSchema.pick({ capacity: true, notes: true }).safeParse(input);
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("class_sessions")
+      .update({ capacity: parsed.data.capacity, notes: parsed.data.notes || null })
+      .eq("id", sessionId)
+      .eq("org_id", org.id)
+      .eq("status", "scheduled")
+      .select("id");
+    if (error) return { error: friendly(error) };
+    if (!data?.length) return { error: "This session can't be changed any more." };
+    await syncSessionCalendar(sessionId);
+    refresh(slug);
+    return { ok: true };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+/** Cancels a session and everyone's spot in it. Each person is told once, and paid deposits are refunded. */
+export async function cancelSession(slug: string, sessionId: string, opts: { reason?: string; notify: boolean }): Promise<ActionResult> {
+  try {
+    const { org, me } = await ctxFor(slug);
+    const supabase = await createClient();
+    const reason = (opts.reason ?? "").trim().slice(0, 300) || null;
+    // The session first, so nobody can join while the rest is being done.
+    const { data: s, error } = await supabase
+      .from("class_sessions")
+      .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: reason })
+      .eq("id", sessionId)
+      .eq("org_id", org.id)
+      .eq("status", "scheduled")
+      .select("id");
+    if (error) return { error: friendly(error) };
+    if (!s?.length) return { error: "This session was already cancelled." };
+
+    const { data: spots } = await supabase
+      .from("bookings")
+      .select("id, payment_status")
+      .eq("session_id", sessionId)
+      .eq("org_id", org.id)
+      .in("status", ["confirmed", "pending_payment", "pending_approval"]);
+    let refundFailures = 0;
+    for (const b of spots ?? []) {
+      if (b.payment_status === "paid") {
+        const refund = await refundDeposit(b.id as string);
+        if (!refund.ok) refundFailures++;
+      }
+    }
+    const ids = (spots ?? []).map((b) => b.id as string);
+    if (ids.length) {
+      const { error: e2 } = await supabase
+        .from("bookings")
+        .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: reason ?? "Class cancelled" })
+        .in("id", ids);
+      if (e2) return { error: friendly(e2) };
+    }
+    for (const id of ids) await notifyBooking(id, "cancellation", { by: me.user_id ?? undefined, customer: opts.notify, push: false });
+    await syncSessionCalendar(sessionId);
+    refresh(slug);
+    return {
+      ok: true,
+      booked: ids.length,
+      warning: refundFailures ? `${refundFailures} deposit ${refundFailures === 1 ? "refund" : "refunds"} didn't go through. Refund ${refundFailures === 1 ? "it" : "them"} from your Stripe dashboard.` : undefined,
+    };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+/** Puts someone into a session (a walk-in or a phone booking). The database refuses a full class. */
+export async function addSessionAttendee(
+  slug: string,
+  sessionId: string,
+  input: { customerId?: string; name?: string; email?: string; phone?: string; notify: boolean },
+): Promise<ActionResult> {
+  try {
+    const { org, me } = await ctxFor(slug);
+    const supabase = await createClient();
+    const { data: userData } = await supabase.auth.getUser();
+    const { data: session } = await supabase.from("class_sessions").select("*").eq("id", sessionId).eq("org_id", org.id).single();
+    if (!session || session.status !== "scheduled") return { error: "This session isn't available." };
+    const { data: service } = await supabase.from("services").select("id, name, price_cents").eq("id", session.service_id).single();
+    if (!service) return { error: "The class for this session no longer exists." };
+
+    let customerId = input.customerId || null;
+    if (customerId) {
+      const { data: c } = await supabase.from("customers").select("id").eq("id", customerId).eq("org_id", org.id).single();
+      if (!c) return { error: "Customer not found." };
+    } else {
+      const name = (input.name ?? "").trim();
+      const email = (input.email ?? "").trim().toLowerCase();
+      if (!name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: "Add the person's name and a valid email." };
+      let phone: string | null = null;
+      if (input.phone?.trim()) {
+        phone = normalizePhone(input.phone, org.currency);
+        if (!phone) return { error: "That phone number doesn't look right. Include the area code, or leave it blank." };
+      }
+      const { data: c, error } = await supabase
+        .from("customers")
+        .upsert({ org_id: org.id, name: name.slice(0, 120), email, phone }, { onConflict: "org_id,email" })
+        .select("id")
+        .single();
+      if (error) return { error: friendly(error) };
+      customerId = c.id;
+    }
+
+    const { data: already } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("session_id", sessionId)
+      .eq("customer_id", customerId)
+      .in("status", ["confirmed", "pending_payment", "pending_approval"])
+      .limit(1);
+    if (already?.length) return { error: "That person is already in this session." };
+
+    const { data: booking, error } = await supabase
+      .from("bookings")
+      .insert({
+        org_id: org.id,
+        service_id: service.id,
+        session_id: sessionId,
+        member_id: session.member_id,
+        location_id: session.location_id,
+        customer_id: customerId,
+        starts_at: session.starts_at,
+        ends_at: session.ends_at,
+        blocked_until: session.blocked_until,
+        status: "confirmed",
+        service_name: service.name,
+        price_cents: service.price_cents,
+        deposit_cents: 0,
+        currency: org.currency,
+        source: "manual",
+        created_by: userData.user?.id,
+      })
+      .select("id")
+      .single();
+    if (error) return { error: friendly(error) };
+    await notifyBooking(booking.id, "confirmation", { by: me.user_id ?? undefined, customer: input.notify, push: false });
+    refresh(slug);
+    return { ok: true, id: booking.id };
   } catch (e) {
     return { error: (e as Error).message };
   }
