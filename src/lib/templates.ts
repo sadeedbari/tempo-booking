@@ -15,6 +15,7 @@ export const VARIABLES = [
   { key: "business_name", label: "Business name", sample: "Lumen Studio" },
   { key: "business_phone", label: "Business phone", sample: "416-555-0199" },
   { key: "service_name", label: "Service", sample: "Haircut & style" },
+  { key: "answers", label: "Their answers to your booking questions (email)", sample: "Any allergies?: Latex\nHair type: Wavy", emailOnly: true },
   { key: "inquiry_message", label: "Their message (website messages)", sample: "Do you have anything open next week?" },
   { key: "duration", label: "Duration", sample: "1 hr" },
   { key: "date", label: "Date", sample: "Monday, October 12" },
@@ -118,7 +119,7 @@ export function renderEmailBody(template: string, vars: Vars, accent = "#007AFF"
         if (p.kind === "text") return linkify(esc(p.value));
         if (p.key === "manage_button") return button(p.value, "Manage booking");
         if (p.key === "booking_button") return button(p.value, "Book again");
-        return linkify(esc(p.value));
+        return linkify(esc(p.value)).replace(/\n/g, "<br>"); // a value can span lines (the booking answers)
       })
       .join("");
     paragraphs[paragraphs.length - 1].push(html);

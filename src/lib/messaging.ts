@@ -7,6 +7,7 @@ import { normalizePhone } from "@/lib/phone";
 import { finalizeSms } from "@/lib/sms";
 import { renderEmail, renderText, type Vars } from "@/lib/templates";
 import { DEFAULT_WORKFLOWS, type Channel, type Trigger } from "@/lib/workflow-defaults";
+import type { BookingAnswer } from "@/lib/types";
 
 /**
  * Sends the messages businesses write in Workflows. Instant triggers (a booking is confirmed, cancelled, ...)
@@ -15,6 +16,8 @@ import { DEFAULT_WORKFLOWS, type Channel, type Trigger } from "@/lib/workflow-de
  */
 
 export interface BookingForMessage {
+  /** The customer's answers to the service's booking questions, if any. */
+  answers: BookingAnswer[] | null;
   id: string;
   service_id: string | null;
   member_id: string;
@@ -37,7 +40,7 @@ export interface BookingForMessage {
 }
 
 export const BOOKING_SELECT =
-  "id, service_id, member_id, created_at, customer_address, starts_at, ends_at, status, service_name, price_cents, deposit_cents, currency, payment_status, manage_token, customer:customers(name, email, phone, sms_consent_at), location:locations(name, address), member:memberships(display_name), service:services(location_type, location_detail, duration_minutes), org:organizations(id, name, slug, timezone, address, phone, accent_color, notify_push, reminder_hours_before)";
+  "id, answers, service_id, member_id, created_at, customer_address, starts_at, ends_at, status, service_name, price_cents, deposit_cents, currency, payment_status, manage_token, customer:customers(name, email, phone, sms_consent_at), location:locations(name, address), member:memberships(display_name), service:services(location_type, location_detail, duration_minutes), org:organizations(id, name, slug, timezone, address, phone, accent_color, notify_push, reminder_hours_before)";
 
 export async function loadBooking(bookingId: string): Promise<BookingForMessage | null> {
   if (!env.supabaseServiceKey) return null;
@@ -66,6 +69,7 @@ export function bookingVars(b: BookingForMessage): Vars {
     business_name: b.org.name,
     business_phone: b.org.phone ?? "",
     service_name: b.service_name,
+    answers: (b.answers ?? []).map((a) => `${a.label}: ${Array.isArray(a.value) ? a.value.join(", ") : a.value}`).join("\n"),
     duration: b.service ? formatDuration(b.service.duration_minutes) : "",
     date: formatDate(b.starts_at, tz),
     time: formatTime(b.starts_at, tz),

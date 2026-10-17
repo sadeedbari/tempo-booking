@@ -61,6 +61,7 @@ export function ServicesView({
                   <span className="inline-flex items-center gap-1.5"><Icon className="size-3.5" />{s.location_type === "in_person" ? "In person" : s.location_type === "video" ? "Video" : "Phone"}</span>
                   <span className="font-medium text-label">{formatMoney(s.price_cents, org.currency)}</span>
                   {s.deposit_cents > 0 && <span>{formatMoney(s.deposit_cents, org.currency)} deposit</span>}
+                  {(questionMap[s.id]?.length ?? 0) > 0 && <span>{questionMap[s.id].length} question{questionMap[s.id].length === 1 ? "" : "s"}</span>}
                 </div>
                 <div className="mt-auto flex items-center justify-between pt-5">
                   <div className="flex -space-x-1">

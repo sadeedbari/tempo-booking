@@ -42,6 +42,8 @@ export function homeSheets(opts: {
   isAdmin: boolean;
   tz: string;
   currency: string;
+  /** Each booking's intake answers as one line of text ("Question: answer; ..."), by booking id. */
+  answers?: Map<string, string>;
 }): Sheet[] {
   const { d, bookings, members, isAdmin, tz, currency } = opts;
   const k = d.kpis;
@@ -177,6 +179,7 @@ export function homeSheets(opts: {
           ]
         : []),
       { header: "Booked", key: "source", width: 12 },
+      ...(isAdmin ? [{ header: "Booking questions", key: "answers", width: 48 }] : []),
     ],
     rows: inPeriod.map((b) => ({
       date: dayToDate(dayKey(b.starts_at, tz)),
@@ -189,6 +192,7 @@ export function homeSheets(opts: {
       price: cents(b.price_cents),
       deposit: b.payment_status === "paid" ? cents(b.deposit_cents) : 0,
       source: b.source === "online" ? "Online" : "By team",
+      answers: opts.answers?.get(b.id) ?? "",
     })),
   });
 

@@ -48,7 +48,9 @@ function checkSteps(steps: z.infer<typeof schema>["steps"]): string | null {
     if (s.channel === "email" && s.body.length > LIMITS.email) return `${n}: keep emails under ${LIMITS.email} characters.`;
     if (s.channel === "sms") {
       if (s.body.length > LIMITS.sms) return `${n}: keep texts under ${LIMITS.sms} characters (about 3 messages).`;
-      if (emailOnlyVariables(s.body).length) return `${n}: buttons only work in emails. Use the link instead.`;
+      const emailOnly = emailOnlyVariables(s.body);
+      if (emailOnly.includes("answers")) return `${n}: the booking answers only work in emails.`;
+      if (emailOnly.length) return `${n}: buttons only work in emails. Use the link instead.`;
     }
   }
   return null;

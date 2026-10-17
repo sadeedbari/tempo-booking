@@ -10,6 +10,7 @@ import { refundDeposit } from "@/lib/bookings";
 import { decrypt } from "@/lib/calendar/crypto";
 import { getProvider } from "@/lib/calendar/providers";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { env } from "@/lib/env";
 import { PALETTE, RESERVED_SLUGS, slugify } from "@/lib/utils";
 import { friendlyDbError as friendly } from "@/lib/db-errors";
 import { copyPairs, hasSameLocationOverlap, periodDays, type SchedulePeriod } from "@/lib/schedule";
@@ -254,6 +255,20 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
         .is("sms_consent_at", null);
     }
 
+    // Answers to the service's booking questions, if the team filled any in. Every answer given is checked
+    // against the real questions, but none is required when staff add a booking.
+    let answers: unknown = null;
+    const rawAnswers = formData.get("answers");
+    if (typeof rawAnswers === "string" && rawAnswers.trim() && env.supabaseServiceKey) {
+      let parsedAnswers: unknown;
+      try { parsedAnswers = JSON.parse(rawAnswers); } catch { return { error: "The answers couldn't be read. Please try again." }; }
+      if (parsedAnswers && typeof parsedAnswers === "object" && !Array.isArray(parsedAnswers) && Object.keys(parsedAnswers).length) {
+        const { data, error } = await createAdminClient().rpc("build_intake_answers", { p_service: service.id, p_answers: parsedAnswers, p_enforce: false });
+        if (error) return { error: error.code === "P0001" ? error.message : "The answers couldn't be saved. Please check them and try again." };
+        answers = data;
+      }
+    }
+
     const start = new Date(v.starts_at);
     if (isNaN(start.getTime())) return { error: "Pick a valid date and time." };
     const end = new Date(start.getTime() + service.duration_minutes * 60_000);
@@ -287,6 +302,7 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
         deposit_cents: 0,
         currency: org.currency,
         source: "manual",
+        answers,
         created_by: userData.user?.id,
       })
       .select("id")

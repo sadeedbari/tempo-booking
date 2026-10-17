@@ -11,7 +11,8 @@ import { AddressInput } from "@/components/ui/address-input";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { formatDuration, formatMoney, todayKey } from "@/lib/format";
-import type { Customer, Location, Membership, Organization, Service } from "@/lib/types";
+import type { Customer, Location, Membership, Organization, Service, ServiceQuestion } from "@/lib/types";
+import { collectAnswers, IntakeFields } from "@/components/booking/intake-fields";
 import { createManualBooking } from "@/app/o/[org]/actions";
 import { joinInZone, splitInZone, TIME_OPTIONS } from "./datetime";
 
@@ -32,6 +33,8 @@ interface NewProps {
   defaultServiceId?: string;
   /** The website message this booking answers; it is marked handled once the booking is saved. */
   fromInquiryId?: string;
+  /** Each service's intake questions (the team may answer them for the customer; none are required). */
+  questionMap?: Record<string, ServiceQuestion[]>;
 }
 
 export function NewBookingSheet(props: NewProps) {
@@ -40,7 +43,7 @@ export function NewBookingSheet(props: NewProps) {
   return <NewBookingSheetInner key={`${props.defaultStart}-${props.defaultMemberId}-${props.defaultCustomerId}`} {...props} />;
 }
 
-function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultMemberId, locations, defaultLocationId, members, services, customers, defaultCustomerId, defaultServiceId, fromInquiryId }: NewProps) {
+function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultMemberId, locations, defaultLocationId, members, services, customers, defaultCustomerId, defaultServiceId, fromInquiryId, questionMap = {} }: NewProps) {
   const tz = org.timezone;
   const toast = useToast();
   const initial = defaultStart ? splitInZone(defaultStart, tz) : { date: todayKey(tz), time: "09:00" };
@@ -59,6 +62,8 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
   const [customerId, setCustomerId] = useState(presetCustomer);
 
   const selectedService = services.find((s) => s.id === serviceId) ?? null;
+  // The team can leave any question blank: only customers booking online have to answer the required ones.
+  const staffQuestions = (questionMap[serviceId] ?? []).map((q) => ({ ...q, required: false }));
   const selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
 
   const filtered = useMemo(() => {
@@ -76,6 +81,7 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
     setError(null);
     formData.set("service_id", serviceId);
     if (fromInquiryId) formData.set("inquiry_id", fromInquiryId);
+    formData.set("answers", JSON.stringify(collectAnswers(staffQuestions, formData)));
     formData.set("member_id", memberId);
     formData.set("location_id", locationId);
     formData.set("starts_at", joinInZone(date, time, tz));
@@ -221,6 +227,9 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
             </div>
           )}
         </div>
+
+        {/* Keyed by service so answers to one service's questions never carry over to another's. */}
+        <IntakeFields key={serviceId} questions={staffQuestions} title="Booking questions (optional)" />
 
         <Field label="Notes">
           <Textarea name="notes" placeholder="Anything the team should know" className="min-h-16" />

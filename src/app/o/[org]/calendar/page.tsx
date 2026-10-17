@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/auth";
 import { addDaysToKey, startOfDayInZone, todayKey, weekdayOfKey } from "@/lib/format";
-import type { AvailabilityRule, Booking, Customer, Location, Service, Shift, TimeOff } from "@/lib/types";
+import type { AvailabilityRule, Booking, Customer, Location, Service, ServiceQuestion, Shift, TimeOff } from "@/lib/types";
 import { CalendarView } from "./calendar-view";
 
 export const metadata: Metadata = { title: "Calendar" };
@@ -25,7 +25,7 @@ export default async function CalendarPage(props: PageProps<"/o/[org]/calendar">
   const rangeEnd = addDaysToKey(rangeStart, view === "week" ? 7 : 1);
 
   const supabase = await createClient();
-  const [bookings, services, rules, timeOff, customers, locations, shifts] = await Promise.all([
+  const [bookings, services, rules, timeOff, customers, locations, shifts, questions] = await Promise.all([
     supabase
       .from("bookings")
       .select("*, customer:customers(id, name, email, phone)")
@@ -47,7 +47,10 @@ export default async function CalendarPage(props: PageProps<"/o/[org]/calendar">
     org.schedule_mode === "shifts"
       ? supabase.from("shifts").select("*").eq("org_id", org.id).gte("day", rangeStart).lt("day", rangeEnd)
       : Promise.resolve({ data: [] as Shift[] }),
+    supabase.from("service_questions").select("id, service_id, label, help_text, type, options, required").eq("org_id", org.id).order("position").order("created_at"),
   ]);
+  const questionMap: Record<string, ServiceQuestion[]> = {};
+  (questions.data ?? []).forEach((q) => (questionMap[q.service_id as string] ??= []).push(q as unknown as ServiceQuestion));
 
   return (
     <CalendarView
@@ -67,6 +70,7 @@ export default async function CalendarPage(props: PageProps<"/o/[org]/calendar">
       shifts={(shifts.data ?? []) as Shift[]}
       welcome={sp.welcome === "1"}
       prefill={prefill}
+      questionMap={questionMap}
     />
   );
 }

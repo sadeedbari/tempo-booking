@@ -6,11 +6,11 @@ import type { ServiceQuestion } from "@/lib/types";
 const fieldName = (q: ServiceQuestion) => `q_${q.id}`;
 
 /** The service's intake questions, as part of the booking form. Required ones use the browser's own checks. */
-export function IntakeFields({ questions }: { questions: ServiceQuestion[] }) {
+export function IntakeFields({ questions, title = "A few questions" }: { questions: ServiceQuestion[]; title?: string }) {
   if (!questions.length) return null;
   return (
     <div className="space-y-4 sm:col-span-2" data-testid="intake-questions">
-      <div className="border-t border-separator pt-4 text-[13px] font-medium text-label-2">A few questions</div>
+      <div className="border-t border-separator pt-4 text-[13px] font-medium text-label-2">{title}</div>
       {questions.map((q) => (
         <Question key={q.id} q={q} />
       ))}

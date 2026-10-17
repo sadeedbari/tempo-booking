@@ -7,7 +7,8 @@ import { customerSheets, homeSheets } from "@/lib/exports";
 import { scheduleSheets } from "@/lib/exports";
 import { workbookBuffer, XLSX_MIME, type Sheet } from "@/lib/excel";
 import { periodDays, periodStart, type SchedulePeriod } from "@/lib/schedule";
-import { todayKey } from "@/lib/format";
+import { addDaysToKey, startOfDayInZone, todayKey } from "@/lib/format";
+import type { BookingAnswer } from "@/lib/types";
 import type { Customer, Location, Shift } from "@/lib/types";
 
 /**
@@ -30,7 +31,23 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/export/[
   if (kind === "home") {
     const rangeDays = parseRange(sp.get("range"));
     const { d, bookings } = await loadDashboard(octx, rangeDays);
-    sheets = homeSheets({ d, bookings, members, isAdmin, tz, currency: org.currency });
+    // Intake answers are only added to the owners' and admins' bookings list.
+    const answers = new Map<string, string>();
+    if (isAdmin) {
+      const { data } = await (await createClient())
+        .from("bookings")
+        .select("id, answers")
+        .eq("org_id", org.id)
+        .not("answers", "is", null)
+        .gte("starts_at", startOfDayInZone(d.range.start, tz).toISOString())
+        .lt("starts_at", startOfDayInZone(addDaysToKey(d.range.end, 1), tz).toISOString())
+        .limit(20000);
+      for (const b of data ?? []) {
+        const list = (b.answers ?? []) as BookingAnswer[];
+        answers.set(b.id as string, list.map((a) => `${a.label}: ${Array.isArray(a.value) ? a.value.join(", ") : a.value}`).join("; "));
+      }
+    }
+    sheets = homeSheets({ d, bookings, members, isAdmin, tz, currency: org.currency, answers });
     name = `home-${today}-last-${rangeDays}-days`;
   } else if (kind === "customers") {
     if (!isAdmin) return new Response("Only owners and admins can export customers.", { status: 403 });

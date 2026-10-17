@@ -8,7 +8,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Avatar } from "@/components/ui/misc";
 import { cn } from "@/lib/utils";
 import { addDaysToKey, dayKey, formatTime, startOfDayInZone, todayKey, weekdayOfKey } from "@/lib/format";
-import type { AvailabilityRule, Booking, Customer, Location, Membership, Shift, Organization, Service, TimeOff } from "@/lib/types";
+import type { AvailabilityRule, Booking, Customer, Location, Membership, Shift, Organization, Service, ServiceQuestion, TimeOff } from "@/lib/types";
 import { NewBookingSheet } from "@/components/app/new-booking-sheet";
 import { BookingSheet } from "@/components/app/booking-sheet";
 
@@ -32,6 +32,8 @@ interface Props {
   shifts: Shift[];
   welcome?: boolean;
   prefill?: { customerId: string; serviceId?: string; inquiryId?: string };
+  /** Each service's intake questions, so the team can fill them in when adding a booking. */
+  questionMap?: Record<string, ServiceQuestion[]>;
 }
 
 function minutesInDay(iso: string, tz: string) {
@@ -388,6 +390,7 @@ export function CalendarView(props: Props) {
         defaultCustomerId={props.prefill?.customerId}
         defaultServiceId={props.prefill?.serviceId}
         fromInquiryId={props.prefill?.inquiryId}
+        questionMap={props.questionMap}
         slug={p.slug}
         org={p.org}
         defaultStart={newAt?.start}

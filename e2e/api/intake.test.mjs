@@ -231,3 +231,26 @@ test("deleting a service removes its questions too", async () => {
   await admin.from("services").delete().eq("id", svc.id);
   assert.equal((await admin.from("service_questions").select("id").eq("service_id", svc.id)).data.length, 0);
 });
+
+test("staff mode (used when the team adds a booking): blanks are fine, wrong answers are still refused, public roles can't call it", async () => {
+  const q = await addQuestions({
+    must: { label: "Must answer", type: "text", required: true },
+    pick: { label: "Pick one", type: "choice", options: ["a", "b"] },
+  });
+  const call = (answers, enforce) => admin.rpc("build_intake_answers", { p_service: SVC(), p_answers: answers, ...(enforce === undefined ? {} : { p_enforce: enforce }) });
+  // online (default and explicit): a missing required answer is refused
+  assert.ok((await call({})).error, "default should enforce");
+  assert.ok((await call({}, true)).error, "enforce=true should refuse");
+  // the team: nothing required
+  const blank = await call({}, false);
+  assert.equal(blank.error, null, blank.error?.message);
+  assert.equal(blank.data, null);
+  const partial = await call({ [q.pick]: "b" }, false);
+  assert.equal(partial.error, null);
+  assert.deepEqual(partial.data.map((a) => a.value), ["b"]);
+  // a wrong answer is still wrong
+  assert.ok((await call({ [q.pick]: "zzz" }, false)).error, "an answer that isn't a choice must be refused");
+  // not callable by visitors or signed-in people through the API
+  assert.ok((await pub.rpc("build_intake_answers", { p_service: SVC(), p_answers: {} })).error, "anon must not call it");
+  assert.ok((await as.ownerA.rpc("build_intake_answers", { p_service: SVC(), p_answers: {} })).error, "signed-in people must not call it directly");
+});
