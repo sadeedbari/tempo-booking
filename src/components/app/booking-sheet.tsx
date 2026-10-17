@@ -8,7 +8,8 @@ import { Badge, Notice, statusTone } from "@/components/ui/misc";
 import { useToast } from "@/components/ui/toast";
 import { formatDate, formatMoney, formatTime, STATUS_LABEL } from "@/lib/format";
 import type { Booking, BookingStatus, Location, Membership, Organization, Service } from "@/lib/types";
-import { approveBooking, cancelSeriesFollowing, declineBooking, getSeriesSummary, rescheduleBooking, setBookingStatus, type SeriesSummary } from "@/app/o/[org]/actions";
+import { approveBooking, cancelSeriesFollowing, declineBooking, editSeriesFollowing, getSeriesSummary, rescheduleBooking, setBookingStatus, type SeriesSummary } from "@/app/o/[org]/actions";
+import { Segmented } from "@/components/ui/segmented";
 import { joinInZone, splitInZone, TIME_OPTIONS } from "./datetime";
 
 interface SheetProps {
@@ -44,6 +45,9 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
   const [confirmDecline, setConfirmDecline] = useState(false);
   const [seriesInfo, setSeriesInfo] = useState<SeriesSummary | null>(null);
   const [confirmSeries, setConfirmSeries] = useState(false);
+  // Changing a repeating appointment: just this date, or this one and every later one.
+  const [scope, setScope] = useState<"this" | "later">("this");
+  const [changed, setChanged] = useState<{ moved: number; skipped: { startsAt: string; reason: string }[] } | null>(null);
   const series = seriesInfo?.bookingId === booking.id ? seriesInfo : null;
 
   // Where this booking sits in its repeating series (loaded when the sheet opens).
@@ -87,6 +91,13 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
 
   const save = () =>
     start(async () => {
+      if (scope === "later" && series && series.later > 1) {
+        const r = await editSeriesFollowing(slug, booking.id, { startsAt: joinInZone(date, time, tz), memberId, notify: true });
+        if (r.error) return setError(r.error);
+        if (r.skipped?.length) return setChanged({ moved: r.booked ?? 0, skipped: r.skipped });
+        toast(`${r.booked ?? 0} appointments updated`);
+        return onClose();
+      }
       const r = await rescheduleBooking(slug, booking.id, joinInZone(date, time, tz), memberId);
       if (r.error) setError(r.error);
       else {
@@ -94,6 +105,28 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
         onClose();
       }
     });
+
+  if (changed) {
+    return (
+      <Sheet open onClose={onClose} title="Appointments updated" subtitle={booking.service_name}>
+        <div className="space-y-4" data-testid="series-change-outcome">
+          <Notice tone="green">{changed.moved} {changed.moved === 1 ? "appointment was" : "appointments were"} updated. The customer was told once.</Notice>
+          <div className="space-y-2 rounded-[14px] bg-surface-2 p-4">
+            <div className="text-[14px] font-medium">{changed.skipped.length === 1 ? "1 date was left as it was" : `${changed.skipped.length} dates were left as they were`}</div>
+            <ul className="space-y-1.5 text-[14px]">
+              {changed.skipped.map((s) => (
+                <li key={s.startsAt}>
+                  <span className="font-medium">{formatDate(s.startsAt, tz)} at {formatTime(s.startsAt, tz)}</span>
+                  <span className="block text-[13px] text-label-2">{s.reason}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <Button className="w-full" pill onClick={onClose}>Done</Button>
+        </div>
+      </Sheet>
+    );
+  }
 
   return (
     <Sheet
@@ -183,6 +216,12 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
                 {members.map((m) => <option key={m.id} value={m.id}>{m.display_name}</option>)}
               </Select>
             </Field>
+            {series && series.later > 1 && (
+              <div className="space-y-1.5">
+                <Segmented size="sm" value={scope} onChange={setScope} options={[{ value: "this", label: "Just this one" }, { value: "later", label: `This and ${series.later - 1} later` }]} />
+                {scope === "later" && <p className="text-[12px] text-label-3">The later dates keep their days and take this time and person. A date that doesn&apos;t fit is skipped and listed.</p>}
+              </div>
+            )}
             <div className="flex gap-2">
               <Button variant="gray" className="flex-1" onClick={() => setEditing(false)}>Cancel</Button>
               <Button className="flex-1" onClick={save} loading={pending}>Save</Button>

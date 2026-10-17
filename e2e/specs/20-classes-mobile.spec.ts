@@ -71,6 +71,19 @@ test("on a phone: the calendar, a session's roster and the new-class form fit th
   a = await audit(page, "[role=dialog]");
   expect(a.smallText).toEqual([]);
   expect(a.small, "tiny buttons in the add form").toEqual([]);
+  await sheet.getByTestId("add-person").getByRole("button", { name: "Cancel" }).click();
+  await sheet.getByRole("button", { name: "Move this session" }).click();
+  await page.waitForTimeout(300);
+  a = await audit(page, "[role=dialog]");
+  expect(a.smallText, "inputs under 16px zoom on iPhone").toEqual([]);
+  expect(a.small, "tiny buttons in the move form").toEqual([]);
+  expect((await audit(page)).overflow, "move form scrolls sideways").toBeLessThanOrEqual(1);
+  await sheet.getByTestId("reschedule-session").getByRole("button", { name: "Back" }).click();
+  await sheet.getByTestId("attendee").first().getByRole("button", { name: "Move", exact: true }).click();
+  await page.waitForTimeout(400);
+  a = await audit(page, "[role=dialog]");
+  expect(a.smallText, "inputs under 16px zoom on iPhone").toEqual([]);
+  expect(a.small, "tiny buttons in the move-person form").toEqual([]);
 
   await page.goto(`${base}/calendar?date=${day.toISOString().slice(0, 10)}`);
   await page.getByRole("button", { name: "New class" }).click();

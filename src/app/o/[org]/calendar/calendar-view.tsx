@@ -481,6 +481,7 @@ export function CalendarView(props: Props) {
         member={selectedSession ? memberById.get(selectedSession.member_id) : undefined}
         location={selectedSession?.location_id ? p.locations.find((l) => l.id === selectedSession.location_id) : undefined}
         customers={p.customers}
+        members={bookable}
       />
       <BookingSheet
         booking={selected}

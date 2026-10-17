@@ -29,6 +29,10 @@ export type ActionResult = {
   skipped?: { startsAt: string; reason: string }[];
   /** Something that worked but needs a look (for example a refund that didn't go through). */
   warning?: string;
+  /** How many people were affected by a change to a session or a series (for example, told about a move). */
+  people?: number;
+  /** How many sessions a change to a series covered. */
+  sessions?: number;
 };
 
 /** The same time of day `weeks` weeks later in the business's time zone, even across a clock change. */
@@ -36,6 +40,13 @@ function addWeeksLocal(d: Date, weeks: number, timeZone: string) {
   const local = new TZDate(d.getTime(), timeZone);
   local.setDate(local.getDate() + weeks * 7);
   return new Date(local.getTime());
+}
+
+/** The date of `dateIso` at the time of day of `timeSource`, in the business time zone (so it holds across a clock change). */
+function withTimeOfDay(dateIso: string, timeSource: Date, timeZone: string) {
+  const day = new TZDate(new Date(dateIso).getTime(), timeZone);
+  const t = new TZDate(timeSource.getTime(), timeZone);
+  return new Date(new TZDate(day.getFullYear(), day.getMonth(), day.getDate(), t.getHours(), t.getMinutes(), 0, timeZone).getTime());
 }
 
 async function ctxFor(slug: string, adminOnly = false) {
@@ -484,6 +495,8 @@ export async function createSessions(slug: string, formData: FormData): Promise<
 
     const created: string[] = [];
     const skipped: { startsAt: string; reason: string }[] = [];
+    // Sessions added together share a series, so "this and all later ones" can be changed or cancelled at once.
+    const seriesId = repeat ? crypto.randomUUID() : null;
     for (let i = 0; i < (repeat?.count ?? 1); i++) {
       const at = repeat ? addWeeksLocal(start, i * repeat.weeks, org.timezone) : start;
       const end = new Date(at.getTime() + service.duration_minutes * 60_000);
@@ -500,6 +513,8 @@ export async function createSessions(slug: string, formData: FormData): Promise<
           blocked_until: blocked.toISOString(),
           capacity: v.capacity,
           notes: v.notes || null,
+          series_id: seriesId,
+          series_index: seriesId ? i : null,
           created_by: userData.user?.id,
         })
         .select("id")
@@ -562,23 +577,201 @@ export async function getSessionRoster(slug: string, sessionId: string): Promise
   }
 }
 
-/** Changes a session's number of spots or notes. The database refuses fewer spots than people already in it. */
-export async function updateSession(slug: string, sessionId: string, input: { capacity: number; notes: string }): Promise<ActionResult> {
+/** Where a session sits in its weekly series ("3 of 8"), and how many scheduled sessions come after it. Null if it stands alone. */
+export async function getSessionSeries(slug: string, sessionId: string): Promise<{ index: number; total: number; later: number } | null> {
+  try {
+    const { org } = await ctxFor(slug);
+    const supabase = await createClient();
+    const { data: s } = await supabase.from("class_sessions").select("series_id, starts_at").eq("id", sessionId).eq("org_id", org.id).single();
+    if (!s?.series_id) return null;
+    const { data: all } = await supabase.from("class_sessions").select("starts_at, status").eq("series_id", s.series_id).eq("org_id", org.id).order("starts_at");
+    const live = (all ?? []).filter((x) => x.status === "scheduled");
+    if (live.length < 2) return null;
+    return {
+      index: live.filter((x) => x.starts_at <= s.starts_at).length,
+      total: live.length,
+      later: live.filter((x) => x.starts_at > s.starts_at).length,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** The session ids to change: just this one, or this one and every later scheduled session of its series. */
+async function sessionScope(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string, sessionId: string, later: boolean) {
+  const { data: s } = await supabase.from("class_sessions").select("id, series_id, starts_at, status").eq("id", sessionId).eq("org_id", orgId).single();
+  if (!s) return null;
+  if (!later || !s.series_id) return { s, list: [s] };
+  const { data } = await supabase
+    .from("class_sessions")
+    .select("id, series_id, starts_at, status")
+    .eq("series_id", s.series_id)
+    .eq("org_id", orgId)
+    .eq("status", "scheduled")
+    .gte("starts_at", s.starts_at)
+    .order("starts_at");
+  return { s, list: data ?? [s] };
+}
+
+/** Changes a session's number of spots or notes, here or in every later session of its series. */
+export async function updateSession(slug: string, sessionId: string, input: { capacity: number; notes: string; applyToLater?: boolean }): Promise<ActionResult> {
   try {
     const { org } = await ctxFor(slug);
     const parsed = sessionSchema.pick({ capacity: true, notes: true }).safeParse(input);
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const supabase = await createClient();
-    const { data, error } = await supabase
+    const scope = await sessionScope(supabase, org.id, sessionId, !!input.applyToLater);
+    if (!scope) return { error: "Session not found." };
+    const done: string[] = [];
+    const skipped: { startsAt: string; reason: string }[] = [];
+    for (const t of scope.list) {
+      const { data, error } = await supabase
+        .from("class_sessions")
+        .update({ capacity: parsed.data.capacity, notes: parsed.data.notes || null })
+        .eq("id", t.id)
+        .eq("org_id", org.id)
+        .eq("status", "scheduled")
+        .select("id");
+      if (error || !data?.length) {
+        const reason = error ? friendly(error) ?? "That session couldn't be changed." : "This session can't be changed any more.";
+        if (t.id === sessionId) return { error: reason };
+        skipped.push({ startsAt: t.starts_at as string, reason });
+      } else done.push(t.id as string);
+    }
+    for (const id of done) await syncSessionCalendar(id);
+    refresh(slug);
+    return { ok: true, booked: done.length, skipped };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+/** Cancels one session and everyone's spot in it (refunding paid deposits). Returns the people who were in it. */
+async function cancelOneSession(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  org: Organization,
+  userId: string | undefined,
+  sessionId: string,
+  reason: string | null,
+  notify: boolean,
+): Promise<{ error?: string; ids: string[]; refundFailures: number }> {
+  // The session first, so nobody can join while the rest is being done.
+  const { data: s, error } = await supabase
+    .from("class_sessions")
+    .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: reason })
+    .eq("id", sessionId)
+    .eq("org_id", org.id)
+    .eq("status", "scheduled")
+    .select("id");
+  if (error) return { error: friendly(error), ids: [], refundFailures: 0 };
+  if (!s?.length) return { error: "This session was already cancelled.", ids: [], refundFailures: 0 };
+
+  const { data: spots } = await supabase
+    .from("bookings")
+    .select("id, payment_status")
+    .eq("session_id", sessionId)
+    .eq("org_id", org.id)
+    .in("status", ["confirmed", "pending_payment", "pending_approval"]);
+  let refundFailures = 0;
+  for (const b of spots ?? []) {
+    if (b.payment_status === "paid") {
+      const refund = await refundDeposit(b.id as string);
+      if (!refund.ok) refundFailures++;
+    }
+  }
+  const ids = (spots ?? []).map((b) => b.id as string);
+  if (ids.length) {
+    const { error: e2 } = await supabase
+      .from("bookings")
+      .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: reason ?? "Class cancelled" })
+      .in("id", ids);
+    if (e2) return { error: friendly(e2), ids: [], refundFailures };
+  }
+  for (const id of ids) await notifyBooking(id, "cancellation", { by: userId, customer: notify, push: false });
+  await syncSessionCalendar(sessionId);
+  return { ids, refundFailures };
+}
+
+/** Cancels a session, or this one and every later session of its series. Each person is told once per session, and paid deposits are refunded. */
+export async function cancelSession(slug: string, sessionId: string, opts: { reason?: string; notify: boolean; applyToLater?: boolean }): Promise<ActionResult> {
+  try {
+    const { org, me } = await ctxFor(slug);
+    const supabase = await createClient();
+    const reason = (opts.reason ?? "").trim().slice(0, 300) || null;
+    const scope = await sessionScope(supabase, org.id, sessionId, !!opts.applyToLater);
+    if (!scope) return { error: "Session not found." };
+    let people = 0;
+    let sessions = 0;
+    let refundFailures = 0;
+    for (const t of scope.list) {
+      const r = await cancelOneSession(supabase, org, me.user_id ?? undefined, t.id as string, reason, opts.notify);
+      if (r.error) {
+        if (t.id === sessionId) return { error: r.error };
+        continue;
+      }
+      sessions++;
+      people += r.ids.length;
+      refundFailures += r.refundFailures;
+    }
+    refresh(slug);
+    return {
+      ok: true,
+      booked: people,
+      sessions,
+      warning: refundFailures ? `${refundFailures} deposit ${refundFailures === 1 ? "refund" : "refunds"} didn't go through. Refund ${refundFailures === 1 ? "it" : "them"} from your Stripe dashboard.` : undefined,
+    };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+export interface MoveTarget {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  capacity: number;
+  booked: number;
+}
+
+/** The other upcoming sessions of the same class that a person could be moved to, with how many spots each has taken. */
+export async function getMoveTargets(slug: string, sessionId: string): Promise<MoveTarget[]> {
+  try {
+    const { org } = await ctxFor(slug);
+    const supabase = await createClient();
+    const { data: s } = await supabase.from("class_sessions").select("service_id").eq("id", sessionId).eq("org_id", org.id).single();
+    if (!s) return [];
+    const { data: list } = await supabase
       .from("class_sessions")
-      .update({ capacity: parsed.data.capacity, notes: parsed.data.notes || null })
-      .eq("id", sessionId)
+      .select("id, starts_at, ends_at, capacity")
       .eq("org_id", org.id)
+      .eq("service_id", s.service_id)
       .eq("status", "scheduled")
-      .select("id");
+      .gt("starts_at", new Date().toISOString())
+      .neq("id", sessionId)
+      .order("starts_at")
+      .limit(40);
+    const ids = (list ?? []).map((x) => x.id as string);
+    const counts = new Map<string, number>();
+    if (ids.length) {
+      const { data: rows } = await supabase.from("bookings").select("session_id").in("session_id", ids).in("status", ["confirmed", "pending_approval", "pending_payment"]);
+      (rows ?? []).forEach((r) => counts.set(r.session_id as string, (counts.get(r.session_id as string) ?? 0) + 1));
+    }
+    return (list ?? []).map((x) => ({ id: x.id as string, startsAt: x.starts_at as string, endsAt: x.ends_at as string, capacity: x.capacity as number, booked: counts.get(x.id as string) ?? 0 }));
+  } catch {
+    return [];
+  }
+}
+
+/** Moves one person to another session of the same class. They get one email with the new time. */
+export async function moveAttendee(slug: string, bookingId: string, toSessionId: string, notify: boolean): Promise<ActionResult> {
+  try {
+    const { me } = await ctxFor(slug);
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("move_class_booking", { p_booking: bookingId, p_session: toSessionId });
     if (error) return { error: friendly(error) };
-    if (!data?.length) return { error: "This session can't be changed any more." };
-    await syncSessionCalendar(sessionId);
+    const from = (data as { from_session: string }).from_session;
+    await syncSessionCalendar(from); // the old session has one fewer; the new one is brought up to date by the notification
+    await notifyBooking(bookingId, "rescheduled", { by: me.user_id ?? undefined, customer: notify, push: false });
     refresh(slug);
     return { ok: true };
   } catch (e) {
@@ -586,52 +779,49 @@ export async function updateSession(slug: string, sessionId: string, input: { ca
   }
 }
 
-/** Cancels a session and everyone's spot in it. Each person is told once, and paid deposits are refunded. */
-export async function cancelSession(slug: string, sessionId: string, opts: { reason?: string; notify: boolean }): Promise<ActionResult> {
+/**
+ * Moves a session to a new time and/or instructor, and everyone booked into it moves with it. With scope "later" the
+ * sessions after it in the series keep their dates and take the new time of day (and instructor). A session that
+ * clashes is skipped and reported. Everyone whose time changed is told.
+ */
+export async function moveSession(
+  slug: string,
+  sessionId: string,
+  input: { startsAt: string; memberId?: string; applyToLater?: boolean; notify: boolean },
+): Promise<ActionResult> {
   try {
     const { org, me } = await ctxFor(slug);
     const supabase = await createClient();
-    const reason = (opts.reason ?? "").trim().slice(0, 300) || null;
-    // The session first, so nobody can join while the rest is being done.
-    const { data: s, error } = await supabase
-      .from("class_sessions")
-      .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: reason })
-      .eq("id", sessionId)
-      .eq("org_id", org.id)
-      .eq("status", "scheduled")
-      .select("id");
-    if (error) return { error: friendly(error) };
-    if (!s?.length) return { error: "This session was already cancelled." };
+    const first = new Date(input.startsAt);
+    if (isNaN(first.getTime())) return { error: "Pick a valid date and time." };
+    const scope = await sessionScope(supabase, org.id, sessionId, !!input.applyToLater);
+    if (!scope) return { error: "Session not found." };
+    const { data: current } = await supabase.from("class_sessions").select("id, starts_at, member_id").in("id", scope.list.map((x) => x.id as string));
+    const byId = new Map((current ?? []).map((x) => [x.id as string, x]));
 
-    const { data: spots } = await supabase
-      .from("bookings")
-      .select("id, payment_status")
-      .eq("session_id", sessionId)
-      .eq("org_id", org.id)
-      .in("status", ["confirmed", "pending_payment", "pending_approval"]);
-    let refundFailures = 0;
-    for (const b of spots ?? []) {
-      if (b.payment_status === "paid") {
-        const refund = await refundDeposit(b.id as string);
-        if (!refund.ok) refundFailures++;
+    const timeChanged: string[] = [];
+    const movedSessions: string[] = [];
+    const skipped: { startsAt: string; reason: string }[] = [];
+    for (const t of scope.list) {
+      const row = byId.get(t.id as string);
+      if (!row) continue;
+      const target = t.id === sessionId ? first : withTimeOfDay(row.starts_at as string, first, org.timezone);
+      const sameTime = target.getTime() === new Date(row.starts_at as string).getTime();
+      if (sameTime && (!input.memberId || input.memberId === row.member_id)) continue; // nothing to change here
+      const { data, error } = await supabase.rpc("move_class_session", { p_session: t.id, p_starts_at: target.toISOString(), p_member: input.memberId || null });
+      if (error) {
+        const reason = friendly(error) ?? "That session couldn't be moved.";
+        if (t.id === sessionId) return { error: reason };
+        skipped.push({ startsAt: row.starts_at as string, reason });
+        continue;
       }
+      movedSessions.push(t.id as string);
+      if (!sameTime) timeChanged.push(...(((data as { booking_ids: string[] }).booking_ids) ?? []));
     }
-    const ids = (spots ?? []).map((b) => b.id as string);
-    if (ids.length) {
-      const { error: e2 } = await supabase
-        .from("bookings")
-        .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: reason ?? "Class cancelled" })
-        .in("id", ids);
-      if (e2) return { error: friendly(e2) };
-    }
-    for (const id of ids) await notifyBooking(id, "cancellation", { by: me.user_id ?? undefined, customer: opts.notify, push: false });
-    await syncSessionCalendar(sessionId);
+    for (const id of timeChanged) await notifyBooking(id, "rescheduled", { by: me.user_id ?? undefined, customer: input.notify, push: false });
+    for (const id of movedSessions) await syncSessionCalendar(id);
     refresh(slug);
-    return {
-      ok: true,
-      booked: ids.length,
-      warning: refundFailures ? `${refundFailures} deposit ${refundFailures === 1 ? "refund" : "refunds"} didn't go through. Refund ${refundFailures === 1 ? "it" : "them"} from your Stripe dashboard.` : undefined,
-    };
+    return { ok: true, booked: movedSessions.length, people: timeChanged.length, skipped };
   } catch (e) {
     return { error: (e as Error).message };
   }
@@ -770,32 +960,87 @@ export async function declineBooking(slug: string, id: string): Promise<ActionRe
   }
 }
 
+/** Moves one booking to a new start and person, checking the schedule. Returns what went wrong, or null. */
+async function rescheduleOne(
+  ctx: { org: Organization; isAdmin: boolean },
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  id: string,
+  startsAt: string,
+  memberId: string,
+): Promise<string | null> {
+  const { org, isAdmin } = ctx;
+  const { data: b } = await supabase.from("bookings").select("starts_at, ends_at, blocked_until, location_id").eq("id", id).eq("org_id", org.id).single();
+  if (!b) return "Booking not found.";
+  const duration = new Date(b.ends_at).getTime() - new Date(b.starts_at).getTime();
+  const buffer = new Date(b.blocked_until).getTime() - new Date(b.ends_at).getTime();
+  const start = new Date(startsAt);
+  const notScheduled = await assertScheduled(org, isAdmin, memberId, start, new Date(start.getTime() + duration), b.location_id);
+  if (notScheduled) return notScheduled;
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      starts_at: start.toISOString(),
+      ends_at: new Date(start.getTime() + duration).toISOString(),
+      blocked_until: new Date(start.getTime() + duration + buffer).toISOString(),
+      member_id: memberId,
+      reminder_sent_at: null,
+    })
+    .eq("id", id)
+    .eq("org_id", org.id);
+  return error ? friendly(error) ?? "That time couldn't be booked." : null;
+}
+
 export async function rescheduleBooking(slug: string, id: string, startsAt: string, memberId: string): Promise<ActionResult> {
   try {
     const { org, isAdmin, me } = await ctxFor(slug);
     const supabase = await createClient();
-    const { data: b } = await supabase.from("bookings").select("starts_at, ends_at, blocked_until, location_id").eq("id", id).eq("org_id", org.id).single();
-    if (!b) return { error: "Booking not found." };
-    const duration = new Date(b.ends_at).getTime() - new Date(b.starts_at).getTime();
-    const buffer = new Date(b.blocked_until).getTime() - new Date(b.ends_at).getTime();
-    const start = new Date(startsAt);
-    const notScheduled = await assertScheduled(org, isAdmin, memberId, start, new Date(start.getTime() + duration), b.location_id);
-    if (notScheduled) return { error: notScheduled };
-    const { error } = await supabase
-      .from("bookings")
-      .update({
-        starts_at: start.toISOString(),
-        ends_at: new Date(start.getTime() + duration).toISOString(),
-        blocked_until: new Date(start.getTime() + duration + buffer).toISOString(),
-        member_id: memberId,
-        reminder_sent_at: null,
-      })
-      .eq("id", id)
-      .eq("org_id", org.id);
-    if (error) return { error: friendly(error) };
+    const problem = await rescheduleOne({ org, isAdmin }, supabase, id, startsAt, memberId);
+    if (problem) return { error: problem };
     await notifyBooking(id, "rescheduled", { by: me.user_id ?? undefined });
     refresh(slug);
     return { ok: true };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+/**
+ * Changes this appointment of a repeating series and every later one: the same dates, at the new time and with the
+ * new person. A date that doesn't fit is skipped and reported; the first has to work. The customer is told once.
+ */
+export async function editSeriesFollowing(slug: string, bookingId: string, input: { startsAt: string; memberId: string; notify: boolean }): Promise<ActionResult> {
+  try {
+    const { org, isAdmin, me } = await ctxFor(slug);
+    const supabase = await createClient();
+    const first = new Date(input.startsAt);
+    if (isNaN(first.getTime())) return { error: "Pick a valid date and time." };
+    const { data: b } = await supabase.from("bookings").select("id, series_id, starts_at").eq("id", bookingId).eq("org_id", org.id).single();
+    if (!b?.series_id) return { error: "This booking isn't part of a repeating series." };
+    const { data: later } = await supabase
+      .from("bookings")
+      .select("id, starts_at, member_id")
+      .eq("series_id", b.series_id)
+      .eq("org_id", org.id)
+      .eq("status", "confirmed")
+      .gte("starts_at", b.starts_at)
+      .order("starts_at");
+    const moved: string[] = [];
+    const skipped: { startsAt: string; reason: string }[] = [];
+    for (const x of later ?? []) {
+      const target = x.id === b.id ? first : withTimeOfDay(x.starts_at as string, first, org.timezone);
+      if (target.getTime() === new Date(x.starts_at as string).getTime() && x.member_id === input.memberId) continue; // nothing to change
+      const problem = await rescheduleOne({ org, isAdmin }, supabase, x.id as string, target.toISOString(), input.memberId);
+      if (!problem) moved.push(x.id as string);
+      else if (x.id === b.id) return { error: problem }; // the date you chose has to work
+      else skipped.push({ startsAt: x.starts_at as string, reason: problem });
+    }
+    if (moved.length) {
+      // One email for the whole series; the calendars of everyone involved are brought up to date.
+      await notifyBooking(moved[0], "rescheduled", { by: me.user_id ?? undefined, customer: input.notify });
+      for (const id of moved.slice(1)) await syncBookingCalendar(id);
+    }
+    refresh(slug);
+    return { ok: true, booked: moved.length, skipped };
   } catch (e) {
     return { error: (e as Error).message };
   }
