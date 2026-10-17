@@ -13,7 +13,7 @@ import { CancelSeries } from "./cancel-series";
 export const metadata: Metadata = { title: "Your booking", robots: { index: false } };
 
 type PublicBooking = {
-  id: string; status: string; starts_at: string; ends_at: string; service_name: string;
+  id: string; session_id: string | null; status: string; starts_at: string; ends_at: string; service_name: string;
   price_cents: number; deposit_cents: number; currency: string; payment_status: string; notes: string | null;
   customer_name: string; customer_email: string; staff_name: string | null;
   location_type: string | null; location_detail: string | null; location_name: string | null; location_address: string | null; customer_address: string | null;
@@ -134,7 +134,7 @@ export default async function ManageBookingPage(props: PageProps<"/booking/[toke
               <CalendarPlus className="size-5 text-accent" /> Add to Calendar
             </a>
           )}
-          {canCancel && b.status === "confirmed" && (
+          {canCancel && b.status === "confirmed" && !b.session_id && (
             <Link href={`/booking/${token}/reschedule`} className={buttonClass("glass", "lg", true, "w-full")}>
               <CalendarClock className="size-5 text-accent" /> Reschedule
             </Link>

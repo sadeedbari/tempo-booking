@@ -82,6 +82,10 @@ export interface Service {
   auto_approve: boolean;
   /** Customers may book this service as a repeating series online. */
   allow_series: boolean;
+  /** Sold as scheduled sessions with a capacity (a group class), not as free time slots. */
+  is_class: boolean;
+  /** Default number of spots for a new session of this class. */
+  class_capacity: number;
   active: boolean;
   /** Offered in the website contact form's service list. */
   contact_form: boolean;
@@ -214,8 +218,23 @@ export interface PublicService {
   address_mode: AddressMode;
   auto_approve: boolean;
   allow_series: boolean;
+  is_class: boolean;
+  class_capacity: number;
   staff_ids: string[];
   questions: ServiceQuestion[];
+}
+
+/** An upcoming class session as customers see it: how many spots are taken, never who. */
+export interface PublicSession {
+  id: string;
+  service_id: string;
+  member_id: string;
+  location_id: string | null;
+  starts_at: string;
+  ends_at: string;
+  capacity: number;
+  booked: number;
+  notes: string | null;
 }
 
 export interface PublicStaff {

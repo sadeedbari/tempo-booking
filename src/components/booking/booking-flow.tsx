@@ -12,9 +12,10 @@ import { LogoMark } from "@/components/app/logo";
 import { cn } from "@/lib/utils";
 import { formatDate, formatDuration, formatMoney, formatTime, timeZoneLabel } from "@/lib/format";
 import { eligibleMembers, type Slot } from "@/lib/slots";
-import type { PublicOrg, PublicService } from "@/lib/types";
-import { book, getWindow, previewSeries, type SeriesPreview } from "@/app/[slug]/actions";
+import type { PublicOrg, PublicService, PublicSession } from "@/lib/types";
+import { book, getSessions, getWindow, previewSeries, type SeriesPreview } from "@/app/[slug]/actions";
 import { TimePicker } from "./time-picker";
+import { SessionPicker } from "./session-picker";
 import { collectAnswers, IntakeFields } from "./intake-fields";
 import { AddressInput } from "@/components/ui/address-input";
 
@@ -27,6 +28,7 @@ export function BookingFlow({
   paymentCancelled,
   embed = false,
   fetchWindow = getWindow,
+  fetchSessions = getSessions,
 }: {
   data: PublicOrg;
   initialService?: string;
@@ -35,6 +37,7 @@ export function BookingFlow({
   embed?: boolean;
   /** Override for previews/tests. */
   fetchWindow?: typeof getWindow;
+  fetchSessions?: typeof getSessions;
 }) {
   const router = useRouter();
   const { org, services, staff, availability, locations } = data;
@@ -48,7 +51,8 @@ export function BookingFlow({
   const locationStaff = location ? eligibleMembers(location.staff_ids, allStaffIds) : allStaffIds;
   const eligibleFor = (s: PublicService | null) => (s ? eligibleMembers(s.staff_ids, locationStaff) : locationStaff);
   // When only one person can perform a service, skip the "who" step.
-  const stepAfterService = (s: PublicService) => (eligibleFor(s).length > 1 ? "staff" : "time");
+  // A class is booked by session, and the session decides who leads it, so it skips the "who" step too.
+  const stepAfterService = (s: PublicService) => (!s.is_class && eligibleFor(s).length > 1 ? "staff" : "time");
 
   const preselected = services.find((s) => s.slug === initialService) ?? null;
   const [service, setService] = useState<PublicService | null>(preselected);
@@ -59,6 +63,8 @@ export function BookingFlow({
   const [step, setStep] = useState<Step>(multiLocation ? "location" : preselected ? stepAfterService(preselected) : "service");
   const [reload, setReload] = useState(0);
   const [slot, setSlot] = useState<Slot | null>(null);
+  // The chosen class session (a class is booked by session, not by free time).
+  const [session, setSession] = useState<PublicSession | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hasPhone, setHasPhone] = useState(false);
   const [pending, start] = useTransition();
@@ -69,7 +75,7 @@ export function BookingFlow({
   const previewSeq = useRef(0);
 
   // Repeating is offered only for services that are confirmed automatically and have no online deposit.
-  const canRepeat = !!service && service.allow_series && service.auto_approve && !(service.deposit_cents > 0 && org.payments_enabled);
+  const canRepeat = !!service && !service.is_class && service.allow_series && service.auto_approve && !(service.deposit_cents > 0 && org.payments_enabled);
   const eligible = useMemo(() => eligibleFor(service), [service, allStaffIds]); // eslint-disable-line react-hooks/exhaustive-deps
   const eligibleStaff = staff.filter((s) => eligible.includes(s.id));
 
@@ -79,8 +85,9 @@ export function BookingFlow({
     const el = service ? eligibleMembers(service.staff_ids, staffHere) : staffHere;
     setLocationId(id);
     setSlot(null);
+    setSession(null);
     setMemberId(service && el.length === 1 ? el[0] : null);
-    setStep(service ? (el.length > 1 ? "staff" : "time") : "service");
+    setStep(service ? (!service.is_class && el.length > 1 ? "staff" : "time") : "service");
   }
 
   /** Changes how the appointment repeats and checks, with the real booking rules, which dates are free. */
@@ -104,6 +111,7 @@ export function BookingFlow({
     const el = eligibleFor(s);
     setService(s);
     setSlot(null);
+    setSession(null);
     setMemberId(el.length === 1 ? el[0] : null);
     setStep(stepAfterService(s));
   }
@@ -111,7 +119,7 @@ export function BookingFlow({
   const back = () => {
     setError(null);
     if (step === "details") setStep("time");
-    else if (step === "time") setStep(eligibleStaff.length > 1 ? "staff" : "service");
+    else if (step === "time") setStep(!service?.is_class && eligibleStaff.length > 1 ? "staff" : "service");
     else if (step === "staff") setStep("service");
     else if (step === "service" && multiLocation) setStep("location");
   };
@@ -138,13 +146,15 @@ export function BookingFlow({
           : undefined,
         smsConsent: fd.get("sms_consent") === "on",
         series: repeatWeeks ? { intervalWeeks: repeatWeeks, count: repeatCount } : undefined,
+        sessionId: service.is_class ? session?.id : undefined,
         answers: collectAnswers(service.questions ?? [], fd),
         notes: String(fd.get("notes") || ""),
       });
       if (!r.ok) {
         setError(r.error);
-        if (r.error.includes("taken")) {
+        if (r.error.includes("taken") || (service.is_class && /full|no longer|started|cancelled/i.test(r.error))) {
           setSlot(null);
+          setSession(null);
           setStep("time");
           setReload((n) => n + 1);
         }
@@ -207,12 +217,12 @@ export function BookingFlow({
               <SummaryRow icon={Clock}>{formatDuration(service.duration_minutes)}</SummaryRow>
               {(() => { const L = LOC[service.location_type]; return <SummaryRow icon={L.icon}>{L.label}</SummaryRow>; })()}
               {(chosenStaff || assignedStaff) && <SummaryRow icon={Users}>{(chosenStaff || assignedStaff)!.display_name}</SummaryRow>}
-              {!chosenStaff && !assignedStaff && step !== "service" && eligibleStaff.length > 1 && <SummaryRow icon={Users}>Any available</SummaryRow>}
+              {!service.is_class && !chosenStaff && !assignedStaff && step !== "service" && eligibleStaff.length > 1 && <SummaryRow icon={Users}>Any available</SummaryRow>}
               {slot && (
                 <SummaryRow icon={Calendar}>
                   <span className="font-medium text-label">{formatDate(slot.start, tz)}</span>
                   <br />
-                  {formatTime(slot.start, tz)} – {formatTime(new Date(new Date(slot.start).getTime() + service.duration_minutes * 60000), tz)}
+                  {formatTime(slot.start, tz)} – {formatTime(session ? session.ends_at : new Date(new Date(slot.start).getTime() + service.duration_minutes * 60000), tz)}
                 </SummaryRow>
               )}
               <SummaryRow icon={Globe}>{tz.replace(/_/g, " ")} ({timeZoneLabel(tz)})</SummaryRow>
@@ -274,6 +284,7 @@ export function BookingFlow({
                           <div className="mt-1.5 flex flex-wrap gap-x-3 text-[13px] text-label-3">
                             <span className="inline-flex items-center gap-1"><Clock className="size-3.5" />{formatDuration(s.duration_minutes)}</span>
                             <span className="inline-flex items-center gap-1"><L.icon className="size-3.5" />{L.label}</span>
+                            {s.is_class && <span className="inline-flex items-center gap-1"><Users className="size-3.5" />Group class</span>}
                           </div>
                         </div>
                         <div className="text-right">
@@ -302,8 +313,24 @@ export function BookingFlow({
 
           {step === "time" && service && (
             <div key="time" className="animate-rise">
-              <StepTitle n={(eligibleStaff.length > 1 ? 3 : 2) + n} title="Pick a time" />
+              <StepTitle n={(!service.is_class && eligibleStaff.length > 1 ? 3 : 2) + n} title={service.is_class ? "Choose a session" : "Pick a time"} />
               {error && <div className="mb-4"><Notice>{error}</Notice></div>}
+              {service.is_class ? (
+                <SessionPicker
+                  data={data}
+                  service={service}
+                  locationId={locationId}
+                  fetchSessions={fetchSessions}
+                  selectedId={session?.id}
+                  reloadKey={reload}
+                  onPick={(s) => {
+                    setSession(s);
+                    setSlot({ start: s.starts_at, memberIds: [s.member_id] });
+                    setError(null);
+                    setStep("details");
+                  }}
+                />
+              ) : (
               <TimePicker
                 org={org}
                 availability={availability}
@@ -322,12 +349,13 @@ export function BookingFlow({
                   setStep("details");
                 }}
               />
+              )}
             </div>
           )}
 
           {step === "details" && service && slot && (
             <div key="details" className="animate-rise">
-              <StepTitle n={(eligibleStaff.length > 1 ? 4 : 3) + n} title="Your details" />
+              <StepTitle n={(!service.is_class && eligibleStaff.length > 1 ? 4 : 3) + n} title="Your details" />
               {/* A submit handler, not a form action: React empties a form after an action, and a customer who has to fix one answer must not lose everything else they typed. */}
               <form onSubmit={(e) => { e.preventDefault(); submit(new FormData(e.currentTarget)); }} className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -405,7 +433,7 @@ export function BookingFlow({
                 <Button type="submit" size="lg" pill className="w-full" loading={pending}>
                   {service.deposit_cents > 0 && org.payments_enabled
                     ? `Continue to pay ${formatMoney(service.deposit_cents, org.currency)} deposit`
-                    : !service.auto_approve ? "Request booking" : repeatWeeks > 0 ? `Confirm ${preview && preview !== "loading" && preview.ok ? preview.dates.filter((d) => d.available).length : repeatCount} appointments` : "Confirm booking"}
+                    : !service.auto_approve ? (service.is_class ? "Request a spot" : "Request booking") : service.is_class ? "Reserve my spot" : repeatWeeks > 0 ? `Confirm ${preview && preview !== "loading" && preview.ok ? preview.dates.filter((d) => d.available).length : repeatCount} appointments` : "Confirm booking"}
                 </Button>
                 {!service.auto_approve && (
                   <p className="text-center text-[12px] text-label-3">

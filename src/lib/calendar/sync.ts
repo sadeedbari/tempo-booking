@@ -81,11 +81,12 @@ export async function refreshExternalBusy(orgId: string, from: string, to: strin
         try {
           const token = await accessToken(c);
           if (!token) return;
-          const [events, { data: own }] = await Promise.all([
+          const [events, { data: own }, { data: ownSessions }] = await Promise.all([
             provider.listBusy(token, c.calendar_id, from, to),
             db().from("booking_calendar_events").select("event_id").eq("connection_id", c.id),
+            db().from("session_calendar_events").select("event_id").eq("connection_id", c.id),
           ]);
-          const ownIds = new Set((own ?? []).map((r) => r.event_id as string));
+          const ownIds = new Set([...(own ?? []), ...(ownSessions ?? [])].map((r) => r.event_id as string));
           const rows = events.flatMap((ev) => {
             if (ev.ownedByTempo || ownIds.has(ev.id)) return []; // Tempo's own events must not block slots
             // All-day events block whole days in the business time zone.
@@ -111,6 +112,7 @@ export async function refreshExternalBusy(orgId: string, from: string, to: strin
 
 interface BookingRow {
   id: string;
+  session_id: string | null;
   customer_address: string | null;
   status: string;
   starts_at: string;
@@ -135,12 +137,14 @@ export async function syncBookingCalendar(bookingId: string) {
     const { data } = await db()
       .from("bookings")
       .select(
-        "id, customer_address, status, starts_at, ends_at, service_name, notes, member_id, customer:customers(name, email, phone), location:locations(name, address), service:services(location_type, location_detail), org:organizations(slug, name, timezone, address)",
+        "id, session_id, customer_address, status, starts_at, ends_at, service_name, notes, member_id, customer:customers(name, email, phone), location:locations(name, address), service:services(location_type, location_detail), org:organizations(slug, name, timezone, address)",
       )
       .eq("id", bookingId)
       .single();
     const b = data as unknown as BookingRow | null;
     if (!b) return;
+    // A class spot isn't an event of its own: the whole session is one event, refreshed to show who's booked.
+    if (b.session_id) return await syncSessionCalendar(b.session_id);
 
     const wantEvent = b.status === "confirmed" || b.status === "completed" || b.status === "no_show";
     const current = wantEvent ? await activeConnections({ memberId: b.member_id }) : [];
@@ -199,5 +203,93 @@ export async function syncBookingCalendar(bookingId: string) {
     }
   } catch (e) {
     console.error("[calendar] booking sync failed", (e as Error).message);
+  }
+}
+
+interface SessionRow {
+  id: string;
+  status: string;
+  starts_at: string;
+  ends_at: string;
+  capacity: number;
+  notes: string | null;
+  member_id: string;
+  service: { name: string; location_type: string; location_detail: string | null } | null;
+  location: { name: string; address: string | null } | null;
+  org: { slug: string; name: string; timezone: string; address: string | null };
+}
+
+/**
+ * Makes the instructor's calendars show one event for the whole class session: "Yoga — 3/8 booked" with the names
+ * of who's coming. It exists while the session is scheduled and is removed when it's cancelled. Idempotent; never throws.
+ */
+export async function syncSessionCalendar(sessionId: string) {
+  if (!features.calendar || !env.supabaseServiceKey) return;
+  try {
+    const [{ data }, { data: spots }] = await Promise.all([
+      db()
+        .from("class_sessions")
+        .select("id, status, starts_at, ends_at, capacity, notes, member_id, service:services(name, location_type, location_detail), location:locations(name, address), org:organizations(slug, name, timezone, address)")
+        .eq("id", sessionId)
+        .single(),
+      db().from("bookings").select("status, customer:customers(name)").eq("session_id", sessionId).in("status", ["confirmed", "completed", "no_show"]),
+    ]);
+    const s = data as unknown as SessionRow | null;
+    if (!s) return;
+    const attendees = ((spots ?? []) as unknown as { customer: { name: string } | null }[]).map((x) => x.customer?.name).filter((n): n is string => !!n);
+
+    const wantEvent = s.status === "scheduled";
+    const current = wantEvent ? await activeConnections({ memberId: s.member_id }) : [];
+    const currentIds = new Set(current.map((c) => c.id));
+
+    const { data: existing } = await db().from("session_calendar_events").select("connection_id, event_id").eq("session_id", s.id);
+    const eventByConn = new Map((existing ?? []).map((r) => [r.connection_id as string, r.event_id as string]));
+
+    for (const [connId, eventId] of eventByConn) {
+      if (currentIds.has(connId)) continue;
+      const { data: old } = await db().from("calendar_connections").select("*").eq("id", connId).maybeSingle();
+      const oldConn = old as Connection | null;
+      const provider = oldConn && oldConn.status === "active" ? getProvider(oldConn.provider) : null;
+      const tok = oldConn && provider ? await accessToken(oldConn) : null;
+      if (oldConn && provider && tok) await provider.deleteEvent(tok, oldConn.calendar_id, eventId).catch((e) => console.error(`[calendar:${oldConn.provider}] delete failed`, e.message));
+      await db().from("session_calendar_events").delete().eq("session_id", s.id).eq("connection_id", connId);
+    }
+    if (!wantEvent) return;
+
+    const where = s.location
+      ? [s.location.name, s.location.address].filter(Boolean).join(", ")
+      : s.service?.location_type === "video"
+        ? s.service.location_detail || "Video call"
+        : s.org.address || undefined;
+    const name = s.service?.name ?? "Class";
+    const event: EventInput = {
+      summary: `${name} — ${attendees.length}/${s.capacity} booked`,
+      description: [
+        attendees.length ? `Booked:\n${attendees.join("\n")}` : "Nobody has booked yet.",
+        s.notes ? `Notes: ${s.notes}` : "",
+        `Booked through Tempo: ${env.appUrl}/o/${s.org.slug}/calendar`,
+      ].filter(Boolean).join("\n\n"),
+      location: where,
+      start: new Date(s.starts_at).toISOString(),
+      end: new Date(s.ends_at).toISOString(),
+      timeZone: s.org.timezone,
+      bookingId: s.id,
+    };
+
+    for (const c of current) {
+      try {
+        const provider = getProvider(c.provider);
+        const token = provider ? await accessToken(c) : null;
+        if (!provider || !token) continue;
+        let eventId: string | null = eventByConn.get(c.id) ?? null;
+        if (eventId) eventId = await provider.patchEvent(token, c.calendar_id, eventId, event);
+        if (!eventId) eventId = await provider.insertEvent(token, c.calendar_id, event);
+        if (eventId) await db().from("session_calendar_events").upsert({ session_id: s.id, connection_id: c.id, event_id: eventId }, { onConflict: "session_id,connection_id" });
+      } catch (e) {
+        console.error(`[calendar:${c.provider}] session sync failed`, (e as Error).message);
+      }
+    }
+  } catch (e) {
+    console.error("[calendar] session sync failed", (e as Error).message);
   }
 }

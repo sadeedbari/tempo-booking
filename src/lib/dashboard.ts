@@ -16,6 +16,8 @@ export interface DBooking {
   member_id: string;
   customer_id: string | null;
   customer_name?: string | null;
+  /** Set for a spot in a group class; every spot of one session shares the instructor's time. */
+  session_id?: string | null;
   source: "online" | "manual";
 }
 
@@ -111,8 +113,17 @@ export function buildDashboard(i: DashInput) {
     }
     return total;
   };
-  const bookedMinutes = (list: DBooking[]) =>
-    list.filter(isAppointment).reduce((n, b) => n + (new Date(b.ends_at).getTime() - new Date(b.starts_at).getTime()) / 60000, 0);
+  // A class session takes the instructor's time once, however many people are in it.
+  const bookedMinutes = (list: DBooking[]) => {
+    const seen = new Set<string>();
+    return list.filter(isAppointment).reduce((n, b) => {
+      if (b.session_id) {
+        if (seen.has(b.session_id)) return n;
+        seen.add(b.session_id);
+      }
+      return n + (new Date(b.ends_at).getTime() - new Date(b.starts_at).getTime()) / 60000;
+    }, 0);
+  };
   const capacity = capacityFor(start, end);
   const utilization = capacity > 0 ? Math.min(1, bookedMinutes(cur) / capacity) : null;
 

@@ -7,7 +7,7 @@ import { env } from "@/lib/env";
 import { refreshExternalBusy } from "@/lib/calendar/sync";
 import { normalizePhone } from "@/lib/phone";
 import { withUnit } from "@/lib/address";
-import type { BusyInterval, PublicOrg, PublicShift } from "@/lib/types";
+import type { BusyInterval, PublicOrg, PublicSession, PublicShift } from "@/lib/types";
 
 export interface AvailabilityWindow {
   busy: BusyInterval[];
@@ -24,6 +24,15 @@ export async function getWindow(orgId: string, from: string, to: string, fromDay
     supabase.rpc("get_public_shifts", { p_org: orgId, p_from: fromDay, p_to: toDay }),
   ]);
   return { busy: (busy.data ?? []) as BusyInterval[], shifts: (shifts.data ?? []) as PublicShift[] };
+}
+
+/** Upcoming sessions of a class, with how many spots are taken (never who). */
+export async function getSessions(orgId: string, serviceId: string): Promise<PublicSession[]> {
+  const supabase = await createClient();
+  const from = new Date();
+  const to = new Date(from.getTime() + 120 * 86_400_000);
+  const { data } = await supabase.rpc("get_public_sessions", { p_org: orgId, p_from: from.toISOString(), p_to: to.toISOString() });
+  return ((data ?? []) as PublicSession[]).filter((s) => s.service_id === serviceId);
 }
 
 /** Dates of a repeating appointment that couldn't be booked, with the reason in plain words. */
@@ -78,6 +87,8 @@ export async function book(input: {
   answers?: Record<string, string | string[]>;
   /** Book the same time again every few weeks. */
   series?: SeriesInput;
+  /** A spot in a class session (startsAt is then the session's start). */
+  sessionId?: string;
   notes: string;
 }): Promise<BookResult> {
   // Pull the latest personal-calendar events so a just-added event blocks this slot.
@@ -94,9 +105,19 @@ export async function book(input: {
     if (!normalized) return { ok: false, error: "That phone number doesn't look right. Include the area code, or leave it blank." };
     phone = normalized;
   }
-  const series = input.series ? { interval: wholeNumber(input.series.intervalWeeks, 1, 4), count: wholeNumber(input.series.count, 2, 26) } : null;
+  const series = input.series && !input.sessionId ? { interval: wholeNumber(input.series.intervalWeeks, 1, 4), count: wholeNumber(input.series.count, 2, 26) } : null;
   if (series && (!series.interval || !series.count)) return { ok: false, error: "Please choose how often it repeats and how many times." };
-  const { data, error } = await supabase.rpc(series ? "create_public_booking_series" : "create_public_booking", {
+  const { data, error } = input.sessionId
+    ? await supabase.rpc("create_public_session_booking", {
+        p_org: input.orgId,
+        p_session: input.sessionId,
+        p_name: input.name.slice(0, 120),
+        p_email: input.email.slice(0, 200),
+        p_phone: phone,
+        p_notes: input.notes.slice(0, 1000),
+        p_answers: cleanAnswers(input.answers),
+      })
+    : await supabase.rpc(series ? "create_public_booking_series" : "create_public_booking", {
     ...(series ? { p_interval_weeks: series.interval, p_count: series.count } : {}),
     p_org: input.orgId,
     p_service: input.serviceId,

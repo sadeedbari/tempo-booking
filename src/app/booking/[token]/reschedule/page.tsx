@@ -7,7 +7,7 @@ import { ReschedulePicker } from "./picker";
 export const metadata: Metadata = { title: "Reschedule your booking", robots: { index: false } };
 
 type Booking = {
-  status: string; starts_at: string; service_id: string | null; member_id: string | null; location_id: string | null; service_name: string;
+  session_id: string | null; status: string; starts_at: string; service_id: string | null; member_id: string | null; location_id: string | null; service_name: string;
   org: { slug: string; cancellation_window_hours: number };
 };
 
@@ -29,5 +29,5 @@ export default async function ReschedulePage(props: PageProps<"/booking/[token]/
 }
 
 function canReschedule(b: Booking) {
-  return b.status === "confirmed" && new Date(b.starts_at).getTime() - Date.now() > b.org.cancellation_window_hours * 3600_000;
+  return !b.session_id && b.status === "confirmed" && new Date(b.starts_at).getTime() - Date.now() > b.org.cancellation_window_hours * 3600_000;
 }

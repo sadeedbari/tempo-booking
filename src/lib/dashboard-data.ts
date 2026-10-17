@@ -20,7 +20,7 @@ export async function loadDashboard(ctx: OrgContext, rangeDays: number) {
   const supabase = await createClient();
   let bookingsQuery = supabase
     .from("bookings")
-    .select("id, starts_at, ends_at, status, price_cents, deposit_cents, payment_status, service_id, service_name, member_id, customer_id, source, customer:customers(name)")
+    .select("id, starts_at, ends_at, status, price_cents, deposit_cents, payment_status, service_id, service_name, member_id, customer_id, source, session_id, customer:customers(name)")
     .eq("org_id", org.id)
     .gte("starts_at", startOfDayInZone(prevStart, tz).toISOString())
     .lt("starts_at", startOfDayInZone(addDaysToKey(today, 8), tz).toISOString())

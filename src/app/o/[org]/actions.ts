@@ -241,6 +241,7 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
 
     const { data: service } = await supabase.from("services").select("*").eq("id", v.service_id).eq("org_id", org.id).single();
     if (!service) return { error: "Service not found." };
+    if (service.is_class) return { error: "This is a group class. Add people to one of its sessions instead." };
     const address = service.address_mode === "off" ? null : withUnit(v.customer_address, v.customer_unit).slice(0, 300) || null;
     if (service.address_mode === "required" && !address) return { error: "Add the address where the team should go." };
 
