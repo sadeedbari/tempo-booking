@@ -3,7 +3,7 @@ import { friendlyDbError } from "@/lib/db-errors";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { notifyBooking } from "@/lib/notify";
-import { refreshExternalBusy } from "@/lib/calendar/sync";
+import { refreshExternalBusy, syncBookingCalendar } from "@/lib/calendar/sync";
 import { refundDeposit } from "@/lib/bookings";
 
 export async function rescheduleBooking(token: string, startsAt: string) {
@@ -17,6 +17,18 @@ export async function rescheduleBooking(token: string, startsAt: string) {
   await notifyBooking((data as { id: string }).id, "rescheduled");
   revalidatePath(`/booking/${token}`);
   return { ok: true as const };
+}
+
+/** Cancels this appointment and every later one in its repeating series. The customer and the team hear about it once. */
+export async function cancelSeriesFollowing(token: string, reason: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("cancel_series_following_by_token", { p_token: token, p_reason: reason.slice(0, 500) });
+  if (error) return { error: friendlyDbError(error)! };
+  const r = data as { ids: string[]; first: string };
+  for (const id of r.ids) if (id !== r.first) await syncBookingCalendar(id); // take the others off the calendars
+  await notifyBooking(r.first, "cancellation");
+  revalidatePath(`/booking/${token}`);
+  return { ok: true };
 }
 
 export async function cancelBooking(token: string, reason: string) {

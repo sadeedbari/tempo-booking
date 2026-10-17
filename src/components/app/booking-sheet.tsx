@@ -1,6 +1,6 @@
 "use client";
-import { useState, useTransition } from "react";
-import { CalendarClock, ClipboardList, Mail, MapPin, Phone, StickyNote, User, CreditCard, CheckCircle2, UserX, XCircle } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import { CalendarClock, ClipboardList, Mail, MapPin, Phone, Repeat, StickyNote, User, CreditCard, CheckCircle2, UserX, XCircle } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Badge, Notice, statusTone } from "@/components/ui/misc";
 import { useToast } from "@/components/ui/toast";
 import { formatDate, formatMoney, formatTime, STATUS_LABEL } from "@/lib/format";
 import type { Booking, BookingStatus, Location, Membership, Organization, Service } from "@/lib/types";
-import { approveBooking, declineBooking, rescheduleBooking, setBookingStatus } from "@/app/o/[org]/actions";
+import { approveBooking, cancelSeriesFollowing, declineBooking, getSeriesSummary, rescheduleBooking, setBookingStatus, type SeriesSummary } from "@/app/o/[org]/actions";
 import { joinInZone, splitInZone, TIME_OPTIONS } from "./datetime";
 
 interface SheetProps {
@@ -42,6 +42,27 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
   const active = booking.status === "confirmed" || booking.status === "pending_payment";
   const awaiting = booking.status === "pending_approval";
   const [confirmDecline, setConfirmDecline] = useState(false);
+  const [seriesInfo, setSeriesInfo] = useState<SeriesSummary | null>(null);
+  const [confirmSeries, setConfirmSeries] = useState(false);
+  const series = seriesInfo?.bookingId === booking.id ? seriesInfo : null;
+
+  // Where this booking sits in its repeating series (loaded when the sheet opens).
+  useEffect(() => {
+    let alive = true;
+    if (booking.series_id) getSeriesSummary(slug, booking.id).then((r) => { if (alive) setSeriesInfo(r); });
+    return () => { alive = false; };
+  }, [slug, booking.id, booking.series_id]);
+
+  const cancelFollowing = () =>
+    start(async () => {
+      if (!confirmSeries) return setConfirmSeries(true);
+      const r = await cancelSeriesFollowing(slug, booking.id);
+      if (r.error) setError(r.error);
+      else {
+        toast(`${r.booked ?? 0} appointments cancelled`);
+        onClose();
+      }
+    });
 
   const act = (status: BookingStatus, msg: string) =>
     start(async () => {
@@ -89,6 +110,9 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
       <div className="space-y-5">
         <div className="overflow-hidden rounded-[14px] bg-surface hairline divide-y divide-separator">
           <Row icon={<CalendarClock />} label={formatDate(booking.starts_at, tz)} sub={`${formatTime(booking.starts_at, tz)} – ${formatTime(booking.ends_at, tz)}${member ? ` · with ${member.display_name}` : ""}`} />
+          {series && (
+            <Row icon={<Repeat />} label="Repeating appointment" sub={`${series.index} of ${series.total} · ${series.intervalWeeks === 1 ? "every week" : `every ${series.intervalWeeks} weeks`}`} />
+          )}
           {booking.customer_address && (
             <Row
               icon={<MapPin />}
@@ -176,6 +200,11 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
               <Button variant="destructive" className="col-span-2" onClick={() => act("cancelled", "Booking cancelled")} disabled={pending}>
                 <XCircle className="size-4" /> Cancel booking
               </Button>
+              {series && series.later > 1 && (
+                <Button variant="destructive" className="col-span-2" onClick={cancelFollowing} disabled={pending}>
+                  <Repeat className="size-4" /> {confirmSeries ? `Tap to confirm: cancel ${series.later} appointments` : `Cancel this and later ones (${series.later})`}
+                </Button>
+              )}
             </div>
           )
         )}

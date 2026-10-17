@@ -63,7 +63,7 @@ export const DEFAULT_WORKFLOWS: WorkflowDef[] = [
       {
         channel: "email",
         subject: "Confirmed: {{service_name}} with {{business_name}}",
-        body: `Hi {{customer_first_name}},\n\nYou're booked. Here are the details:\n\n${DETAILS}\n\n{{manage_button}}`,
+        body: `Hi {{customer_first_name}},\n\nYou're booked. Here are the details:\n\n${DETAILS}\n\n{{series}}\n\n{{manage_button}}`,
       },
       { channel: "sms", subject: "", body: "{{business_name}}: Confirmed - {{service_name}}, {{date_time}}. Manage: {{manage_link}}" },
     ],

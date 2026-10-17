@@ -15,6 +15,7 @@ export const VARIABLES = [
   { key: "business_name", label: "Business name", sample: "Lumen Studio" },
   { key: "business_phone", label: "Business phone", sample: "416-555-0199" },
   { key: "service_name", label: "Service", sample: "Haircut & style" },
+  { key: "series", label: "All dates of a repeating appointment (email)", sample: "Repeats every week, 4 appointments:\nMonday, October 12 at 9:00 AM\nMonday, October 19 at 9:00 AM\nMonday, October 26 at 9:00 AM\nMonday, November 2 at 9:00 AM", emailOnly: true },
   { key: "answers", label: "Their answers to your booking questions (email)", sample: "Any allergies?: Latex\nHair type: Wavy", emailOnly: true },
   { key: "inquiry_message", label: "Their message (website messages)", sample: "Do you have anything open next week?" },
   { key: "duration", label: "Duration", sample: "1 hr" },

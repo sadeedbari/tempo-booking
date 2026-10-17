@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
-import { Search } from "lucide-react";
+import { Repeat, Search } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Avatar, Notice } from "@/components/ui/misc";
 import { AddressInput } from "@/components/ui/address-input";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { formatDuration, formatMoney, todayKey } from "@/lib/format";
+import { formatDate, formatDuration, formatMoney, formatTime, todayKey } from "@/lib/format";
 import type { Customer, Location, Membership, Organization, Service, ServiceQuestion } from "@/lib/types";
 import { collectAnswers, IntakeFields } from "@/components/booking/intake-fields";
 import { createManualBooking } from "@/app/o/[org]/actions";
@@ -60,6 +60,10 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
   const [mode, setMode] = useState<"existing" | "new">(customers.length ? "existing" : "new");
   const [query, setQuery] = useState("");
   const [customerId, setCustomerId] = useState(presetCustomer);
+  // A repeating appointment: 0 = no repeat, otherwise every N weeks, this many times in all.
+  const [repeatWeeks, setRepeatWeeks] = useState(0);
+  const [repeatCount, setRepeatCount] = useState(4);
+  const [outcome, setOutcome] = useState<{ booked: number; skipped: { startsAt: string; reason: string }[] } | null>(null);
 
   const selectedService = services.find((s) => s.id === serviceId) ?? null;
   // The team can leave any question blank: only customers booking online have to answer the required ones.
@@ -86,14 +90,47 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
     formData.set("location_id", locationId);
     formData.set("starts_at", joinInZone(date, time, tz));
     if (mode === "existing") formData.set("customer_id", customerId);
+    if (repeatWeeks) {
+      formData.set("repeat_weeks", String(repeatWeeks));
+      formData.set("repeat_count", String(repeatCount));
+    }
     start(async () => {
       const r = await createManualBooking(slug, formData);
       if (r.error) setError(r.error);
-      else {
+      else if (repeatWeeks) {
+        // Show how many were booked and which dates didn't fit, instead of closing straight away.
+        setOutcome({ booked: r.booked ?? 1, skipped: r.skipped ?? [] });
+        toast(`${r.booked ?? 1} bookings added`);
+      } else {
         toast(fromInquiryId ? "Booking added. The message is marked as handled." : "Booking added");
         onClose();
       }
     });
+  }
+
+  if (outcome) {
+    return (
+      <Sheet open={open} onClose={onClose} title="Bookings added" subtitle="A repeating appointment.">
+        <div className="space-y-4" data-testid="series-outcome">
+          <Notice tone="green">{outcome.booked} {outcome.booked === 1 ? "appointment was" : "appointments were"} added to the calendar.</Notice>
+          {outcome.skipped.length > 0 && (
+            <div className="space-y-2 rounded-[14px] bg-surface-2 p-4">
+              <div className="text-[14px] font-medium">{outcome.skipped.length === 1 ? "1 date was skipped" : `${outcome.skipped.length} dates were skipped`}</div>
+              <ul className="space-y-1.5 text-[14px]">
+                {outcome.skipped.map((s) => (
+                  <li key={s.startsAt}>
+                    <span className="font-medium">{formatDate(s.startsAt, tz)} at {formatTime(s.startsAt, tz)}</span>
+                    <span className="block text-[13px] text-label-2">{s.reason}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[13px] text-label-2">Add those separately if you still want them.</p>
+            </div>
+          )}
+          <Button className="w-full" pill onClick={onClose}>Done</Button>
+        </div>
+      </Sheet>
+    );
   }
 
   return (
@@ -170,6 +207,23 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
             <Input name="customer_unit" maxLength={30} placeholder="e.g. Apt 4B" />
           </Field>
         )}
+
+        <div className="space-y-2 rounded-[14px] bg-surface-2 p-3.5" data-testid="repeat-options">
+          <div className="flex items-center gap-2 text-[13px] font-medium text-label-2"><Repeat className="size-4" /> Repeat</div>
+          <div className="grid grid-cols-2 gap-2">
+            <Select aria-label="How often" value={repeatWeeks} onChange={(e) => setRepeatWeeks(Number(e.target.value))} className="bg-surface">
+              <option value={0}>Doesn&apos;t repeat</option>
+              <option value={1}>Every week</option>
+              <option value={2}>Every 2 weeks</option>
+              <option value={3}>Every 3 weeks</option>
+              <option value={4}>Every 4 weeks</option>
+            </Select>
+            <Select aria-label="How many appointments" value={repeatCount} disabled={!repeatWeeks} onChange={(e) => setRepeatCount(Number(e.target.value))} className="bg-surface">
+              {Array.from({ length: 51 }, (_, i) => i + 2).map((n) => <option key={n} value={n}>{n} appointments</option>)}
+            </Select>
+          </div>
+          {repeatWeeks > 0 && <p className="text-[12px] text-label-3">Booked at the same time each date. Any date that doesn&apos;t fit (time off, another booking, outside hours) is skipped, and you&apos;ll see which.</p>}
+        </div>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">

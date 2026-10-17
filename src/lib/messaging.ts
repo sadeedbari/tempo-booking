@@ -18,6 +18,9 @@ import type { BookingAnswer } from "@/lib/types";
 export interface BookingForMessage {
   /** The customer's answers to the service's booking questions, if any. */
   answers: BookingAnswer[] | null;
+  /** The dates of the repeating series this booking belongs to (filled in by loadBooking). */
+  series?: { interval_weeks: number; dates: string[] } | null;
+  series_id?: string | null;
   id: string;
   service_id: string | null;
   member_id: string;
@@ -40,12 +43,21 @@ export interface BookingForMessage {
 }
 
 export const BOOKING_SELECT =
-  "id, answers, service_id, member_id, created_at, customer_address, starts_at, ends_at, status, service_name, price_cents, deposit_cents, currency, payment_status, manage_token, customer:customers(name, email, phone, sms_consent_at), location:locations(name, address), member:memberships(display_name), service:services(location_type, location_detail, duration_minutes), org:organizations(id, name, slug, timezone, address, phone, accent_color, notify_push, reminder_hours_before)";
+  "id, answers, series_id, service_id, member_id, created_at, customer_address, starts_at, ends_at, status, service_name, price_cents, deposit_cents, currency, payment_status, manage_token, customer:customers(name, email, phone, sms_consent_at), location:locations(name, address), member:memberships(display_name), service:services(location_type, location_detail, duration_minutes), org:organizations(id, name, slug, timezone, address, phone, accent_color, notify_push, reminder_hours_before)";
 
 export async function loadBooking(bookingId: string): Promise<BookingForMessage | null> {
   if (!env.supabaseServiceKey) return null;
-  const { data } = await createAdminClient().from("bookings").select(BOOKING_SELECT).eq("id", bookingId).single();
-  return data as unknown as BookingForMessage | null;
+  const admin = createAdminClient();
+  const { data } = await admin.from("bookings").select(BOOKING_SELECT).eq("id", bookingId).single();
+  const b = data as unknown as BookingForMessage | null;
+  if (b?.series_id) {
+    const [{ data: s }, { data: dates }] = await Promise.all([
+      admin.from("booking_series").select("interval_weeks").eq("id", b.series_id).single(),
+      admin.from("bookings").select("starts_at").eq("series_id", b.series_id).in("status", ["confirmed", "pending_approval", "pending_payment"]).order("starts_at"),
+    ]);
+    if (s) b.series = { interval_weeks: s.interval_weeks as number, dates: (dates ?? []).map((d) => d.starts_at as string) };
+  }
+  return b;
 }
 
 /** The values a booking offers to templates. */
@@ -69,6 +81,9 @@ export function bookingVars(b: BookingForMessage): Vars {
     business_name: b.org.name,
     business_phone: b.org.phone ?? "",
     service_name: b.service_name,
+    series: b.series && b.series.dates.length > 1
+      ? `Repeats ${b.series.interval_weeks === 1 ? "every week" : `every ${b.series.interval_weeks} weeks`}, ${b.series.dates.length} appointments:\n${b.series.dates.map((d) => formatDateTime(d, tz)).join("\n")}`
+      : "",
     answers: (b.answers ?? []).map((a) => `${a.label}: ${Array.isArray(a.value) ? a.value.join(", ") : a.value}`).join("\n"),
     duration: b.service ? formatDuration(b.service.duration_minutes) : "",
     date: formatDate(b.starts_at, tz),

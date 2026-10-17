@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarClock, CalendarPlus, Clock, MapPin, Phone, User, Video } from "lucide-react";
+import { CalendarClock, CalendarPlus, Clock, MapPin, Phone, Repeat, User, Video } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { buttonClass } from "@/components/ui/button-class";
 import { Badge, Notice, statusTone } from "@/components/ui/misc";
 import { LogoMark } from "@/components/app/logo";
 import { formatDate, formatMoney, formatTime, STATUS_LABEL, timeZoneLabel } from "@/lib/format";
 import { CancelBooking } from "./cancel";
+import { CancelSeries } from "./cancel-series";
 
 export const metadata: Metadata = { title: "Your booking", robots: { index: false } };
 
@@ -26,6 +27,9 @@ export default async function ManageBookingPage(props: PageProps<"/booking/[toke
   const { data } = await supabase.rpc("get_booking_by_token", { p_token: token });
   const b = data as PublicBooking | null;
   if (!b) notFound();
+  const { data: seriesData } = await supabase.rpc("get_series_by_token", { p_token: token });
+  const series = seriesData as { interval_weeks: number; index: number; total: number; items: { starts_at: string; status: string; current: boolean }[] } | null;
+  const skipped = Number(sp.skipped) || 0;
 
   const tz = b.org.timezone;
   const accent = b.org.accent_color || "#007AFF";
@@ -102,6 +106,28 @@ export default async function ManageBookingPage(props: PageProps<"/booking/[toke
           </div>
         </div>
 
+        {series && series.total > 1 && (
+          <div className="mt-5 rounded-[22px] bg-surface p-5 shadow-sm hairline" data-testid="series-card">
+            <div className="flex items-center gap-2 text-[15px] font-semibold"><Repeat className="size-4 text-accent" /> Repeating appointment</div>
+            <p className="mt-0.5 text-[13px] text-label-2">
+              {series.index} of {series.total} · {series.interval_weeks === 1 ? "every week" : `every ${series.interval_weeks} weeks`}
+            </p>
+            {fresh && skipped > 0 && (
+              <div className="mt-3"><Notice tone="blue">{skipped === 1 ? "1 date wasn't available and was skipped." : `${skipped} dates weren't available and were skipped.`} You can book those separately.</Notice></div>
+            )}
+            <ul className="mt-3 divide-y divide-separator">
+              {series.items.map((it) => (
+                <li key={it.starts_at} className={`flex items-center justify-between gap-3 py-2 text-[14px] ${it.current ? "font-semibold" : ""}`}>
+                  <span className={it.status === "cancelled" ? "text-label-3 line-through" : ""}>
+                    {formatDate(it.starts_at, tz)} · {formatTime(it.starts_at, tz)}
+                  </span>
+                  {it.current ? <Badge tone="blue">This one</Badge> : it.status === "cancelled" ? <Badge tone="red">Cancelled</Badge> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="mt-5 space-y-2.5">
           {!cancelled && !awaiting && (
             <a href={`/booking/${token}/ics`} className={buttonClass("glass", "lg", true, "w-full")}>
@@ -114,6 +140,7 @@ export default async function ManageBookingPage(props: PageProps<"/booking/[toke
             </Link>
           )}
           {canCancel && <CancelBooking token={token} />}
+          {canCancel && series && laterActive(series) > 1 && <CancelSeries token={token} count={laterActive(series)} />}
           {!canCancel && !cancelled && b.status === "confirmed" && (
             <p className="px-4 text-center text-[13px] text-label-3">
               Need to change something? {b.org.phone ? <>Call {b.org.name} at <a className="text-accent" href={`tel:${b.org.phone}`}>{b.org.phone}</a>.</> : `Contact ${b.org.name}.`}
@@ -130,6 +157,13 @@ export default async function ManageBookingPage(props: PageProps<"/booking/[toke
       {pendingPay && <meta httpEquiv="refresh" content="4" />}
     </div>
   );
+}
+
+/** How many appointments "cancel this and all later ones" would cancel, this one included. */
+function laterActive(series: { items: { starts_at: string; status: string; current: boolean }[] }) {
+  const here = series.items.find((i) => i.current);
+  if (!here) return 0;
+  return series.items.filter((i) => i.starts_at >= here.starts_at && ["confirmed", "pending_payment", "pending_approval"].includes(i.status)).length;
 }
 
 function isCancellable(b: PublicBooking) {

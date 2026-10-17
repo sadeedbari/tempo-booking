@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { TZDate } from "@date-fns/tz";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/auth";
 import { notifyBooking, sendInviteEmail } from "@/lib/notify";
@@ -19,7 +20,21 @@ import { withUnit } from "@/lib/address";
 import { dayKey } from "@/lib/format";
 import type { BookingStatus, Organization, OrgRole } from "@/lib/types";
 
-export type ActionResult = { ok?: boolean; error?: string; id?: string };
+export type ActionResult = {
+  ok?: boolean;
+  error?: string;
+  id?: string;
+  /** For a repeating appointment: how many dates were booked, and the dates that were skipped (with why). */
+  booked?: number;
+  skipped?: { startsAt: string; reason: string }[];
+};
+
+/** The same time of day `weeks` weeks later in the business's time zone, even across a clock change. */
+function addWeeksLocal(d: Date, weeks: number, timeZone: string) {
+  const local = new TZDate(d.getTime(), timeZone);
+  local.setDate(local.getDate() + weeks * 7);
+  return new Date(local.getTime());
+}
 
 async function ctxFor(slug: string, adminOnly = false) {
   const ctx = await getOrgContext(slug);
@@ -47,6 +62,7 @@ const serviceSchema = z.object({
   location_detail: z.string().trim().max(300).optional(),
   address_mode: z.enum(["off", "optional", "required"]).default("off"),
   auto_approve: z.boolean(),
+  allow_series: z.boolean(),
   active: z.boolean(),
 });
 
@@ -57,6 +73,7 @@ export async function saveService(slug: string, formData: FormData): Promise<Act
       ...Object.fromEntries(formData),
       active: formData.get("active") === "on",
       auto_approve: formData.get("auto_approve") === "on",
+      allow_series: formData.get("allow_series") === "on",
     });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const v = parsed.data;
@@ -79,6 +96,7 @@ export async function saveService(slug: string, formData: FormData): Promise<Act
       location_detail: v.location_detail || null,
       address_mode: v.address_mode,
       auto_approve: v.auto_approve,
+      allow_series: v.allow_series && v.auto_approve, // repeating appointments are confirmed automatically
       active: v.active,
     };
 
@@ -271,52 +289,147 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
 
     const start = new Date(v.starts_at);
     if (isNaN(start.getTime())) return { error: "Pick a valid date and time." };
-    const end = new Date(start.getTime() + service.duration_minutes * 60_000);
-    const blocked = new Date(end.getTime() + service.buffer_after_minutes * 60_000);
-    const notScheduled = await assertScheduled(org, isAdmin, v.member_id, start, end, v.location_id || null);
-    if (notScheduled) return { error: notScheduled };
 
-    const { data: booking, error } = await supabase
-      .from("bookings")
-      .insert({
-        org_id: org.id,
-        service_id: service.id,
-        member_id: v.member_id,
-        location_id: v.location_id || null,
-        customer_address: address,
-        ...(address && /^[A-Za-z0-9_-]{1,300}$/.test(String(formData.get("customer_address_place_id") ?? ""))
-          ? {
-              customer_address_place_id: String(formData.get("customer_address_place_id")),
-              customer_address_lat: coord(formData.get("customer_address_lat"), 90),
-              customer_address_lng: coord(formData.get("customer_address_lng"), 180),
-            }
-          : {}),
-        customer_id: customerId,
-        starts_at: start.toISOString(),
-        ends_at: end.toISOString(),
-        blocked_until: blocked.toISOString(),
-        status: "confirmed",
-        service_name: service.name,
-        notes: v.notes || null,
-        price_cents: service.price_cents,
-        deposit_cents: 0,
-        currency: org.currency,
-        source: "manual",
-        answers,
-        created_by: userData.user?.id,
-      })
-      .select("id")
-      .single();
-    if (error) return { error: friendly(error) };
+    // A repeating appointment: the same time every few weeks. Each date is checked and booked like a single one.
+    const repeatWeeks = Number(formData.get("repeat_weeks") || 0);
+    const repeatCount = Number(formData.get("repeat_count") || 0);
+    const series = Number.isInteger(repeatWeeks) && repeatWeeks >= 1 && repeatWeeks <= 4 && Number.isInteger(repeatCount) && repeatCount >= 2 && repeatCount <= 52 ? { weeks: repeatWeeks, count: repeatCount } : null;
+    if (repeatWeeks && !series) return { error: "Choose how often it repeats and how many times (2 to 52)." };
+    let seriesId: string | null = null;
+    if (series) {
+      const { data: row, error } = await supabase
+        .from("booking_series")
+        .insert({ org_id: org.id, customer_id: customerId, service_id: service.id, member_id: v.member_id, location_id: v.location_id || null, interval_weeks: series.weeks, count_requested: series.count, first_starts_at: start.toISOString(), source: "manual", created_by: userData.user?.id })
+        .select("id")
+        .single();
+      if (error) return { error: friendly(error) };
+      seriesId = row.id;
+    }
+    const dropSeries = async () => { if (seriesId) await supabase.from("booking_series").delete().eq("id", seriesId); };
 
-    await notifyBooking(booking.id, "confirmation", { by: userData.user?.id, customer: v.notify });
+    const placeFields =
+      address && /^[A-Za-z0-9_-]{1,300}$/.test(String(formData.get("customer_address_place_id") ?? ""))
+        ? {
+            customer_address_place_id: String(formData.get("customer_address_place_id")),
+            customer_address_lat: coord(formData.get("customer_address_lat"), 90),
+            customer_address_lng: coord(formData.get("customer_address_lng"), 180),
+          }
+        : {};
+    const booked: string[] = [];
+    const skipped: { startsAt: string; reason: string }[] = [];
+    for (let i = 0; i < (series?.count ?? 1); i++) {
+      const at = series ? addWeeksLocal(start, i * series.weeks, org.timezone) : start;
+      const end = new Date(at.getTime() + service.duration_minutes * 60_000);
+      const blocked = new Date(end.getTime() + service.buffer_after_minutes * 60_000);
+      const notScheduled = await assertScheduled(org, isAdmin, v.member_id, at, end, v.location_id || null);
+      let failure = notScheduled;
+      let bookingId: string | null = null;
+      if (!failure) {
+        const { data: booking, error } = await supabase
+          .from("bookings")
+          .insert({
+            org_id: org.id,
+            service_id: service.id,
+            member_id: v.member_id,
+            location_id: v.location_id || null,
+            customer_address: address,
+            ...placeFields,
+            customer_id: customerId,
+            starts_at: at.toISOString(),
+            ends_at: end.toISOString(),
+            blocked_until: blocked.toISOString(),
+            status: "confirmed",
+            service_name: service.name,
+            notes: v.notes || null,
+            price_cents: service.price_cents,
+            deposit_cents: 0,
+            currency: org.currency,
+            source: "manual",
+            answers,
+            series_id: seriesId,
+            series_index: series ? i : null,
+            created_by: userData.user?.id,
+          })
+          .select("id")
+          .single();
+        if (error) failure = friendly(error) ?? "That time couldn't be booked.";
+        else bookingId = booking.id;
+      }
+      if (bookingId) booked.push(bookingId);
+      else if (i === 0) { await dropSeries(); return { error: failure ?? "That time couldn't be booked." }; } // the first time has to work
+      else skipped.push({ startsAt: at.toISOString(), reason: failure ?? "Not available." });
+    }
+
+    // One confirmation for the whole series; it lists every date.
+    await notifyBooking(booked[0], "confirmation", { by: userData.user?.id, customer: v.notify });
     // A booking made from a website message answers it: mark that message handled.
     const fromInquiry = String(formData.get("inquiry_id") ?? "");
     if (/^[0-9a-f-]{36}$/i.test(fromInquiry)) {
       await supabase.from("inquiries").update({ status: "handled" }).eq("id", fromInquiry).eq("org_id", org.id).eq("status", "new");
     }
     refresh(slug);
-    return { ok: true, id: booking.id };
+    return { ok: true, id: booked[0], booked: booked.length, skipped };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+export interface SeriesSummary {
+  bookingId: string;
+  index: number;
+  total: number;
+  intervalWeeks: number;
+  /** Active appointments from this one onwards, this one included. */
+  later: number;
+}
+
+/** Where a booking sits in its repeating series ("2 of 6, every week"), or null if it isn't part of one. */
+export async function getSeriesSummary(slug: string, bookingId: string): Promise<SeriesSummary | null> {
+  try {
+    const { org } = await ctxFor(slug);
+    const supabase = await createClient();
+    const { data: b } = await supabase.from("bookings").select("series_id, starts_at").eq("id", bookingId).eq("org_id", org.id).single();
+    if (!b?.series_id) return null;
+    const [{ data: s }, { data: all }] = await Promise.all([
+      supabase.from("booking_series").select("interval_weeks").eq("id", b.series_id).single(),
+      supabase.from("bookings").select("starts_at, status").eq("series_id", b.series_id).eq("org_id", org.id).order("starts_at"),
+    ]);
+    if (!s || !all) return null;
+    const active = ["confirmed", "pending_payment", "pending_approval"];
+    return {
+      bookingId,
+      index: all.filter((x) => x.starts_at <= b.starts_at).length,
+      total: all.length,
+      intervalWeeks: s.interval_weeks as number,
+      later: all.filter((x) => x.starts_at >= b.starts_at && active.includes(x.status as string)).length,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Cancels this appointment and every later one in its series. The customer is told once. */
+export async function cancelSeriesFollowing(slug: string, bookingId: string, notify = true): Promise<ActionResult> {
+  try {
+    const { org } = await ctxFor(slug);
+    const supabase = await createClient();
+    const { data: userData } = await supabase.auth.getUser();
+    const { data: b } = await supabase.from("bookings").select("series_id, starts_at").eq("id", bookingId).eq("org_id", org.id).single();
+    if (!b?.series_id) return { error: "This booking isn't part of a repeating series." };
+    const { data: cancelled, error } = await supabase
+      .from("bookings")
+      .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+      .eq("series_id", b.series_id)
+      .eq("org_id", org.id)
+      .gte("starts_at", b.starts_at)
+      .in("status", ["confirmed", "pending_payment", "pending_approval"])
+      .select("id");
+    if (error) return { error: friendly(error) };
+    const ids = (cancelled ?? []).map((c) => c.id as string);
+    for (const id of ids) if (id !== bookingId) await syncBookingCalendar(id);
+    await notifyBooking(bookingId, "cancellation", { by: userData.user?.id, customer: notify });
+    refresh(slug);
+    return { ok: true, booked: ids.length };
   } catch (e) {
     return { error: (e as Error).message };
   }

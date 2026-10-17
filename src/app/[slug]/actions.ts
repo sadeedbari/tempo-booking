@@ -26,9 +26,23 @@ export async function getWindow(orgId: string, from: string, to: string, fromDay
   return { busy: (busy.data ?? []) as BusyInterval[], shifts: (shifts.data ?? []) as PublicShift[] };
 }
 
+/** Dates of a repeating appointment that couldn't be booked, with the reason in plain words. */
+export interface SkippedDate {
+  startsAt: string;
+  reason: string;
+}
+
 export type BookResult =
-  | { ok: true; token: string; checkoutUrl?: string }
+  | { ok: true; token: string; checkoutUrl?: string; series?: { booked: number; skipped: SkippedDate[] } }
   | { ok: false; error: string };
+
+/** How a repeating appointment repeats: every N weeks, this many times in all (the first one included). */
+export interface SeriesInput {
+  intervalWeeks: number;
+  count: number;
+}
+
+const wholeNumber = (n: unknown, min: number, max: number) => (typeof n === "number" && Number.isInteger(n) && n >= min && n <= max ? n : null);
 
 /** Only plain text and lists of text go to the database, which checks them against the real questions. */
 function cleanAnswers(a: Record<string, string | string[]> | undefined) {
@@ -62,6 +76,8 @@ export async function book(input: {
   smsConsent?: boolean;
   /** Answers to the service's intake questions: question id to text, or a list of choices. */
   answers?: Record<string, string | string[]>;
+  /** Book the same time again every few weeks. */
+  series?: SeriesInput;
   notes: string;
 }): Promise<BookResult> {
   // Pull the latest personal-calendar events so a just-added event blocks this slot.
@@ -78,7 +94,10 @@ export async function book(input: {
     if (!normalized) return { ok: false, error: "That phone number doesn't look right. Include the area code, or leave it blank." };
     phone = normalized;
   }
-  const { data, error } = await supabase.rpc("create_public_booking", {
+  const series = input.series ? { interval: wholeNumber(input.series.intervalWeeks, 1, 4), count: wholeNumber(input.series.count, 2, 26) } : null;
+  if (series && (!series.interval || !series.count)) return { ok: false, error: "Please choose how often it repeats and how many times." };
+  const { data, error } = await supabase.rpc(series ? "create_public_booking_series" : "create_public_booking", {
+    ...(series ? { p_interval_weeks: series.interval, p_count: series.count } : {}),
     p_org: input.orgId,
     p_service: input.serviceId,
     p_member: input.memberId,
@@ -97,7 +116,10 @@ export async function book(input: {
     console.error("[book] unexpected database error:", error.code, error.message);
     return { ok: false, error: "Something went wrong while booking. Please try again in a moment." };
   }
-  const b = data as { id: string; manage_token: string; status: string };
+  // A series comes back as a list; its first date is the one the customer's confirmation and manage link are about.
+  const seriesResult = series ? (data as { booked: { id: string; manage_token: string; status: string }[]; skipped: { starts_at: string; reason: string }[] }) : null;
+  const b = seriesResult ? seriesResult.booked[0] : (data as { id: string; manage_token: string; status: string });
+  const bookedIds = seriesResult ? seriesResult.booked.map((x) => x.id) : [b.id];
 
   // Remember the exact place when the address came from the suggestion list.
   const place = input.addressPlace;
@@ -107,7 +129,7 @@ export async function book(input: {
       await createAdminClient()
         .from("bookings")
         .update({ customer_address_place_id: place.placeId, customer_address_lat: ok(place.lat, 90), customer_address_lng: ok(place.lng, 180) })
-        .eq("id", b.id);
+        .in("id", bookedIds);
     } catch (e) {
       console.error("[address] couldn't save the place", (e as Error).message);
     }
@@ -187,6 +209,60 @@ export async function book(input: {
     }
   }
 
+  // One confirmation for the whole series: it lists every date.
   await notifyBooking(b.id, b.status === "pending_approval" ? "request" : "confirmation");
-  return { ok: true, token: b.manage_token };
+  return {
+    ok: true,
+    token: b.manage_token,
+    ...(seriesResult ? { series: { booked: seriesResult.booked.length, skipped: seriesResult.skipped.map((s) => ({ startsAt: s.starts_at, reason: s.reason })) } } : {}),
+  };
+}
+
+export type SeriesPreview =
+  | { ok: true; dates: { startsAt: string; available: boolean; reason?: string }[] }
+  | { ok: false; error: string };
+
+/**
+ * Which dates of a repeating appointment are free, checked with exactly the rules a real booking uses.
+ * Nothing is booked: the database rolls the trial back.
+ */
+export async function previewSeries(input: {
+  orgId: string;
+  serviceId: string;
+  memberId: string | null;
+  locationId: string | null;
+  startsAt: string;
+  series: SeriesInput;
+}): Promise<SeriesPreview> {
+  const interval = wholeNumber(input.series?.intervalWeeks, 1, 4);
+  const count = wholeNumber(input.series?.count, 2, 26);
+  if (!interval || !count || !Number.isFinite(new Date(input.startsAt).getTime())) return { ok: false, error: "Please choose how often it repeats and how many times." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_public_booking_series", {
+    p_org: input.orgId,
+    p_service: input.serviceId,
+    p_member: input.memberId,
+    p_starts_at: input.startsAt,
+    p_name: "Preview",
+    p_email: "preview@example.com",
+    p_phone: "",
+    p_notes: "",
+    p_location: input.locationId,
+    p_address: "",
+    p_answers: null,
+    p_interval_weeks: interval,
+    p_count: count,
+    p_dry_run: true,
+  });
+  if (error) {
+    if (error.code === "P0001") return { ok: false, error: error.message };
+    console.error("[series] preview failed:", error.code, error.message);
+    return { ok: false, error: "We couldn't check the dates just now. Please try again." };
+  }
+  const r = data as { booked: { starts_at: string }[]; skipped: { starts_at: string; reason: string }[] };
+  const dates = [
+    ...r.booked.map((x) => ({ startsAt: x.starts_at, available: true as boolean, reason: undefined as string | undefined })),
+    ...r.skipped.map((x) => ({ startsAt: x.starts_at, available: false as boolean, reason: x.reason })),
+  ].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  return { ok: true, dates };
 }

@@ -1,19 +1,19 @@
 "use client";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, Calendar, ChevronRight, Clock, Globe, MapPin, Phone, Video, Users,
+  ArrowLeft, Calendar, Check, ChevronRight, Clock, Globe, MapPin, Phone, Repeat, Video, Users, X,
 } from "lucide-react";
 import { Avatar, Notice } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
-import { Field, Input, Textarea } from "@/components/ui/input";
+import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { LogoMark } from "@/components/app/logo";
 import { cn } from "@/lib/utils";
 import { formatDate, formatDuration, formatMoney, formatTime, timeZoneLabel } from "@/lib/format";
 import { eligibleMembers, type Slot } from "@/lib/slots";
 import type { PublicOrg, PublicService } from "@/lib/types";
-import { book, getWindow } from "@/app/[slug]/actions";
+import { book, getWindow, previewSeries, type SeriesPreview } from "@/app/[slug]/actions";
 import { TimePicker } from "./time-picker";
 import { collectAnswers, IntakeFields } from "./intake-fields";
 import { AddressInput } from "@/components/ui/address-input";
@@ -62,7 +62,14 @@ export function BookingFlow({
   const [error, setError] = useState<string | null>(null);
   const [hasPhone, setHasPhone] = useState(false);
   const [pending, start] = useTransition();
+  // Repeating appointment: 0 = it doesn't repeat; otherwise every N weeks, this many times.
+  const [repeatWeeks, setRepeatWeeks] = useState(0);
+  const [repeatCount, setRepeatCount] = useState(4);
+  const [preview, setPreview] = useState<SeriesPreview | "loading" | null>(null);
+  const previewSeq = useRef(0);
 
+  // Repeating is offered only for services that are confirmed automatically and have no online deposit.
+  const canRepeat = !!service && service.allow_series && service.auto_approve && !(service.deposit_cents > 0 && org.payments_enabled);
   const eligible = useMemo(() => eligibleFor(service), [service, allStaffIds]); // eslint-disable-line react-hooks/exhaustive-deps
   const eligibleStaff = staff.filter((s) => eligible.includes(s.id));
 
@@ -74,6 +81,23 @@ export function BookingFlow({
     setSlot(null);
     setMemberId(service && el.length === 1 ? el[0] : null);
     setStep(service ? (el.length > 1 ? "staff" : "time") : "service");
+  }
+
+  /** Changes how the appointment repeats and checks, with the real booking rules, which dates are free. */
+  function chooseRepeat(weeks: number, count: number) {
+    setRepeatWeeks(weeks);
+    setRepeatCount(count);
+    const seq = ++previewSeq.current;
+    if (!weeks || !service || !slot) { setPreview(null); return; }
+    setPreview("loading");
+    previewSeries({
+      orgId: org.id,
+      serviceId: service.id,
+      memberId: memberId ?? (slot.memberIds.length === 1 ? slot.memberIds[0] : null),
+      locationId,
+      startsAt: slot.start,
+      series: { intervalWeeks: weeks, count },
+    }).then((r) => { if (seq === previewSeq.current) setPreview(r); });
   }
 
   function chooseService(s: PublicService) {
@@ -113,6 +137,7 @@ export function BookingFlow({
           ? { placeId: String(fd.get("address_place_id")), lat: fd.get("address_lat") ? Number(fd.get("address_lat")) : null, lng: fd.get("address_lng") ? Number(fd.get("address_lng")) : null }
           : undefined,
         smsConsent: fd.get("sms_consent") === "on",
+        series: repeatWeeks ? { intervalWeeks: repeatWeeks, count: repeatCount } : undefined,
         answers: collectAnswers(service.questions ?? [], fd),
         notes: String(fd.get("notes") || ""),
       });
@@ -129,7 +154,7 @@ export function BookingFlow({
       if (r.checkoutUrl) {
         if (embed) window.parent.postMessage({ type: "tempo:redirect", url: r.checkoutUrl }, "*");
         else window.location.href = r.checkoutUrl;
-      } else router.push(`/booking/${r.token}?new=1${embed ? "&embed=1" : ""}`);
+      } else router.push(`/booking/${r.token}?new=1${r.series?.skipped.length ? `&skipped=${r.series.skipped.length}` : ""}${embed ? "&embed=1" : ""}`);
     });
   }
 
@@ -291,6 +316,9 @@ export function BookingFlow({
                 onPick={(s) => {
                   setSlot(s);
                   setError(null);
+                  setRepeatWeeks(0);
+                  setPreview(null);
+                  previewSeq.current++;
                   setStep("details");
                 }}
               />
@@ -330,6 +358,46 @@ export function BookingFlow({
                       <Input name="unit" autoComplete="address-line2" maxLength={30} placeholder="e.g. Apt 4B" />
                     </Field>
                   )}
+                  {canRepeat && (
+                    <div className="space-y-3 rounded-[14px] bg-surface-2 p-4 sm:col-span-2" data-testid="repeat-options">
+                      <div className="flex items-center gap-2 text-[14px] font-medium"><Repeat className="size-4" /> Repeat this appointment</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Select aria-label="How often" value={repeatWeeks} onChange={(e) => chooseRepeat(Number(e.target.value), repeatCount)} className="bg-surface">
+                          <option value={0}>Doesn&apos;t repeat</option>
+                          <option value={1}>Every week</option>
+                          <option value={2}>Every 2 weeks</option>
+                          <option value={3}>Every 3 weeks</option>
+                          <option value={4}>Every 4 weeks</option>
+                        </Select>
+                        <Select aria-label="How many appointments" value={repeatCount} disabled={!repeatWeeks} onChange={(e) => chooseRepeat(repeatWeeks, Number(e.target.value))} className="bg-surface">
+                          {Array.from({ length: 25 }, (_, i) => i + 2).map((n) => <option key={n} value={n}>{n} appointments</option>)}
+                        </Select>
+                      </div>
+                      {repeatWeeks > 0 && preview === "loading" && <p className="text-[13px] text-label-2" role="status">Checking the dates…</p>}
+                      {repeatWeeks > 0 && preview && preview !== "loading" && (
+                        preview.ok ? (
+                          <div className="space-y-2" role="status">
+                            <ul className="space-y-1" aria-label="Dates">
+                              {preview.dates.map((d) => (
+                                <li key={d.startsAt} className={cn("flex items-start gap-2 text-[14px]", !d.available && "text-label-3")}>
+                                  {d.available ? <Check className="mt-0.5 size-4 shrink-0 text-green" /> : <X className="mt-0.5 size-4 shrink-0 text-red" />}
+                                  <span>
+                                    {formatDate(d.startsAt, tz)} at {formatTime(d.startsAt, tz)}
+                                    {!d.available && <span className="block text-[12px]">Not available, so it will be skipped.</span>}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                            {preview.dates.some((d) => !d.available) && (
+                              <p className="text-[12px] text-label-2">{preview.dates.filter((d) => d.available).length} of {preview.dates.length} dates are available. The others are skipped, and you can book those separately.</p>
+                            )}
+                          </div>
+                        ) : (
+                          <Notice>{preview.error}</Notice>
+                        )
+                      )}
+                    </div>
+                  )}
                   <IntakeFields questions={service.questions ?? []} />
                   <Field label="Anything we should know?" className="sm:col-span-2"><Textarea name="notes" className="min-h-20" /></Field>
                 </div>
@@ -337,7 +405,7 @@ export function BookingFlow({
                 <Button type="submit" size="lg" pill className="w-full" loading={pending}>
                   {service.deposit_cents > 0 && org.payments_enabled
                     ? `Continue to pay ${formatMoney(service.deposit_cents, org.currency)} deposit`
-                    : !service.auto_approve ? "Request booking" : "Confirm booking"}
+                    : !service.auto_approve ? "Request booking" : repeatWeeks > 0 ? `Confirm ${preview && preview !== "loading" && preview.ok ? preview.dates.filter((d) => d.available).length : repeatCount} appointments` : "Confirm booking"}
                 </Button>
                 {!service.auto_approve && (
                   <p className="text-center text-[12px] text-label-3">

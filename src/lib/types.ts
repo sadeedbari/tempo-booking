@@ -80,6 +80,8 @@ export interface Service {
   address_mode: AddressMode;
   /** true: online bookings are confirmed automatically; false: they arrive as requests to approve. */
   auto_approve: boolean;
+  /** Customers may book this service as a repeating series online. */
+  allow_series: boolean;
   active: boolean;
   /** Offered in the website contact form's service list. */
   contact_form: boolean;
@@ -156,6 +158,9 @@ export interface Booking {
   cancel_reason: string | null;
   /** Intake answers, if the service asks questions. */
   answers?: BookingAnswer[] | null;
+  /** Set when this booking is one date of a repeating series. */
+  series_id?: string | null;
+  series_index?: number | null;
   customer?: Pick<Customer, "id" | "name" | "email" | "phone"> | null;
 }
 
@@ -208,6 +213,7 @@ export interface PublicService {
   location_type: LocationType;
   address_mode: AddressMode;
   auto_approve: boolean;
+  allow_series: boolean;
   staff_ids: string[];
   questions: ServiceQuestion[];
 }

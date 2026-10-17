@@ -108,6 +108,8 @@ function ServiceEditor({
   const [selectedStaff, setSelectedStaff] = useState<string[]>(staff);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [drafts, setDrafts] = useState<DraftQuestion[]>(() => toDrafts(questions));
+  const [autoApprove, setAutoApprove] = useState(service.auto_approve ?? true);
+  const [deposit, setDeposit] = useState(service.deposit_cents ?? 0);
 
   const submit = (fd: FormData) => {
     fd.set("questions", serializeDrafts(drafts));
@@ -158,7 +160,7 @@ function ServiceEditor({
             <Input name="price" type="number" min={0} step="0.01" defaultValue={(service.price_cents ?? 0) / 100} />
           </Field>
           <Field label="Deposit" hint={org.stripe_charges_enabled ? "Charged when booking." : "Connect Stripe to collect."}>
-            <Input name="deposit" type="number" min={0} step="0.01" defaultValue={(service.deposit_cents ?? 0) / 100} />
+            <Input name="deposit" type="number" min={0} step="0.01" defaultValue={(service.deposit_cents ?? 0) / 100} onChange={(e) => setDeposit(Math.round(Number(e.target.value) * 100) || 0)} />
           </Field>
         </div>
 
@@ -214,7 +216,19 @@ function ServiceEditor({
             <div className="text-[15px] font-medium">Automatically approve bookings</div>
             <div className="text-[13px] text-label-2">Off: each online booking arrives as a request that you confirm or reject.</div>
           </div>
-          <Switch name="auto_approve" defaultChecked={service.auto_approve ?? true} label="Automatically approve bookings" />
+          <Switch name="auto_approve" defaultChecked={service.auto_approve ?? true} onChange={setAutoApprove} label="Automatically approve bookings" />
+        </div>
+
+        <div className="flex items-center justify-between gap-4 rounded-[12px] bg-surface-2 px-4 py-3">
+          <div>
+            <div className="text-[15px] font-medium">Customers can book repeating appointments</div>
+            <div className="text-[13px] text-label-2">
+              Lets a customer book the same time every 1 to 4 weeks, up to 26 times, in one go.
+              {!autoApprove && " Needs automatic approval."}
+              {autoApprove && deposit > 0 && org.stripe_charges_enabled && " Not offered online while a deposit is charged."}
+            </div>
+          </div>
+          <Switch name="allow_series" defaultChecked={service.allow_series ?? false} disabled={!autoApprove} label="Customers can book repeating appointments" />
         </div>
 
         <div className="flex items-center justify-between rounded-[12px] bg-surface-2 px-4 py-3">
