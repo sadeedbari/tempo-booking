@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { CalendarClock, Mail, MapPin, Phone, StickyNote, User, CreditCard, CheckCircle2, UserX, XCircle } from "lucide-react";
+import { CalendarClock, ClipboardList, Mail, MapPin, Phone, StickyNote, User, CreditCard, CheckCircle2, UserX, XCircle } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
@@ -111,6 +111,20 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
           />
           {booking.notes && <Row icon={<StickyNote />} label={booking.notes} />}
         </div>
+
+        {booking.answers && booking.answers.length > 0 && (
+          <div className="space-y-2.5 rounded-[14px] bg-surface-2 p-4" data-testid="booking-answers">
+            <div className="flex items-center gap-2 text-[13px] font-medium text-label-2"><ClipboardList className="size-4" /> Customer&apos;s answers</div>
+            <dl className="space-y-2.5">
+              {booking.answers.map((a) => (
+                <div key={a.id}>
+                  <dt className="text-[13px] text-label-2">{a.label}</dt>
+                  <dd className="whitespace-pre-wrap break-words text-[15px]">{Array.isArray(a.value) ? a.value.join(", ") : a.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
 
         {awaiting && (
           <div className="space-y-2 rounded-[14px] bg-surface-2 p-4 animate-fade">

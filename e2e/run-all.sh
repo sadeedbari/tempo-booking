@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 out="${1:-e2e-results.txt}"
 : > "$out"
 echo "== API tests" >> "$out"
-node e2e/seed.mjs >/dev/null && node --test e2e/api/booking.test.mjs e2e/api/permissions.test.mjs e2e/api/inquiries.test.mjs >> "$out" 2>&1
+node e2e/seed.mjs >/dev/null && node --test e2e/api/booking.test.mjs e2e/api/permissions.test.mjs e2e/api/inquiries.test.mjs e2e/api/intake.test.mjs >> "$out" 2>&1
 node e2e/seed.mjs >/dev/null && node --test e2e/api/system.test.mjs >> "$out" 2>&1
 for spec in e2e/specs/[0-9]*.spec.ts; do
   echo "== $spec" >> "$out"

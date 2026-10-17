@@ -154,6 +154,8 @@ export interface Booking {
   source: "online" | "manual";
   created_at: string;
   cancel_reason: string | null;
+  /** Intake answers, if the service asks questions. */
+  answers?: BookingAnswer[] | null;
   customer?: Pick<Customer, "id" | "name" | "email" | "phone"> | null;
 }
 
@@ -171,6 +173,27 @@ export interface Invitation {
 }
 
 /* Public booking page payload (get_public_org RPC) */
+export type QuestionType = "text" | "paragraph" | "choice" | "multi" | "yes_no" | "agree" | "date";
+
+/** An intake question a business asks when booking a service. */
+export interface ServiceQuestion {
+  id: string;
+  label: string;
+  help_text: string | null;
+  type: QuestionType;
+  /** The choices of a "choice" or "multi" question. */
+  options: string[];
+  required: boolean;
+}
+
+/** One answer as it was asked and given (a snapshot kept on the booking). */
+export interface BookingAnswer {
+  id: string;
+  label: string;
+  type: QuestionType;
+  value: string | string[];
+}
+
 export interface PublicService {
   id: string;
   name: string;
@@ -186,6 +209,7 @@ export interface PublicService {
   address_mode: AddressMode;
   auto_approve: boolean;
   staff_ids: string[];
+  questions: ServiceQuestion[];
 }
 
 export interface PublicStaff {

@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarCheck, Search } from "lucide-react";
+import { CalendarCheck, ClipboardList, Search } from "lucide-react";
 import { PageHeader, EmptyState, Badge, statusTone, Avatar } from "@/components/ui/misc";
 import { Segmented } from "@/components/ui/segmented";
 import { Input } from "@/components/ui/input";
@@ -69,7 +69,10 @@ export function BookingsList({
                       <span className="h-10 w-1 shrink-0 rounded-full" style={{ background: svc?.color ?? "#8E8E93" }} />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[15px] font-medium">{b.customer?.name ?? "Customer"}</div>
-                        <div className="truncate text-[13px] text-label-2">{b.service_name}</div>
+                        <div className="flex items-center gap-1.5 truncate text-[13px] text-label-2">
+                          {b.service_name}
+                          {b.answers && b.answers.length > 0 && <ClipboardList className="size-3.5 shrink-0 text-label-3" aria-label="Has intake answers" />}
+                        </div>
                       </div>
                       {m && (
                         <div className="hidden items-center gap-2 sm:flex">

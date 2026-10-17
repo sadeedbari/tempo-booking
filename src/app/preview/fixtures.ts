@@ -1,7 +1,7 @@
 import { addDaysToKey, weekdayOfKey } from "@/lib/format";
 import type { DBooking } from "@/lib/dashboard";
 import { TZDate } from "@date-fns/tz";
-import type { Booking, Membership, Organization, Service, AvailabilityRule, Customer, PublicOrg } from "@/lib/types";
+import type { Booking, Membership, Organization, Service, AvailabilityRule, Customer, PublicOrg, ServiceQuestion } from "@/lib/types";
 export const tz = "America/Toronto";
 export const org: Organization = { id: "o1", name: "Lumen Studio", slug: "lumen", description: "Hair, skin and wellness in the heart of Toronto. Book with any of our specialists.", timezone: tz, currency: "CAD", accent_color: "#007AFF", logo_url: null, address: "214 Queen St W, Toronto", phone: "416-555-0199", website: null, min_notice_minutes: 60, max_advance_days: 60, slot_interval_minutes: 15, cancellation_window_hours: 24, reminder_hours_before: 24, schedule_mode: "availability", notify_push: true, inquiries_enabled: true, inquiry_notify_email: null, inquiry_success_message: null, stripe_account_id: null, stripe_charges_enabled: true };
 const m = (id: string, name: string, color: string, role: Membership["role"], title: string): Membership => ({ id, org_id: "o1", user_id: id, email: null, role, display_name: name, title, color, bookable: true, created_at: "" });
@@ -15,7 +15,16 @@ export function bookings(day: string): Booking[] {
   const b = (id: string, mid: string, svc: Service, h: number, mi: number, ci: number, status: Booking["status"] = "confirmed"): Booking => ({ id, org_id: "o1", service_id: svc.id, member_id: mid, location_id: null, customer_address: null, customer_address_place_id: null, customer_address_lat: null, customer_address_lng: null, customer_id: `c${ci}`, starts_at: at(day, h, mi), ends_at: new Date(new Date(at(day, h, mi)).getTime() + svc.duration_minutes * 60000).toISOString(), blocked_until: "", status, service_name: svc.name, notes: null, price_cents: svc.price_cents, deposit_cents: svc.deposit_cents, currency: "CAD", payment_status: "none", source: "online", created_at: "", cancel_reason: null, customer: customers[ci] });
   return [b("b1", "m1", services[0], 9, 0, 0), b("b2", "m1", services[1], 11, 30, 1), b("b3", "m1", services[0], 15, 0, 2), b("b4", "m2", services[2], 9, 30, 3), b("b5", "m2", services[2], 13, 0, 4), b("b6", "m3", services[3], 10, 0, 5), b("b7", "m3", services[4], 12, 0, 0, "pending_payment"), b("b8", "m3", services[3], 14, 30, 2)];
 }
-export const publicData: PublicOrg = { org: { ...org, payments_enabled: true }, services: services.map((x) => ({ ...x, staff_ids: [] })), locations: [{ id: "l1", name: "Queen West", address: "214 Queen St W, Toronto", phone: null, staff_ids: [] }, { id: "l2", name: "Leslieville", address: "1120 Queen St E, Toronto", phone: null, staff_ids: [] }], staff: members.map((x) => ({ id: x.id, display_name: x.display_name, title: x.title, color: x.color, avatar_url: null })), availability: rules };
+/** Sample intake questions (every type) so the booking form can be viewed with them. */
+const sampleQuestions: ServiceQuestion[] = [
+  { id: "00000000-0000-4000-8000-000000000001", label: "Do you have any allergies?", help_text: "For example products, fragrances or latex.", type: "paragraph", options: [], required: false },
+  { id: "00000000-0000-4000-8000-000000000002", label: "Skin type", help_text: null, type: "choice", options: ["Dry", "Oily", "Combination", "Not sure"], required: true },
+  { id: "00000000-0000-4000-8000-000000000003", label: "Areas to treat", help_text: null, type: "multi", options: ["Face", "Neck", "Back"], required: false },
+  { id: "00000000-0000-4000-8000-000000000004", label: "Is this your first visit?", help_text: null, type: "yes_no", options: [], required: true },
+  { id: "00000000-0000-4000-8000-000000000005", label: "I accept the cancellation policy", help_text: null, type: "agree", options: [], required: true },
+];
+
+export const publicData: PublicOrg = { org: { ...org, payments_enabled: true }, services: services.map((x, i) => ({ ...x, staff_ids: [], questions: i === 0 ? sampleQuestions : [] })), locations: [{ id: "l1", name: "Queen West", address: "214 Queen St W, Toronto", phone: null, staff_ids: [] }, { id: "l2", name: "Leslieville", address: "1120 Queen St E, Toronto", phone: null, staff_ids: [] }], staff: members.map((x) => ({ id: x.id, display_name: x.display_name, title: x.title, color: x.color, avatar_url: null })), availability: rules };
 
 /** ~70 days of history plus the coming week for the dashboard preview, generated deterministically. */
 export function dashboardSample(day: string) {

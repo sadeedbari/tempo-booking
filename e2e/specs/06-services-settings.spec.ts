@@ -37,7 +37,8 @@ test.describe("services", () => {
     await page.getByRole("switch", { name: "Automatically approve bookings" }).click();
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await expect(page.getByText("Needs approval")).toBeVisible();
+    // (the seeded Home visit also needs approval, so look inside this service's own card)
+    await expect(page.getByRole("heading", { name: "E2E Deep Clean" }).locator("xpath=ancestor::div[contains(@class,'group')][1]").getByText("Needs approval")).toBeVisible();
     svc = (await publicServices()).find((s) => s.name === "E2E Deep Clean");
     expect(svc!.price_cents).toBe(9900);
     expect(svc!.auto_approve).toBe(false);

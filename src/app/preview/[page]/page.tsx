@@ -69,7 +69,7 @@ export default async function Preview(props: PageProps<"/preview/[page]">) {
     );
     return shell(<ScheduleView slug="lumen" org={org} period={period} start={start} days={days} today={day} members={members} meId="m1" isAdmin={sp.as !== "staff"} shifts={shifts} locations={[{ id: "l1", org_id: "o1", name: "Queen West", address: null, phone: null, active: true, position: 0 }, { id: "l2", org_id: "o1", name: "Leslieville", address: null, phone: null, active: true, position: 1 }]} locationStaff={{}} locationId={typeof sp.location === "string" ? sp.location : "all"} />);
   }
-  if (page === "services") return shell(<ServicesView slug="lumen" org={org} services={services} staffMap={{}} members={members} canEdit />);
+  if (page === "services") return shell(<ServicesView slug="lumen" org={org} services={services} staffMap={{}} questionMap={{}} members={members} canEdit />);
   if (page === "team") return shell(<TeamView slug="lumen" members={[...members, { ...members[2], id: "m4", user_id: null, email: "priya@lumen.studio", display_name: "Priya Shah", title: null, color: "#FF9500" }, { ...members[2], id: "m5", user_id: null, email: null, display_name: "Sam Ortiz", title: "Front desk", color: "#FF2D55" }]} me={members[0]} isAdmin invites={[{ id: "i1", org_id: "o1", member_id: "m4", email: "priya@lumen.studio", role: "member", token: "t", accepted_at: null, expires_at: "2026-10-19T12:00:00Z", created_at: "" }]} emails={{}} />);
   if (page === "availability") return shell(<AvailabilityView slug="lumen" org={org} members={members} memberId="m1" rules={rules.filter((r) => r.member_id === "m1")} timeOff={[]} />);
   return null;

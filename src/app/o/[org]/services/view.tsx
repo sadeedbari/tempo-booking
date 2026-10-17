@@ -10,16 +10,17 @@ import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { cn, PALETTE } from "@/lib/utils";
 import { formatDuration, formatMoney } from "@/lib/format";
-import type { LocationType, Membership, Organization, Service, ServiceKind } from "@/lib/types";
+import type { LocationType, Membership, Organization, Service, ServiceKind, ServiceQuestion } from "@/lib/types";
+import { QuestionsEditor, serializeDrafts, toDrafts, type DraftQuestion } from "./questions-editor";
 import { deleteService, saveService } from "../actions";
 
 const DURATIONS = [5, 10, 15, 20, 30, 45, 60, 75, 90, 105, 120, 150, 180, 240, 300, 360, 480];
 const LOC_ICON = { in_person: MapPin, video: Video, phone: Phone };
 
 export function ServicesView({
-  slug, org, services, staffMap, members, canEdit,
+  slug, org, services, staffMap, questionMap, members, canEdit,
 }: {
-  slug: string; org: Organization; services: Service[]; staffMap: Record<string, string[]>; members: Membership[]; canEdit: boolean;
+  slug: string; org: Organization; services: Service[]; staffMap: Record<string, string[]>; questionMap: Record<string, ServiceQuestion[]>; members: Membership[]; canEdit: boolean;
 }) {
   const [editing, setEditing] = useState<Partial<Service> | null>(null);
   const toast = useToast();
@@ -82,6 +83,8 @@ export function ServicesView({
           org={org}
           service={editing}
           staff={editing.id ? staffMap[editing.id] ?? [] : []}
+          questions={editing.id ? questionMap[editing.id] ?? [] : []}
+          others={services.filter((s) => s.id !== editing.id).map((s) => ({ id: s.id, name: s.name, questions: questionMap[s.id] ?? [] }))}
           members={members}
           onClose={() => setEditing(null)}
         />
@@ -91,9 +94,9 @@ export function ServicesView({
 }
 
 function ServiceEditor({
-  slug, org, service, staff, members, onClose,
+  slug, org, service, staff, questions, others, members, onClose,
 }: {
-  slug: string; org: Organization; service: Partial<Service>; staff: string[]; members: Membership[]; onClose: () => void;
+  slug: string; org: Organization; service: Partial<Service>; staff: string[]; questions: ServiceQuestion[]; others: { id: string; name: string; questions: ServiceQuestion[] }[]; members: Membership[]; onClose: () => void;
 }) {
   const toast = useToast();
   const [pending, start] = useTransition();
@@ -103,8 +106,10 @@ function ServiceEditor({
   const [color, setColor] = useState(service.color ?? PALETTE[0]);
   const [selectedStaff, setSelectedStaff] = useState<string[]>(staff);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [drafts, setDrafts] = useState<DraftQuestion[]>(() => toDrafts(questions));
 
   const submit = (fd: FormData) => {
+    fd.set("questions", serializeDrafts(drafts));
     fd.set("kind", kind);
     fd.set("location_type", loc);
     fd.set("color", color);
@@ -200,6 +205,8 @@ function ServiceEditor({
             })}
           </div>
         </div>
+
+        <QuestionsEditor value={drafts} onChange={setDrafts} others={others} />
 
         <div className="flex items-center justify-between gap-4 rounded-[12px] bg-surface-2 px-4 py-3">
           <div>

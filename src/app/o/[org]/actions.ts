@@ -99,6 +99,13 @@ export async function saveService(slug: string, formData: FormData): Promise<Act
       id = data.id;
     }
 
+    // Intake questions (only touched when the form sent them).
+    const rawQuestions = formData.get("questions");
+    if (typeof rawQuestions === "string") {
+      const qr = await syncQuestions(supabase, org.id, id, rawQuestions);
+      if (qr.error) return qr;
+    }
+
     // Staff assignment — empty means "anyone on the team".
     const staff = formData.getAll("staff").map(String);
     await supabase.from("service_staff").delete().eq("service_id", id);
@@ -112,6 +119,59 @@ export async function saveService(slug: string, formData: FormData): Promise<Act
   } catch (e) {
     return { error: (e as Error).message };
   }
+}
+
+const questionSchema = z.object({
+  id: z.string().uuid().optional().or(z.literal("")).or(z.null()),
+  label: z.string().trim().min(1, "Give every question some text.").max(200, "Keep each question under 200 characters."),
+  help_text: z.string().trim().max(300, "Keep help text under 300 characters.").optional().or(z.null()),
+  type: z.enum(["text", "paragraph", "choice", "multi", "yes_no", "agree", "date"]),
+  options: z.array(z.string().trim().min(1).max(80, "Keep each choice under 80 characters.")).max(12, "A question can have at most 12 choices.").default([]),
+  required: z.boolean().default(false),
+});
+
+/** Makes a service's questions match the list the editor sent, keeping the ids of questions that still exist. */
+async function syncQuestions(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string, serviceId: string, raw: string): Promise<ActionResult> {
+  let list: unknown;
+  try { list = JSON.parse(raw); } catch { return { error: "Your questions couldn't be read. Please try again." }; }
+  const parsed = z.array(questionSchema).max(12, "A service can have at most 12 questions.").safeParse(list);
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const questions = parsed.data;
+  for (const [i, q] of questions.entries()) {
+    if (q.type === "choice" || q.type === "multi") {
+      const distinct = new Set(q.options.map((o) => o.toLowerCase()));
+      if (distinct.size !== q.options.length) return { error: `Question ${i + 1}: each choice must be different.` };
+      if (q.options.length < 2) return { error: `Question ${i + 1}: add at least two choices.` };
+    }
+  }
+
+  const { data: current } = await supabase.from("service_questions").select("id").eq("service_id", serviceId).eq("org_id", orgId);
+  const have = new Set((current ?? []).map((c) => c.id as string));
+  const keep = new Set(questions.map((q) => q.id).filter((x): x is string => !!x && have.has(x)));
+
+  const removed = [...have].filter((x) => !keep.has(x));
+  if (removed.length) {
+    const { error } = await supabase.from("service_questions").delete().in("id", removed).eq("org_id", orgId);
+    if (error) return { error: friendly(error) };
+  }
+  for (const [position, q] of questions.entries()) {
+    const row = {
+      label: q.label,
+      help_text: q.help_text || null,
+      type: q.type,
+      options: q.type === "choice" || q.type === "multi" ? q.options : [],
+      required: q.required,
+      position,
+    };
+    if (q.id && keep.has(q.id)) {
+      const { error } = await supabase.from("service_questions").update(row).eq("id", q.id).eq("org_id", orgId);
+      if (error) return { error: friendly(error) };
+    } else {
+      const { error } = await supabase.from("service_questions").insert({ ...row, org_id: orgId, service_id: serviceId });
+      if (error) return { error: friendly(error) };
+    }
+  }
+  return { ok: true };
 }
 
 export async function deleteService(slug: string, id: string): Promise<ActionResult> {

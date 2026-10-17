@@ -30,6 +30,18 @@ export type BookResult =
   | { ok: true; token: string; checkoutUrl?: string }
   | { ok: false; error: string };
 
+/** Only plain text and lists of text go to the database, which checks them against the real questions. */
+function cleanAnswers(a: Record<string, string | string[]> | undefined) {
+  if (!a || typeof a !== "object") return null;
+  const out: Record<string, string | string[]> = {};
+  for (const [k, v] of Object.entries(a).slice(0, 40)) {
+    if (!/^[0-9a-f-]{36}$/i.test(k)) continue;
+    if (typeof v === "string") out[k] = v.slice(0, 2500);
+    else if (Array.isArray(v)) out[k] = v.filter((x): x is string => typeof x === "string").slice(0, 12).map((x) => x.slice(0, 100));
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 export async function book(input: {
   orgId: string;
   slug: string;
@@ -48,6 +60,8 @@ export async function book(input: {
   addressPlace?: { placeId: string; lat: number | null; lng: number | null };
   /** The customer ticked the box agreeing to booking text messages. */
   smsConsent?: boolean;
+  /** Answers to the service's intake questions: question id to text, or a list of choices. */
+  answers?: Record<string, string | string[]>;
   notes: string;
 }): Promise<BookResult> {
   // Pull the latest personal-calendar events so a just-added event blocks this slot.
@@ -75,6 +89,7 @@ export async function book(input: {
     p_notes: input.notes.slice(0, 1000),
     p_location: input.locationId,
     p_address: withUnit(input.address, input.unit).slice(0, 300),
+    p_answers: cleanAnswers(input.answers),
   });
   if (error) {
     // The booking function words its own rules for people ("that time was just taken"); anything else is a fault.

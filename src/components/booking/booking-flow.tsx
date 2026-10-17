@@ -15,6 +15,7 @@ import { eligibleMembers, type Slot } from "@/lib/slots";
 import type { PublicOrg, PublicService } from "@/lib/types";
 import { book, getWindow } from "@/app/[slug]/actions";
 import { TimePicker } from "./time-picker";
+import { collectAnswers, IntakeFields } from "./intake-fields";
 import { AddressInput } from "@/components/ui/address-input";
 
 type Step = "location" | "service" | "staff" | "time" | "details";
@@ -112,6 +113,7 @@ export function BookingFlow({
           ? { placeId: String(fd.get("address_place_id")), lat: fd.get("address_lat") ? Number(fd.get("address_lat")) : null, lng: fd.get("address_lng") ? Number(fd.get("address_lng")) : null }
           : undefined,
         smsConsent: fd.get("sms_consent") === "on",
+        answers: collectAnswers(service.questions ?? [], fd),
         notes: String(fd.get("notes") || ""),
       });
       if (!r.ok) {
@@ -298,7 +300,8 @@ export function BookingFlow({
           {step === "details" && service && slot && (
             <div key="details" className="animate-rise">
               <StepTitle n={(eligibleStaff.length > 1 ? 4 : 3) + n} title="Your details" />
-              <form action={submit} className="space-y-4">
+              {/* A submit handler, not a form action: React empties a form after an action, and a customer who has to fix one answer must not lose everything else they typed. */}
+              <form onSubmit={(e) => { e.preventDefault(); submit(new FormData(e.currentTarget)); }} className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="Full name" className="sm:col-span-2"><Input name="name" autoComplete="name" required autoFocus /></Field>
                   <Field label="Email"><Input name="email" type="email" autoComplete="email" required /></Field>
@@ -327,6 +330,7 @@ export function BookingFlow({
                       <Input name="unit" autoComplete="address-line2" maxLength={30} placeholder="e.g. Apt 4B" />
                     </Field>
                   )}
+                  <IntakeFields questions={service.questions ?? []} />
                   <Field label="Anything we should know?" className="sm:col-span-2"><Textarea name="notes" className="min-h-20" /></Field>
                 </div>
                 {error && <Notice>{error}</Notice>}
