@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { ArrowRightLeft, CalendarClock, CheckCircle2, ClipboardList, Mail, MapPin, Phone, Repeat, Search, StickyNote, UserPlus, UserX, Users, XCircle } from "lucide-react";
+import { ArrowRightLeft, CalendarClock, Hourglass, CheckCircle2, ClipboardList, Mail, MapPin, Phone, Repeat, Search, StickyNote, UserPlus, UserX, Users, XCircle } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
@@ -12,8 +12,8 @@ import { cn } from "@/lib/utils";
 import { formatDate, formatTime, STATUS_LABEL } from "@/lib/format";
 import type { ClassSession, Customer, Location, Membership, Organization, Service } from "@/lib/types";
 import {
-  addSessionAttendee, approveBooking, cancelSession, declineBooking, getMoveTargets, getSessionRoster, getSessionSeries, moveAttendee, moveSession,
-  setBookingStatus, updateSession, type MoveTarget, type SessionAttendee,
+  addSessionAttendee, approveBooking, cancelSession, declineBooking, getMoveTargets, getSessionRoster, getSessionSeries, getSessionWaitlist, moveAttendee, moveSession,
+  removeWaitlistEntry, setBookingStatus, updateSession, type MoveTarget, type SessionAttendee, type WaitlistEntry,
 } from "@/app/o/[org]/actions";
 import { joinInZone, splitInZone, TIME_OPTIONS } from "./datetime";
 
@@ -46,6 +46,7 @@ function Inner({ session, onClose, slug, org, service, member, location, custome
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [roster, setRoster] = useState<SessionAttendee[] | null>(null);
+  const [waiting, setWaiting] = useState<WaitlistEntry[]>([]);
   const [series, setSeries] = useState<{ index: number; total: number; later: number } | null>(null);
   const [over] = useState(() => new Date(session.ends_at).getTime() < Date.now());
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
@@ -63,16 +64,23 @@ function Inner({ session, onClose, slug, org, service, member, location, custome
   const color = service?.color ?? member?.color ?? "#007AFF";
   const laterCount = series?.later ?? 0;
 
-  const load = useCallback(() => getSessionRoster(slug, session.id).then((r) => setRoster(r?.attendees ?? [])), [slug, session.id]);
+  const load = useCallback(
+    () => Promise.all([getSessionRoster(slug, session.id).then((r) => setRoster(r?.attendees ?? [])), getSessionWaitlist(slug, session.id).then(setWaiting)]),
+    [slug, session.id],
+  );
   useEffect(() => {
     let alive = true;
     getSessionRoster(slug, session.id).then((r) => { if (alive) setRoster(r?.attendees ?? []); });
+    getSessionWaitlist(slug, session.id).then((r) => { if (alive) setWaiting(r); });
     getSessionSeries(slug, session.id).then((r) => { if (alive) setSeries(r); });
     return () => { alive = false; };
   }, [slug, session.id]);
 
   const going = (roster ?? []).filter((a) => a.status !== "cancelled");
-  const holding = going.filter((a) => ACTIVE.includes(a.status));
+  const holdingPeople = going.filter((a) => ACTIVE.includes(a.status));
+  // Capacity counts spots: a booking of three takes three.
+  const holding = { length: holdingPeople.reduce((n, a) => n + a.spots, 0), people: holdingPeople.length };
+  const spotsLeft = Math.max(0, saved.capacity - holding.length);
   const cancelled = (roster ?? []).filter((a) => a.status === "cancelled");
   const cap = Number(capacity) || saved.capacity;
   const full = holding.length >= saved.capacity;
@@ -98,6 +106,7 @@ function Inner({ session, onClose, slug, org, service, member, location, custome
       if (r.error) setError(r.error);
       else {
         setSaved({ capacity: cap, notes });
+        await load(); // more spots may have booked people in off the waitlist
         if (r.skipped?.length) setOutcome({ title: "Saved", lines: [`${r.booked} ${r.booked === 1 ? "session was" : "sessions were"} updated.`], skipped: r.skipped });
         else toast(alsoLater && laterCount > 0 ? `${r.booked} sessions updated` : "Session updated");
       }
@@ -206,8 +215,10 @@ function Inner({ session, onClose, slug, org, service, member, location, custome
                         {a.phone && <a className="inline-flex items-center gap-1 text-accent" href={`tel:${a.phone}`}><Phone className="size-3" />{a.phone}</a>}
                       </div>
                     </div>
+                    {a.spots > 1 && <Badge tone="blue">{a.spots} spots</Badge>}
                     {a.status !== "confirmed" && <Badge tone={statusTone(a.status)}>{STATUS_LABEL[a.status]}</Badge>}
                   </div>
+                  {a.guests && <p className="mt-2 text-[13px] text-label-2">With: {a.guests}</p>}
                   {a.notes && <p className="mt-2 text-[13px] text-label-2">{a.notes}</p>}
                   {a.answers.length > 0 && (
                     <details className="mt-2 text-[13px]">
@@ -255,6 +266,7 @@ function Inner({ session, onClose, slug, org, service, member, location, custome
                   {movingId === a.bookingId && (
                     <MovePerson
                       name={a.name}
+                      spots={a.spots}
                       targets={targets}
                       tz={tz}
                       pending={pending}
@@ -286,12 +298,32 @@ function Inner({ session, onClose, slug, org, service, member, location, custome
           )}
         </section>
 
+        {waiting.length > 0 && (
+          <section aria-label="Waitlist" className="space-y-2.5" data-testid="waitlist">
+            <div className="flex items-center gap-2 px-1 text-[13px] font-medium text-label-2"><Hourglass className="size-4" /> Waitlist ({waiting.length})</div>
+            <ul className="space-y-2">
+              {waiting.map((w, i) => (
+                <li key={w.id} className="flex items-center gap-3 rounded-[14px] bg-surface p-3.5 hairline" data-testid="waiting">
+                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-surface-2 text-[13px] font-semibold text-label-2">{i + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[15px] font-semibold">{w.name}{w.spots > 1 ? ` · ${w.spots} spots` : ""}</div>
+                    <div className="truncate text-[12px] text-label-2">{w.email}{w.phone ? ` · ${w.phone}` : ""}</div>
+                  </div>
+                  <Button size="sm" variant="gray" disabled={pending} onClick={() => run(() => removeWaitlistEntry(slug, w.id), `${w.name} taken off the waitlist`)}>Remove</Button>
+                </li>
+              ))}
+            </ul>
+            <p className="px-1 text-[12px] text-label-3">When a spot opens, the first person whose group fits is booked in automatically and emailed.</p>
+          </section>
+        )}
+
         {!cancelledSession && !over && (
           <>
             {adding ? (
               <AddPerson
                 customers={customers}
                 full={full}
+                spotsLeft={spotsLeft}
                 pending={pending}
                 onCancel={() => setAdding(false)}
                 onAdd={(input) =>
@@ -333,7 +365,7 @@ function Inner({ session, onClose, slug, org, service, member, location, custome
                 tz={tz}
                 members={members}
                 laterCount={laterCount}
-                people={holding.length}
+                people={holding.people}
                 pending={pending}
                 onBack={() => setRescheduling(false)}
                 onMove={doReschedule}
@@ -345,7 +377,7 @@ function Inner({ session, onClose, slug, org, service, member, location, custome
             )}
 
             {cancelling ? (
-              <CancelPanel count={holding.length} laterCount={laterCount} pending={pending} onBack={() => setCancelling(false)} onConfirm={doCancel} />
+              <CancelPanel count={holding.people} laterCount={laterCount} pending={pending} onBack={() => setCancelling(false)} onConfirm={doCancel} />
             ) : (
               <Button variant="destructive" className="w-full" onClick={() => setCancelling(true)} disabled={pending}>
                 <XCircle className="size-4" /> Cancel this session
@@ -360,9 +392,9 @@ function Inner({ session, onClose, slug, org, service, member, location, custome
 }
 
 function MovePerson({
-  name, targets, tz, pending, onMove, onCancel,
+  name, spots, targets, tz, pending, onMove, onCancel,
 }: {
-  name: string; targets: MoveTarget[] | null; tz: string; pending: boolean; onMove: (toId: string, notify: boolean) => void; onCancel: () => void;
+  name: string; spots: number; targets: MoveTarget[] | null; tz: string; pending: boolean; onMove: (toId: string, notify: boolean) => void; onCancel: () => void;
 }) {
   const [toId, setToId] = useState("");
   const [notify, setNotify] = useState(true);
@@ -378,9 +410,10 @@ function MovePerson({
           <option value="">Choose a session</option>
           {targets.map((t) => {
             const left = t.capacity - t.booked;
+            const fits = left >= spots;
             return (
-              <option key={t.id} value={t.id} disabled={left <= 0}>
-                {formatDate(t.startsAt, tz)} · {formatTime(t.startsAt, tz)} · {left <= 0 ? "full" : `${left} ${left === 1 ? "spot" : "spots"} left`}
+              <option key={t.id} value={t.id} disabled={!fits}>
+                {formatDate(t.startsAt, tz)} · {formatTime(t.startsAt, tz)} · {left <= 0 ? "full" : !fits ? `only ${left} left` : `${left} ${left === 1 ? "spot" : "spots"} left`}
               </option>
             );
           })}
@@ -455,11 +488,13 @@ function ReschedulePanel({
 }
 
 function AddPerson({
-  customers, full, pending, onAdd, onCancel,
+  customers, full, spotsLeft, pending, onAdd, onCancel,
 }: {
-  customers: Customer[]; full: boolean; pending: boolean;
-  onAdd: (i: { customerId?: string; name?: string; email?: string; phone?: string; notify: boolean }) => void; onCancel: () => void;
+  customers: Customer[]; full: boolean; spotsLeft: number; pending: boolean;
+  onAdd: (i: { customerId?: string; name?: string; email?: string; phone?: string; spots?: number; guests?: string; notify: boolean }) => void; onCancel: () => void;
 }) {
+  const [spots, setSpots] = useState(1);
+  const [guests, setGuests] = useState("");
   const [mode, setMode] = useState<"existing" | "new">(customers.length ? "existing" : "new");
   const [query, setQuery] = useState("");
   const [customerId, setCustomerId] = useState("");
@@ -506,6 +541,14 @@ function AddPerson({
           <Input type="tel" placeholder="Phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" />
         </div>
       )}
+      {Math.min(6, spotsLeft) > 1 && (
+        <div className="space-y-2">
+          <Select aria-label="How many spots" value={spots} onChange={(e) => setSpots(Number(e.target.value))}>
+            {Array.from({ length: Math.min(6, spotsLeft) }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n === 1 ? "1 spot" : `${n} spots`}</option>)}
+          </Select>
+          {spots > 1 && <Input placeholder="Who's coming with them? (optional)" maxLength={300} value={guests} onChange={(e) => setGuests(e.target.value)} />}
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3">
         <span className="text-[14px]">Email them a confirmation</span>
         <Switch checked={notify} onChange={setNotify} label="Email them a confirmation" />
@@ -516,7 +559,7 @@ function AddPerson({
           className="flex-1"
           loading={pending}
           disabled={full || (mode === "existing" ? !customerId : !name.trim() || !email.trim())}
-          onClick={() => onAdd(mode === "existing" ? { customerId, notify } : { name, email, phone, notify })}
+          onClick={() => onAdd(mode === "existing" ? { customerId, spots, guests, notify } : { name, email, phone, spots, guests, notify })}
         >
           Add to session
         </Button>

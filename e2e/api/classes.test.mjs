@@ -114,7 +114,7 @@ test("customers see how many spots are taken, never who", async () => {
   assert.equal(mine.booked, 2);
   assert.equal(mine.capacity, 4);
   assert.equal(mine.notes, "Bring a mat");
-  assert.deepEqual(Object.keys(mine).sort(), ["booked", "capacity", "ends_at", "id", "location_id", "member_id", "notes", "service_id", "starts_at"]);
+  assert.deepEqual(Object.keys(mine).sort(), ["booked", "capacity", "ends_at", "id", "location_id", "member_id", "notes", "service_id", "starts_at", "waiting", "waitlist_open"]);
   assert.ok(!JSON.stringify(data).includes("Secret Person"));
   // a window longer than four months is refused (empty), and other businesses' sessions never appear
   const wide = await pub.rpc("get_public_sessions", { p_org: st.orgA.id, p_from: from, p_to: new Date(Date.now() + 400 * 86_400_000).toISOString() });

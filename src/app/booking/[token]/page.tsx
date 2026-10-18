@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarClock, CalendarPlus, Clock, MapPin, Phone, Repeat, User, Video } from "lucide-react";
+import { CalendarClock, CalendarPlus, Clock, MapPin, Phone, Repeat, User, Users, Video } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { buttonClass } from "@/components/ui/button-class";
 import { Badge, Notice, statusTone } from "@/components/ui/misc";
@@ -13,7 +13,7 @@ import { CancelSeries } from "./cancel-series";
 export const metadata: Metadata = { title: "Your booking", robots: { index: false } };
 
 type PublicBooking = {
-  id: string; session_id: string | null; status: string; starts_at: string; ends_at: string; service_name: string;
+  id: string; session_id: string | null; spots?: number; guest_names?: string | null; status: string; starts_at: string; ends_at: string; service_name: string;
   price_cents: number; deposit_cents: number; currency: string; payment_status: string; notes: string | null;
   customer_name: string; customer_email: string; staff_name: string | null;
   location_type: string | null; location_detail: string | null; location_name: string | null; location_address: string | null; customer_address: string | null;
@@ -94,6 +94,7 @@ export default async function ManageBookingPage(props: PageProps<"/booking/[toke
               <div className="text-label-2">{formatTime(b.starts_at, tz)} – {formatTime(b.ends_at, tz)} {timeZoneLabel(tz)}</div>
             </Row>
             {b.staff_name && <Row icon={User}>{b.staff_name}</Row>}
+            {(b.spots ?? 1) > 1 && <Row icon={Users}>{b.spots} spots{b.guest_names ? ` · ${b.guest_names}` : ""}</Row>}
             {where.text && <Row icon={where.icon}>{where.text}</Row>}
             {b.price_cents > 0 && (
               <div className="flex items-center justify-between border-t border-separator pt-3.5 text-[14px]">

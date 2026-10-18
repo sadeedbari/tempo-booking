@@ -100,7 +100,16 @@ test.describe("setting up a class", () => {
   test("a repeating class adds each week, and a date that clashes is skipped and listed", async ({ pageAs }) => {
     const page = await pageAs("ownerA");
     // Sara already has a one-on-one booking at the second date's time
-    const second = inDays(14);
+    // (the same Toronto clock time two weeks later: the clocks may change in between)
+    const firstLocal = new Date(inDays(7));
+    const [hh, mm] = firstLocal.toLocaleTimeString("en-GB", { timeZone: "America/Toronto", hour: "2-digit", minute: "2-digit" }).split(":").map(Number);
+    const secondKey = new Date(new Date(inDays(14)).getTime()).toLocaleDateString("en-CA", { timeZone: "America/Toronto" });
+    let second = "";
+    for (const off of [4, 5]) {
+      const d = new Date(`${secondKey}T${String(hh + off).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00Z`);
+      if (d.toLocaleTimeString("en-GB", { timeZone: "America/Toronto", hour: "2-digit", minute: "2-digit" }) === `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`) { second = d.toISOString(); break; }
+    }
+    expect(second).not.toBe("");
     const { error } = await sb().from("bookings").insert({ org_id: S.orgA.id, service_id: S.orgA.services.haircut, member_id: S.orgA.members.sara, starts_at: second, ends_at: new Date(new Date(second).getTime() + 1_800_000).toISOString(), blocked_until: new Date(new Date(second).getTime() + 1_800_000).toISOString(), status: "confirmed", service_name: "Haircut" });
     expect(error).toBeNull();
     await page.goto(`${base}/calendar?date=${dayKeyAhead(7)}`);

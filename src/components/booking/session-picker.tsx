@@ -16,7 +16,8 @@ export function SessionPicker({
   locationId: string | null;
   fetchSessions: typeof getSessions;
   selectedId?: string | null;
-  onPick: (s: PublicSession) => void;
+  /** `waitlist` is true when the session is full and the customer is joining its waitlist. */
+  onPick: (s: PublicSession, waitlist: boolean) => void;
   /** Bump to refetch (e.g. after "this class is full"). */
   reloadKey?: number;
 }) {
@@ -53,19 +54,20 @@ export function SessionPicker({
             {list.map((s) => {
               const left = Math.max(0, s.capacity - s.booked);
               const full = left === 0;
+              const canWait = full && s.waitlist_open;
               const who = staff.find((m) => m.id === s.member_id)?.display_name;
               const where = locations.length > 1 ? locations.find((l) => l.id === s.location_id)?.name : null;
               return (
                 <li key={s.id}>
                   <button
                     type="button"
-                    disabled={full}
-                    onClick={() => onPick(s)}
-                    aria-label={`${formatTime(s.starts_at, tz)}, ${full ? "full" : `${left} ${left === 1 ? "spot" : "spots"} left`}`}
+                    disabled={full && !canWait}
+                    onClick={() => onPick(s, canWait)}
+                    aria-label={`${formatTime(s.starts_at, tz)}, ${full ? (canWait ? "full, join the waitlist" : "full") : `${left} ${left === 1 ? "spot" : "spots"} left`}`}
                     className={cn(
                       "flex w-full items-center gap-4 rounded-[16px] p-4 text-left transition active:scale-[0.99]",
                       selectedId === s.id ? "bg-accent-soft ring-2 ring-accent" : "bg-surface-2/60 hover:bg-surface-2",
-                      full && "cursor-not-allowed opacity-60 hover:bg-surface-2/60",
+                      full && !canWait && "cursor-not-allowed opacity-60 hover:bg-surface-2/60",
                     )}
                   >
                     <div className="min-w-0 flex-1">
@@ -78,9 +80,10 @@ export function SessionPicker({
                         {where && <span className="inline-flex items-center gap-1"><MapPin className="size-3.5" />{where}</span>}
                       </div>
                       {s.notes && <p className="mt-1 line-clamp-2 text-[13px] text-label-3">{s.notes}</p>}
+                      {canWait && s.waiting > 0 && <p className="mt-1 text-[12px] text-label-3">{s.waiting} {s.waiting === 1 ? "person is" : "people are"} waiting</p>}
                     </div>
                     <span className={cn("shrink-0 rounded-full px-3 py-1 text-[13px] font-semibold", full ? "bg-surface-3 text-label-3" : left <= 3 ? "bg-orange/15 text-orange" : "bg-accent-soft text-accent")}>
-                      {full ? "Full" : `${left} ${left === 1 ? "spot" : "spots"} left`}
+                      {full ? (canWait ? "Full · join waitlist" : "Full") : `${left} ${left === 1 ? "spot" : "spots"} left`}
                     </span>
                   </button>
                 </li>

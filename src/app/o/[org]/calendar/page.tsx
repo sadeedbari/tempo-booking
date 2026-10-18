@@ -59,7 +59,7 @@ export default async function CalendarPage(props: PageProps<"/o/[org]/calendar">
   ]);
   // How many spots each session has taken: everyone who hasn't cancelled.
   const booked = new Map<string, number>();
-  (bookings.data ?? []).forEach((b) => { if (b.session_id) booked.set(b.session_id as string, (booked.get(b.session_id as string) ?? 0) + 1); });
+  (bookings.data ?? []).forEach((b) => { if (b.session_id) booked.set(b.session_id as string, (booked.get(b.session_id as string) ?? 0) + ((b.spots as number | null) ?? 1)); });
   const questionMap: Record<string, ServiceQuestion[]> = {};
   (questions.data ?? []).forEach((q) => (questionMap[q.service_id as string] ??= []).push(q as unknown as ServiceQuestion));
 

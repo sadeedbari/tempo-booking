@@ -7,6 +7,7 @@ import { env } from "@/lib/env";
 import { refreshExternalBusy } from "@/lib/calendar/sync";
 import { normalizePhone } from "@/lib/phone";
 import { withUnit } from "@/lib/address";
+import { flushWaitlist, sendWaitlistJoined } from "@/lib/waitlist";
 import type { BusyInterval, PublicOrg, PublicSession, PublicShift } from "@/lib/types";
 
 export interface AvailabilityWindow {
@@ -33,6 +34,50 @@ export async function getSessions(orgId: string, serviceId: string): Promise<Pub
   const to = new Date(from.getTime() + 120 * 86_400_000);
   const { data } = await supabase.rpc("get_public_sessions", { p_org: orgId, p_from: from.toISOString(), p_to: to.toISOString() });
   return ((data ?? []) as PublicSession[]).filter((s) => s.service_id === serviceId);
+}
+
+export type WaitlistResult = { ok: true; token: string; position: number } | { ok: false; error: string };
+
+/** Puts someone on the waitlist of a full class session. They're booked in automatically if a spot opens. */
+export async function joinWaitlist(input: {
+  orgId: string;
+  slug: string;
+  sessionId: string;
+  name: string;
+  email: string;
+  phone: string;
+  spots?: number;
+  guests?: string;
+  notes?: string;
+  answers?: Record<string, string | string[]>;
+}): Promise<WaitlistResult> {
+  const supabase = await createClient();
+  let phone = (input.phone ?? "").trim();
+  if (phone) {
+    const { data: pub } = await supabase.rpc("get_public_org", { p_slug: input.slug });
+    const normalized = normalizePhone(phone, (pub as PublicOrg | null)?.org.currency);
+    if (!normalized) return { ok: false, error: "That phone number doesn't look right. Include the area code, or leave it blank." };
+    phone = normalized;
+  }
+  const { data, error } = await supabase.rpc("join_class_waitlist", {
+    p_org: input.orgId,
+    p_session: input.sessionId,
+    p_name: input.name.slice(0, 120),
+    p_email: input.email.slice(0, 200),
+    p_phone: phone,
+    p_notes: (input.notes ?? "").slice(0, 1000),
+    p_answers: cleanAnswers(input.answers),
+    p_spots: wholeNumber(input.spots ?? 1, 1, 6) ?? 1,
+    p_guests: (input.guests ?? "").slice(0, 300),
+  });
+  if (error) {
+    if (error.code === "P0001") return { ok: false, error: error.message };
+    console.error("[waitlist] unexpected database error:", error.code, error.message);
+    return { ok: false, error: "Something went wrong. Please try again in a moment." };
+  }
+  const r = data as { token: string; position: number };
+  await sendWaitlistJoined(r.token);
+  return { ok: true, token: r.token, position: r.position };
 }
 
 /** Dates of a repeating appointment that couldn't be booked, with the reason in plain words. */
@@ -89,6 +134,9 @@ export async function book(input: {
   series?: SeriesInput;
   /** A spot in a class session (startsAt is then the session's start). */
   sessionId?: string;
+  /** For a class: how many spots (1 to 6), and the names of the people coming with them. */
+  spots?: number;
+  guests?: string;
   notes: string;
 }): Promise<BookResult> {
   // Pull the latest personal-calendar events so a just-added event blocks this slot.
@@ -116,6 +164,8 @@ export async function book(input: {
         p_phone: phone,
         p_notes: input.notes.slice(0, 1000),
         p_answers: cleanAnswers(input.answers),
+        p_spots: wholeNumber(input.spots ?? 1, 1, 6) ?? 1,
+        p_guests: (input.guests ?? "").slice(0, 300),
       })
     : await supabase.rpc(series ? "create_public_booking_series" : "create_public_booking", {
     ...(series ? { p_interval_weeks: series.interval, p_count: series.count } : {}),
@@ -232,6 +282,7 @@ export async function book(input: {
 
   // One confirmation for the whole series: it lists every date.
   await notifyBooking(b.id, b.status === "pending_approval" ? "request" : "confirmation");
+  if (input.sessionId) await flushWaitlist(); // an unpaid hold released along the way may have booked someone in
   return {
     ok: true,
     token: b.manage_token,

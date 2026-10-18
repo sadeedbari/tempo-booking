@@ -51,7 +51,8 @@ Service: {{service_name}} ({{duration}})
 With: {{staff_name}}
 Where: {{location}}
 Price: {{price}}
-Deposit: {{deposit}}`;
+Deposit: {{deposit}}
+Spots: {{spots}}`;
 
 export const DEFAULT_WORKFLOWS: WorkflowDef[] = [
   {

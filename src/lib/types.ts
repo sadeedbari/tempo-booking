@@ -180,6 +180,9 @@ export interface Booking {
   answers?: BookingAnswer[] | null;
   /** Set when this booking is one spot in a group class session. */
   session_id?: string | null;
+  /** How many spots a class booking holds (price and deposit are totals), and who comes with them. */
+  spots?: number;
+  guest_names?: string | null;
   /** Set when this booking is one date of a repeating series. */
   series_id?: string | null;
   series_index?: number | null;
@@ -253,6 +256,9 @@ export interface PublicSession {
   capacity: number;
   booked: number;
   notes: string | null;
+  /** Spots people are waiting for, and whether this class takes a waitlist (not when it charges an online deposit). */
+  waiting: number;
+  waitlist_open: boolean;
 }
 
 export interface PublicStaff {

@@ -80,9 +80,10 @@ test.describe("booking a spot in a class", () => {
     await expect(list.getByRole("button")).toHaveCount(2);
     await expect(list.getByText("Bring a mat")).toBeVisible();
     await expect(list.getByRole("button", { name: /3 spots left/ })).toBeVisible();
+    // a full session isn't a dead end: the customer can join its waitlist
     const full = list.getByRole("button", { name: /full/ });
-    await expect(full).toBeDisabled();
-    await expect(full.getByText("Full")).toBeVisible();
+    await expect(full).toBeEnabled();
+    await expect(full.getByText("Full · join waitlist")).toBeVisible();
 
     await list.getByRole("button", { name: /3 spots left/ }).click();
     await expect(page.getByRole("heading", { name: "Your details" })).toBeVisible();
@@ -139,7 +140,7 @@ test.describe("booking a spot in a class", () => {
     await page.getByRole("button", { name: "Reserve my spot" }).click();
     await expect(page.getByText(/full/i).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Choose a session" })).toBeVisible();
-    await expect(page.getByTestId("session-list").getByRole("button", { name: /full/ })).toBeDisabled();
+    await expect(page.getByTestId("session-list").getByRole("button", { name: /full/ })).toBeEnabled(); // it can be waited for
     await expect(page.getByTestId("session-list").getByRole("button", { name: /4 spots left/ })).toBeVisible();
   });
 

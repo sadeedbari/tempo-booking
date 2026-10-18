@@ -18,6 +18,8 @@ export interface DBooking {
   customer_name?: string | null;
   /** Set for a spot in a group class; every spot of one session shares the instructor's time. */
   session_id?: string | null;
+  /** How many class spots the booking holds. */
+  spots?: number;
   source: "online" | "manual";
 }
 

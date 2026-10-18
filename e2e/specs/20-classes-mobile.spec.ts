@@ -98,3 +98,43 @@ test("on a phone: the calendar, a session's roster and the new-class form fit th
   a = await audit(page);
   expect(a.overflow, "services scrolls sideways").toBeLessThanOrEqual(1);
 });
+
+test("on a phone: the spots picker, the waitlist form and a waitlist page fit the screen", async ({ page }) => {
+  const c = sb();
+  const start = new Date(day); start.setUTCDate(start.getUTCDate() + 2); start.setUTCHours(19, 0, 0, 0);
+  const end = new Date(start.getTime() + 3_600_000);
+  const full = await c.from("class_sessions").insert({ org_id: S.orgA.id, service_id: svcId, member_id: S.orgA.members.sam, location_id: S.orgA.locations.qw, starts_at: start.toISOString(), ends_at: end.toISOString(), blocked_until: end.toISOString(), capacity: 1 }).select("id").single();
+  if (full.error) throw new Error(full.error.message);
+  const r = await c.rpc("create_public_session_booking", { p_org: S.orgA.id, p_session: full.data!.id, p_name: "Only One", p_email: customerEmail("one"), p_phone: "", p_notes: "" });
+  if (r.error) throw new Error(r.error.message);
+  const w = await c.rpc("join_class_waitlist", { p_org: S.orgA.id, p_session: full.data!.id, p_name: "Wendy Waiter", p_email: customerEmail("wm"), p_phone: "", p_notes: "" });
+  if (w.error) throw new Error(w.error.message);
+
+  await page.goto(`/${S.orgA.slug}?service=phone-class`);
+  await page.getByRole("button", { name: /Queen West/ }).click();
+  await expect(page.getByTestId("session-list")).toBeVisible();
+  let a = await audit(page);
+  expect(a.overflow, "session list scrolls sideways").toBeLessThanOrEqual(1);
+  // a session with room: the spots picker
+  await page.getByTestId("session-list").getByRole("button", { name: /spots left/ }).first().click();
+  await expect(page.getByTestId("spots-options")).toBeVisible();
+  a = await audit(page);
+  expect(a.overflow, "spots picker scrolls sideways").toBeLessThanOrEqual(1);
+  expect(a.smallText, "inputs under 16px zoom on iPhone").toEqual([]);
+  expect(a.small, "tiny buttons in the booking form").toEqual([]);
+  // the full session: the waitlist form
+  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByTestId("session-list").getByRole("button", { name: /full/ }).click();
+  await expect(page.getByTestId("waitlist-note")).toBeVisible();
+  a = await audit(page);
+  expect(a.overflow, "waitlist form scrolls sideways").toBeLessThanOrEqual(1);
+  expect(a.smallText).toEqual([]);
+  expect(a.small, "tiny buttons in the waitlist form").toEqual([]);
+  // the waitlist page
+  await page.goto(`/waitlist/${(w.data as { token: string }).token}`);
+  await expect(page.getByTestId("waitlist-title")).toBeVisible();
+  a = await audit(page);
+  expect(a.overflow, "waitlist page scrolls sideways").toBeLessThanOrEqual(1);
+  expect(a.small, "tiny buttons on the waitlist page").toEqual([]);
+  await c.from("class_waitlist").delete().eq("session_id", full.data!.id);
+});

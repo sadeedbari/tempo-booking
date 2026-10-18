@@ -3,6 +3,7 @@ import { notifyBooking } from "@/lib/notify";
 import { runTimedWorkflows } from "@/lib/messaging";
 import { env } from "@/lib/env";
 import { refundDeposit } from "@/lib/bookings";
+import { flushWaitlist } from "@/lib/waitlist";
 
 /**
  * Run every 15–60 minutes (see vercel.json and the hourly GitHub workflow). Releases abandoned payment holds,
@@ -34,6 +35,11 @@ export async function GET(request: Request) {
   const scoped = <T extends { in: (c: string, v: string[]) => T }>(q: T) => (only ? q.in("org_id", only) : q);
 
   let sent = 0;
+
+  // 0. Tell anyone who was booked in off a class waitlist and hasn't heard yet (a safety net for the instant path).
+  await step("tell people booked in from waitlists", async () => {
+    await flushWaitlist();
+  });
 
   // 1. Release unpaid holds older than 30 minutes.
   await step("release unpaid holds", async () => {

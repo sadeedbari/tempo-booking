@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { formatDate, formatDuration, formatMoney, formatTime, timeZoneLabel } from "@/lib/format";
 import { eligibleMembers, type Slot } from "@/lib/slots";
 import type { PublicOrg, PublicService, PublicSession } from "@/lib/types";
-import { book, getSessions, getWindow, previewSeries, type SeriesPreview } from "@/app/[slug]/actions";
+import { book, getSessions, getWindow, joinWaitlist, previewSeries, type SeriesPreview } from "@/app/[slug]/actions";
 import { TimePicker } from "./time-picker";
 import { SessionPicker } from "./session-picker";
 import { collectAnswers, IntakeFields } from "./intake-fields";
@@ -65,6 +65,12 @@ export function BookingFlow({
   const [slot, setSlot] = useState<Slot | null>(null);
   // The chosen class session (a class is booked by session, not by free time).
   const [session, setSession] = useState<PublicSession | null>(null);
+  // For a class: how many spots this booking takes (a friend, a partner).
+  const [spots, setSpots] = useState(1);
+  // The session was full and the customer is joining its waitlist instead of booking.
+  const [waitlist, setWaitlist] = useState(false);
+  const spotsLeft = session ? Math.max(0, session.capacity - session.booked) : 0;
+  const maxSpots = session ? Math.min(6, waitlist ? session.capacity : spotsLeft) : 1;
   const [error, setError] = useState<string | null>(null);
   const [hasPhone, setHasPhone] = useState(false);
   const [pending, start] = useTransition();
@@ -112,6 +118,7 @@ export function BookingFlow({
     setService(s);
     setSlot(null);
     setSession(null);
+    setWaitlist(false);
     setMemberId(el.length === 1 ? el[0] : null);
     setStep(stepAfterService(s));
   }
@@ -128,6 +135,35 @@ export function BookingFlow({
   function submit(fd: FormData) {
     if (!service || !slot) return;
     setError(null);
+    if (waitlist && session) {
+      start(async () => {
+        const r = await joinWaitlist({
+          orgId: org.id,
+          slug: org.slug,
+          sessionId: session.id,
+          name: String(fd.get("name") || ""),
+          email: String(fd.get("email") || ""),
+          phone: String(fd.get("phone") || ""),
+          spots,
+          guests: spots > 1 ? String(fd.get("guests") || "") : undefined,
+          notes: String(fd.get("notes") || ""),
+          answers: collectAnswers(service.questions ?? [], fd),
+        });
+        if (!r.ok) {
+          setError(r.error);
+          if (/room in this session now/i.test(r.error)) {
+            setSlot(null);
+            setSession(null);
+            setWaitlist(false);
+            setStep("time");
+            setReload((n) => n + 1);
+          }
+          return;
+        }
+        router.push(`/waitlist/${r.token}?new=1${embed ? "&embed=1" : ""}`);
+      });
+      return;
+    }
     start(async () => {
       const r = await book({
         orgId: org.id,
@@ -147,6 +183,8 @@ export function BookingFlow({
         smsConsent: fd.get("sms_consent") === "on",
         series: repeatWeeks ? { intervalWeeks: repeatWeeks, count: repeatCount } : undefined,
         sessionId: service.is_class ? session?.id : undefined,
+        spots: service.is_class ? spots : undefined,
+        guests: service.is_class && spots > 1 ? String(fd.get("guests") || "") : undefined,
         answers: collectAnswers(service.questions ?? [], fd),
         notes: String(fd.get("notes") || ""),
       });
@@ -210,7 +248,10 @@ export function BookingFlow({
                 <span className="mt-1.5 size-2.5 shrink-0 rounded-full" style={{ background: service.color }} />
                 <div>
                   <div className="text-[16px] font-semibold">{service.name}</div>
-                  <div className="text-[13px] text-label-2">{formatMoney(service.price_cents, org.currency)}{service.deposit_cents > 0 && org.payments_enabled ? ` · ${formatMoney(service.deposit_cents, org.currency)} deposit` : ""}</div>
+                  <div className="text-[13px] text-label-2">
+                    {formatMoney(service.price_cents * (service.is_class ? spots : 1), org.currency)}{service.is_class && spots > 1 ? ` for ${spots} spots` : ""}
+                    {service.deposit_cents > 0 && org.payments_enabled ? ` · ${formatMoney(service.deposit_cents * (service.is_class ? spots : 1), org.currency)} deposit` : ""}
+                  </div>
                 </div>
               </div>
               {service.description && <p className="line-clamp-4 whitespace-pre-line text-[14px] leading-relaxed text-label-2 lg:line-clamp-none">{service.description}</p>}
@@ -234,7 +275,7 @@ export function BookingFlow({
         {/* Steps */}
         <main className={cn("min-w-0", embed ? "p-5 sm:p-7" : "rounded-[24px] bg-surface p-5 shadow-md hairline sm:p-7")}>
           {(step !== "service" || multiLocation) && step !== "location" && (
-            <button onClick={back} className="mb-4 -ml-1 inline-flex items-center gap-1 text-[15px] font-medium text-accent">
+            <button onClick={back} className="mb-3 -ml-1 inline-flex min-h-10 items-center gap-1 text-[15px] font-medium text-accent">
               <ArrowLeft className="size-4" /> Back
             </button>
           )}
@@ -323,8 +364,10 @@ export function BookingFlow({
                   fetchSessions={fetchSessions}
                   selectedId={session?.id}
                   reloadKey={reload}
-                  onPick={(s) => {
+                  onPick={(s, onWaitlist) => {
                     setSession(s);
+                    setWaitlist(onWaitlist);
+                    setSpots(1);
                     setSlot({ start: s.starts_at, memberIds: [s.member_id] });
                     setError(null);
                     setStep("details");
@@ -386,6 +429,25 @@ export function BookingFlow({
                       <Input name="unit" autoComplete="address-line2" maxLength={30} placeholder="e.g. Apt 4B" />
                     </Field>
                   )}
+                  {service.is_class && waitlist && (
+                    <div className="sm:col-span-2" data-testid="waitlist-note">
+                      <Notice tone="blue">This session is full. Join the waitlist and you&apos;ll be booked in automatically, with an email, if a spot opens up. It costs nothing to wait.</Notice>
+                    </div>
+                  )}
+                  {service.is_class && session && maxSpots > 1 && (
+                    <div className="space-y-3 rounded-[14px] bg-surface-2 p-4 sm:col-span-2" data-testid="spots-options">
+                      <Field label="How many spots?" hint={waitlist ? "We'll book you in when there's room for everyone." : `${spotsLeft} left in this session.`}>
+                        <Select aria-label="How many spots" value={spots} onChange={(e) => setSpots(Number(e.target.value))} className="bg-surface">
+                          {Array.from({ length: maxSpots }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n === 1 ? "Just me" : `${n} spots`}</option>)}
+                        </Select>
+                      </Field>
+                      {spots > 1 && (
+                        <Field label="Who's coming with you?" hint="Optional. Names help the team greet everyone.">
+                          <Input name="guests" maxLength={300} placeholder="e.g. Sam and Alex" />
+                        </Field>
+                      )}
+                    </div>
+                  )}
                   {canRepeat && (
                     <div className="space-y-3 rounded-[14px] bg-surface-2 p-4 sm:col-span-2" data-testid="repeat-options">
                       <div className="flex items-center gap-2 text-[14px] font-medium"><Repeat className="size-4" /> Repeat this appointment</div>
@@ -431,9 +493,9 @@ export function BookingFlow({
                 </div>
                 {error && <Notice>{error}</Notice>}
                 <Button type="submit" size="lg" pill className="w-full" loading={pending}>
-                  {service.deposit_cents > 0 && org.payments_enabled
-                    ? `Continue to pay ${formatMoney(service.deposit_cents, org.currency)} deposit`
-                    : !service.auto_approve ? (service.is_class ? "Request a spot" : "Request booking") : service.is_class ? "Reserve my spot" : repeatWeeks > 0 ? `Confirm ${preview && preview !== "loading" && preview.ok ? preview.dates.filter((d) => d.available).length : repeatCount} appointments` : "Confirm booking"}
+                  {waitlist ? "Join the waitlist" : service.deposit_cents > 0 && org.payments_enabled
+                    ? `Continue to pay ${formatMoney(service.deposit_cents * (service.is_class ? spots : 1), org.currency)} deposit`
+                    : !service.auto_approve ? (service.is_class ? "Request a spot" : "Request booking") : service.is_class ? (spots > 1 ? `Reserve ${spots} spots` : "Reserve my spot") : repeatWeeks > 0 ? `Confirm ${preview && preview !== "loading" && preview.ok ? preview.dates.filter((d) => d.available).length : repeatCount} appointments` : "Confirm booking"}
                 </Button>
                 {!service.auto_approve && (
                   <p className="text-center text-[12px] text-label-3">

@@ -26,6 +26,7 @@ export const VARIABLES = [
   { key: "location", label: "Where", sample: "214 Queen St W, Toronto" },
   { key: "price", label: "Price", sample: "$85" },
   { key: "deposit", label: "Deposit paid", sample: "$50 paid" },
+  { key: "spots", label: "Spots booked (class bookings of 2 or more)", sample: "2 spots" },
   { key: "manage_link", label: "Manage link", sample: "https://tempo.sulosystems.com/booking/example" },
   { key: "booking_link", label: "Book again link", sample: "https://tempo.sulosystems.com/lumen" },
   { key: "manage_button", label: "Manage button (email)", sample: "https://tempo.sulosystems.com/booking/example", emailOnly: true },

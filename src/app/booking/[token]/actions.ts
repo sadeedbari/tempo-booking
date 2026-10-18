@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notifyBooking } from "@/lib/notify";
 import { refreshExternalBusy, syncBookingCalendar } from "@/lib/calendar/sync";
 import { refundDeposit } from "@/lib/bookings";
+import { flushWaitlist } from "@/lib/waitlist";
 
 export async function rescheduleBooking(token: string, startsAt: string) {
   const t = new Date(startsAt).getTime();
@@ -41,6 +42,7 @@ export async function cancelBooking(token: string, reason: string) {
   if (prior?.status === "pending_approval") await refundDeposit(prior.id);
   const { data } = await supabase.rpc("get_booking_by_token", { p_token: token });
   if (data) await notifyBooking((data as { id: string }).id, "cancellation");
+  await flushWaitlist(); // a freed class spot books in whoever was waiting
   revalidatePath(`/booking/${token}`);
   return { ok: true };
 }

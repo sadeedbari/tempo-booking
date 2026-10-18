@@ -21,6 +21,8 @@ export interface BookingForMessage {
   /** The dates of the repeating series this booking belongs to (filled in by loadBooking). */
   series?: { interval_weeks: number; dates: string[] } | null;
   series_id?: string | null;
+  /** How many spots a class booking holds. */
+  spots?: number;
   id: string;
   service_id: string | null;
   member_id: string;
@@ -43,7 +45,7 @@ export interface BookingForMessage {
 }
 
 export const BOOKING_SELECT =
-  "id, answers, series_id, service_id, member_id, created_at, customer_address, starts_at, ends_at, status, service_name, price_cents, deposit_cents, currency, payment_status, manage_token, customer:customers(name, email, phone, sms_consent_at), location:locations(name, address), member:memberships(display_name), service:services(location_type, location_detail, duration_minutes), org:organizations(id, name, slug, timezone, address, phone, accent_color, notify_push, reminder_hours_before)";
+  "id, answers, series_id, spots, service_id, member_id, created_at, customer_address, starts_at, ends_at, status, service_name, price_cents, deposit_cents, currency, payment_status, manage_token, customer:customers(name, email, phone, sms_consent_at), location:locations(name, address), member:memberships(display_name), service:services(location_type, location_detail, duration_minutes), org:organizations(id, name, slug, timezone, address, phone, accent_color, notify_push, reminder_hours_before)";
 
 export async function loadBooking(bookingId: string): Promise<BookingForMessage | null> {
   if (!env.supabaseServiceKey) return null;
@@ -93,6 +95,7 @@ export function bookingVars(b: BookingForMessage): Vars {
     location: where,
     price: b.price_cents ? formatMoney(b.price_cents, b.currency) : "",
     deposit: b.payment_status === "paid" && b.deposit_cents > 0 ? `${formatMoney(b.deposit_cents, b.currency)} paid` : "",
+    spots: (b.spots ?? 1) > 1 ? `${b.spots} spots` : "",
     manage_link: manage,
     booking_link: again,
     manage_button: manage,

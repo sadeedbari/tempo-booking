@@ -8,6 +8,7 @@ import { getOrgContext } from "@/lib/auth";
 import { notifyBooking, sendInviteEmail } from "@/lib/notify";
 import { syncBookingCalendar, syncSessionCalendar } from "@/lib/calendar/sync";
 import { refundDeposit } from "@/lib/bookings";
+import { flushWaitlist, sendWaitlistCancelled } from "@/lib/waitlist";
 import { decrypt } from "@/lib/calendar/crypto";
 import { getProvider } from "@/lib/calendar/providers";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -541,6 +542,9 @@ export interface SessionAttendee {
   phone: string | null;
   status: BookingStatus;
   notes: string | null;
+  /** How many spots they hold, and who is coming with them. */
+  spots: number;
+  guests: string | null;
   paid: boolean;
   answers: { id: string; label: string; value: string | string[] }[];
 }
@@ -552,7 +556,7 @@ export async function getSessionRoster(slug: string, sessionId: string): Promise
     const supabase = await createClient();
     const { data: rows, error } = await supabase
       .from("bookings")
-      .select("id, status, notes, answers, payment_status, customer:customers(id, name, email, phone)")
+      .select("id, status, notes, answers, payment_status, spots, guest_names, customer:customers(id, name, email, phone)")
       .eq("session_id", sessionId)
       .eq("org_id", org.id)
       .order("created_at");
@@ -567,6 +571,8 @@ export async function getSessionRoster(slug: string, sessionId: string): Promise
         phone: c?.phone ?? null,
         status: r.status as BookingStatus,
         notes: (r.notes as string | null) ?? null,
+        spots: (r.spots as number | null) ?? 1,
+        guests: (r.guest_names as string | null) ?? null,
         paid: r.payment_status === "paid",
         answers: Array.isArray(r.answers) ? (r.answers as SessionAttendee["answers"]) : [],
       };
@@ -639,6 +645,7 @@ export async function updateSession(slug: string, sessionId: string, input: { ca
       } else done.push(t.id as string);
     }
     for (const id of done) await syncSessionCalendar(id);
+    await flushWaitlist(); // more spots book in the people waiting
     refresh(slug);
     return { ok: true, booked: done.length, skipped };
   } catch (e) {
@@ -655,6 +662,9 @@ async function cancelOneSession(
   reason: string | null,
   notify: boolean,
 ): Promise<{ error?: string; ids: string[]; refundFailures: number }> {
+  // Who is waiting now (the database lets them go as soon as the session is cancelled).
+  const { data: info } = await supabase.from("class_sessions").select("starts_at, service:services(name)").eq("id", sessionId).eq("org_id", org.id).single();
+  const { data: waiting } = await supabase.from("class_waitlist").select("name, email").eq("session_id", sessionId).eq("status", "waiting");
   // The session first, so nobody can join while the rest is being done.
   const { data: s, error } = await supabase
     .from("class_sessions")
@@ -688,6 +698,9 @@ async function cancelOneSession(
     if (e2) return { error: friendly(e2), ids: [], refundFailures };
   }
   for (const id of ids) await notifyBooking(id, "cancellation", { by: userId, customer: notify, push: false });
+  if (notify && info && waiting?.length) {
+    await sendWaitlistCancelled(org.id, waiting as { name: string; email: string }[], { serviceName: (info.service as unknown as { name: string } | null)?.name ?? "The class", startsAt: info.starts_at as string, reason });
+  }
   await syncSessionCalendar(sessionId);
   return { ids, refundFailures };
 }
@@ -753,8 +766,8 @@ export async function getMoveTargets(slug: string, sessionId: string): Promise<M
     const ids = (list ?? []).map((x) => x.id as string);
     const counts = new Map<string, number>();
     if (ids.length) {
-      const { data: rows } = await supabase.from("bookings").select("session_id").in("session_id", ids).in("status", ["confirmed", "pending_approval", "pending_payment"]);
-      (rows ?? []).forEach((r) => counts.set(r.session_id as string, (counts.get(r.session_id as string) ?? 0) + 1));
+      const { data: rows } = await supabase.from("bookings").select("session_id, spots").in("session_id", ids).in("status", ["confirmed", "pending_approval", "pending_payment"]);
+      (rows ?? []).forEach((r) => counts.set(r.session_id as string, (counts.get(r.session_id as string) ?? 0) + ((r.spots as number | null) ?? 1)));
     }
     return (list ?? []).map((x) => ({ id: x.id as string, startsAt: x.starts_at as string, endsAt: x.ends_at as string, capacity: x.capacity as number, booked: counts.get(x.id as string) ?? 0 }));
   } catch {
@@ -772,6 +785,7 @@ export async function moveAttendee(slug: string, bookingId: string, toSessionId:
     const from = (data as { from_session: string }).from_session;
     await syncSessionCalendar(from); // the old session has one fewer; the new one is brought up to date by the notification
     await notifyBooking(bookingId, "rescheduled", { by: me.user_id ?? undefined, customer: notify, push: false });
+    await flushWaitlist(); // the spot they left may book someone in
     refresh(slug);
     return { ok: true };
   } catch (e) {
@@ -827,11 +841,54 @@ export async function moveSession(
   }
 }
 
+export interface WaitlistEntry {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  spots: number;
+  guests: string | null;
+  joinedAt: string;
+}
+
+/** Who is waiting for a session, in the order they joined. */
+export async function getSessionWaitlist(slug: string, sessionId: string): Promise<WaitlistEntry[]> {
+  try {
+    const { org } = await ctxFor(slug);
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("class_waitlist")
+      .select("id, name, email, phone, spots, guest_names, created_at")
+      .eq("session_id", sessionId)
+      .eq("org_id", org.id)
+      .eq("status", "waiting")
+      .order("created_at");
+    return (data ?? []).map((r) => ({ id: r.id as string, name: r.name as string, email: r.email as string, phone: (r.phone as string | null) ?? null, spots: r.spots as number, guests: (r.guest_names as string | null) ?? null, joinedAt: r.created_at as string }));
+  } catch {
+    return [];
+  }
+}
+
+/** Takes someone off a session's waitlist. */
+export async function removeWaitlistEntry(slug: string, id: string): Promise<ActionResult> {
+  try {
+    const { org } = await ctxFor(slug);
+    const supabase = await createClient();
+    const { data, error } = await supabase.from("class_waitlist").update({ status: "removed" }).eq("id", id).eq("org_id", org.id).eq("status", "waiting").select("id");
+    if (error) return { error: friendly(error) };
+    if (!data?.length) return { error: "They're no longer waiting." };
+    refresh(slug);
+    return { ok: true };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
 /** Puts someone into a session (a walk-in or a phone booking). The database refuses a full class. */
 export async function addSessionAttendee(
   slug: string,
   sessionId: string,
-  input: { customerId?: string; name?: string; email?: string; phone?: string; notify: boolean },
+  input: { customerId?: string; name?: string; email?: string; phone?: string; spots?: number; guests?: string; notify: boolean },
 ): Promise<ActionResult> {
   try {
     const { org, me } = await ctxFor(slug);
@@ -864,6 +921,7 @@ export async function addSessionAttendee(
       customerId = c.id;
     }
 
+    const spots = Number.isInteger(input.spots) && (input.spots as number) >= 1 && (input.spots as number) <= 6 ? (input.spots as number) : 1;
     const { data: already } = await supabase
       .from("bookings")
       .select("id")
@@ -887,10 +945,12 @@ export async function addSessionAttendee(
         blocked_until: session.blocked_until,
         status: "confirmed",
         service_name: service.name,
-        price_cents: service.price_cents,
+        price_cents: service.price_cents * spots,
         deposit_cents: 0,
         currency: org.currency,
         source: "manual",
+        spots,
+        guest_names: spots > 1 ? (input.guests ?? "").trim().slice(0, 300) || null : null,
         created_by: userData.user?.id,
       })
       .select("id")
@@ -912,8 +972,10 @@ export async function setBookingStatus(slug: string, id: string, status: Booking
     if (status === "cancelled") patch.cancelled_at = new Date().toISOString();
     const { error } = await supabase.from("bookings").update(patch).eq("id", id).eq("org_id", org.id);
     if (error) return { error: friendly(error) };
-    if (status === "cancelled") await notifyBooking(id, "cancellation", { by: me.user_id ?? undefined, customer: notify });
-    else await syncBookingCalendar(id);
+    if (status === "cancelled") {
+      await notifyBooking(id, "cancellation", { by: me.user_id ?? undefined, customer: notify });
+      await flushWaitlist(); // a freed class spot books in whoever was waiting
+    } else await syncBookingCalendar(id);
     refresh(slug);
     return { ok: true };
   } catch (e) {
@@ -953,6 +1015,7 @@ export async function declineBooking(slug: string, id: string): Promise<ActionRe
       .eq("org_id", org.id);
     if (error) return { error: friendly(error) };
     await notifyBooking(id, "declined");
+    await flushWaitlist();
     refresh(slug);
     return { ok: true };
   } catch (e) {
