@@ -6,6 +6,7 @@ import {
   House, CalendarDays, CalendarRange, ListChecks, Users2, Sparkles, Clock3, Settings, ExternalLink, ChevronsUpDown, Check, Plus, LogOut, Contact, Ellipsis, Workflow, MessageSquareText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MAX_OWNED_ORGS } from "@/lib/billing";
 import { LogoMark } from "./logo";
 import { ThemeSwitch, ThemeToggleButton } from "./theme-switch";
 import { Avatar } from "@/components/ui/misc";
@@ -243,9 +244,12 @@ function OrgSwitcher({ org, orgs, compact }: { org: OrgLite; orgs: OrgLite[]; co
             </Link>
           ))}
           <div className="my-1 h-px bg-separator" />
-          <Link href="/onboarding" className="flex items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-[14px] hover:bg-accent hover:text-white">
-            <Plus className="size-4" /> New team
-          </Link>
+          {/* At the cap (3 owned teams) there is nothing to offer: the page behind it would only say no. */}
+          {orgs.filter((o) => o.role === "owner").length < MAX_OWNED_ORGS && (
+            <Link href="/onboarding" className="flex items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-[14px] hover:bg-accent hover:text-white">
+              <Plus className="size-4" /> New team
+            </Link>
+          )}
           <div className="flex items-center gap-2 px-2.5 py-2 text-[12px] text-label-3"><LogoMark className="size-4" /> Tempo</div>
         </div>
       )}

@@ -35,7 +35,11 @@ To enable emails, payments and reminders, fill in the remaining keys in `.env.lo
 > **Email confirmation:** Supabase requires new users to confirm their email. The built-in
 > mailer is rate-limited (a few emails per hour). For development you can turn off
 > *Confirm email* in Supabase → Authentication → Sign In / Providers → Email, or add custom SMTP.
+> **Never turn it off in production**: the one-free-trial-per-person rule relies on verified emails.
 > Also set *Site URL* to your app URL under Authentication → URL Configuration.
+>
+> **Creating teams needs `TRIAL_CLAIM_SECRET`** (and `SUPABASE_SERVICE_ROLE_KEY`) in `.env.local`: any random string of
+> 16+ characters, e.g. `openssl rand -base64 32`. See `docs/billing-setup.md`.
 
 ### Design previews (no data needed)
 

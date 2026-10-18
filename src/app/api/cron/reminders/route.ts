@@ -2,8 +2,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyBooking } from "@/lib/notify";
 import { runTimedWorkflows } from "@/lib/messaging";
 import { env } from "@/lib/env";
+import { bearerMatches } from "@/lib/secure-compare";
 import { refundDeposit } from "@/lib/bookings";
 import { flushWaitlist } from "@/lib/waitlist";
+import { runBillingSweep } from "@/lib/billing-server";
 
 /**
  * Run every 15–60 minutes (see vercel.json and the hourly GitHub workflow). Releases abandoned payment holds,
@@ -11,7 +13,8 @@ import { flushWaitlist } from "@/lib/waitlist";
  * bookings complete. Each step is isolated: if one fails the others still run and the failure is reported.
  */
 export async function GET(request: Request) {
-  if (!env.cronSecret || request.headers.get("authorization") !== `Bearer ${env.cronSecret}`) {
+  // Fails closed when CRON_SECRET is unset; the comparison is constant-time.
+  if (!bearerMatches(request.headers.get("authorization"), env.cronSecret)) {
     return new Response("Unauthorized", { status: 401 });
   }
   const admin = createAdminClient();
@@ -39,6 +42,11 @@ export async function GET(request: Request) {
   // 0. Tell anyone who was booked in off a class waitlist and hasn't heard yet (a safety net for the instant path).
   await step("tell people booked in from waitlists", async () => {
     await flushWaitlist();
+  });
+
+  // 0b. Subscriptions: trial reminders, trial-ended notices, and the status changes that come with the clock.
+  await step("billing", async () => {
+    await runBillingSweep(now, only);
   });
 
   // 1. Release unpaid holds older than 30 minutes.

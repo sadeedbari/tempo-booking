@@ -11,11 +11,21 @@ export const S = state as {
 };
 
 export async function login(page: Page, who: keyof typeof S.people, next?: string) {
-  await page.goto(next ? `/login?next=${encodeURIComponent(next)}` : "/login");
-  await page.getByLabel("Email").fill(S.people[who].email);
-  await page.getByLabel("Password").fill(S.people[who].password);
-  await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30_000 });
+  // The hosted auth service limits sign-ins (about 30 per 5 minutes per address): if it says so, wait and try again.
+  for (let attempt = 0; ; attempt++) {
+    await page.goto(next ? `/login?next=${encodeURIComponent(next)}` : "/login");
+    await page.getByLabel("Email").fill(S.people[who].email);
+    await page.getByLabel("Password").fill(S.people[who].password);
+    await page.getByRole("button", { name: /sign in/i }).click();
+    try {
+      await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30_000 });
+      return;
+    } catch (e) {
+      const limited = /rate limit|too many/i.test(await page.locator("body").innerText().catch(() => ""));
+      if (!limited || attempt >= 8) throw e;
+      await page.waitForTimeout(20_000);
+    }
+  }
 }
 
 export async function logout(page: Page) {

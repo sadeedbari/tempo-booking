@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { PublicOrg } from "@/lib/types";
 import { BookingFlow } from "@/components/booking/booking-flow";
+import { BookingPaused } from "@/components/booking/paused";
 import { BookingPreview } from "@/app/preview/booking-preview";
 
 // The booking flow for a pop-up on another website (see public/embed.js).
@@ -19,6 +20,8 @@ export default async function EmbeddedBookingPage(props: PageProps<"/embed/[slug
   const { data } = await supabase.rpc("get_public_org", { p_slug: slug });
   const orgData = data as PublicOrg | null;
   if (!orgData) notFound();
+  const { data: open } = await supabase.rpc("org_accepts_bookings", { p_org: orgData.org.id });
+  if (open === false) return <BookingPaused name={orgData.org.name} phone={orgData.org.phone} website={orgData.org.website} embed />;
   return (
     <BookingFlow
       data={orgData}

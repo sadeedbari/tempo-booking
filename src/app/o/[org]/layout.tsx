@@ -4,6 +4,8 @@ import { PushBanner } from "@/components/app/push-device";
 import { env, features } from "@/lib/env";
 import { Sidebar } from "@/components/app/sidebar";
 import { createClient } from "@/lib/supabase/server";
+import { PlanBanner } from "@/components/app/plan-banner";
+import { getBillingStatus } from "@/lib/billing-server";
 
 export default async function OrgLayout(props: LayoutProps<"/o/[org]">) {
   const { org: slug } = await props.params;
@@ -22,6 +24,8 @@ export default async function OrgLayout(props: LayoutProps<"/o/[org]">) {
     .eq("org_id", ctx.org.id)
     .eq("status", "new");
 
+  const plan = await getBillingStatus(await createClient(), ctx.org.id);
+
   return (
     <div className="min-h-dvh">
       <Sidebar
@@ -32,7 +36,7 @@ export default async function OrgLayout(props: LayoutProps<"/o/[org]">) {
         newInquiries={newInquiries ?? 0}
       />
       <main className="pb-28 lg:pb-10 lg:pl-[260px]">
-        <div className="mx-auto max-w-[1400px] px-4 pt-6 sm:px-8 sm:pt-10"><InstallBanner />
+        <div className="mx-auto max-w-[1400px] px-4 pt-6 sm:px-8 sm:pt-10"><PlanBanner slug={slug} status={plan} isOwner={ctx.isOwner} timeZone={ctx.org.timezone} /><InstallBanner />
         {features.push && <PushBanner vapidKey={env.vapidPublicKey!} teamEnabled={ctx.org.notify_push} />}
         {props.children}</div>
       </main>

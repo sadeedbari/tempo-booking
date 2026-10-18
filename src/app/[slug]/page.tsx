@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { PublicOrg } from "@/lib/types";
 import { BookingFlow } from "@/components/booking/booking-flow";
+import { BookingPaused } from "@/components/booking/paused";
 
 async function load(slug: string) {
   const supabase = await createClient();
@@ -25,6 +26,11 @@ export default async function PublicBookingPage(props: PageProps<"/[slug]">) {
   const sp = await props.searchParams;
   const data = await load(slug);
   if (!data) notFound();
+  // No active plan (trial over, cancelled, unpaid): a neutral notice instead of the booking flow. The database also
+  // refuses any booking, so this is only the friendly face of it.
+  const supabase = await createClient();
+  const { data: open } = await supabase.rpc("org_accepts_bookings", { p_org: data.org.id });
+  if (open === false) return <BookingPaused name={data.org.name} phone={data.org.phone} website={data.org.website} />;
   return (
     <BookingFlow
       data={data}

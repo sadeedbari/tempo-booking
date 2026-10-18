@@ -3,7 +3,7 @@ import { Logo } from "@/components/app/logo";
 import { LEGAL } from "@/lib/legal";
 
 /** Plain, readable layout for the privacy policy and terms. */
-export function LegalPage({ title, children }: { title: string; children: React.ReactNode }) {
+export function LegalPage({ title, updated = LEGAL.updated, children }: { title: string; updated?: string; children: React.ReactNode }) {
   return (
     <div className="min-h-dvh">
       <header className="border-b border-separator">
@@ -17,7 +17,7 @@ export function LegalPage({ title, children }: { title: string; children: React.
       </header>
       <main className="mx-auto max-w-3xl px-5 py-12">
         <h1 className="text-[34px] font-bold leading-tight">{title}</h1>
-        <p className="mt-2 text-[14px] text-label-3">Last updated {LEGAL.updated}</p>
+        <p className="mt-2 text-[14px] text-label-3">Last updated {updated}</p>
         <div className="mt-8 space-y-4 text-[16px] leading-relaxed text-label-2">{children}</div>
       </main>
       <footer className="border-t border-separator py-8 text-center text-[13px] text-label-3">

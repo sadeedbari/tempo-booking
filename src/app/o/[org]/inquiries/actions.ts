@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/auth";
+import { planBlockMessage } from "@/lib/billing-server";
 import { friendlyDbError as friendly } from "@/lib/db-errors";
 import type { InquiryStatus } from "@/lib/types";
 
@@ -13,10 +14,14 @@ const isId = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f-]{3
 /** Row Level Security limits every change here to the signed-in person's own team. */
 async function run(slug: string, id: string, change: (db: Awaited<ReturnType<typeof createClient>>, orgId: string) => PromiseLike<{ error: { message: string; code?: string } | null }>, adminOnly = false): Promise<InquiryActionResult> {
   try {
-    const { org, isAdmin } = await getOrgContext(slug);
+    const { org, isAdmin, isOwner } = await getOrgContext(slug);
     if (adminOnly && !isAdmin) return { error: "Only owners and admins can do that." };
     if (!isId(id)) return { error: "That message wasn't found." };
-    const { error } = await change(await createClient(), org.id);
+    const db = await createClient();
+    // No active plan: say so plainly (the database would otherwise match 0 rows and this would look like a success).
+    const blocked = await planBlockMessage(db, org.id, isOwner);
+    if (blocked) return { error: blocked };
+    const { error } = await change(db, org.id);
     if (error) return { error: friendly(error) };
     revalidatePath(`/o/${slug}`, "layout");
     return { ok: true };

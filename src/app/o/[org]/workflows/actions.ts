@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext, getUser } from "@/lib/auth";
+import { planBlockMessage } from "@/lib/billing-server";
 import { sendEmail } from "@/lib/messaging";
 import { emailOnlyVariables, renderEmail, sampleVars, unknownVariables } from "@/lib/templates";
 import { DEFAULT_WORKFLOWS, LIMITS, isTimed, type EditableWorkflow } from "@/lib/workflow-defaults";
@@ -13,6 +14,10 @@ type Result = { ok?: boolean; error?: string; id?: string };
 async function adminCtx(slug: string) {
   const ctx = await getOrgContext(slug);
   if (!ctx.isAdmin) throw new Error("Only owners and admins can edit workflows.");
+  // Every workflow action changes something or sends a message: without an active plan say so plainly instead of
+  // silently changing nothing.
+  const blocked = await planBlockMessage(await createClient(), ctx.org.id, ctx.isOwner);
+  if (blocked) throw new Error(blocked);
   return ctx;
 }
 

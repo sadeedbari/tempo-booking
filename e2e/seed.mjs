@@ -1,7 +1,7 @@
 // Creates the baseline test world: two teams, several people, services, locations. Everything is tagged
 // (slug "e2e-*", emails "@tempo-e2e.test") and removed by cleanup.mjs. Passwords are random and only written
 // to e2e/.state.json (git-ignored).
-import { admin, cleanup, createUser, guard, signedIn, strongPassword, writeState } from "./lib.mjs";
+import { admin, cleanup, createTeamFor, createUser, guard, signedIn, strongPassword, writeState } from "./lib.mjs";
 
 guard();
 console.log("cleaning previous test data…", await cleanup(), "team(s) removed");
@@ -19,7 +19,10 @@ const must = (r, what) => {
 };
 
 // ---- Team A: a salon with two locations
-const orgA = must(await as.ownerA.rpc("create_organization", { p_name: "E2E Salon", p_slug: "e2e-salon", p_timezone: "America/Toronto", p_display_name: "Olivia Owner" }), "create A");
+const orgA = await createTeamFor(people.ownerA, { name: "E2E Salon", slug: "e2e-salon", timezone: "America/Toronto", displayName: "Olivia Owner" });
+// Team A needs room for 4 people and 2 locations, which is more than a trial includes: give it a paid plan (3 extra
+// locations, 2 staff packs). Team B stays on the trial. The plan is only ever written with the service role.
+must(await admin.from("subscriptions").update({ status: "active", extra_locations: 3, staff_packs: 2, current_period_end: new Date(Date.now() + 30 * 86400_000).toISOString() }).eq("org_id", orgA), "plan for A");
 for (const [key, role, display] of [["adminA", "admin", "Adam Admin"], ["staffA1", "member", "Sara Stylist"], ["staffA2", "member", "Sam Therapist"]]) {
   const inv = must(await as.ownerA.from("invitations").insert({ org_id: orgA, email: people[key].email, role }).select("token").single(), `invite ${key}`);
   must(await as[key].rpc("accept_invitation", { p_token: inv.token, p_display_name: display }), `accept ${key}`);
@@ -51,7 +54,7 @@ for (const [i, [key, { staff, ...row }]] of services.entries()) {
 }
 
 // ---- Team B: a clinic that approves every request
-const orgB = must(await as.ownerB.rpc("create_organization", { p_name: "E2E Clinic", p_slug: "e2e-clinic", p_timezone: "America/Vancouver", p_display_name: "Bea Owner" }), "create B");
+const orgB = await createTeamFor(people.ownerB, { name: "E2E Clinic", slug: "e2e-clinic", timezone: "America/Vancouver", displayName: "Bea Owner" });
 const physio = must(await as.ownerB.from("services").insert({ org_id: orgB, name: "Physio", slug: "physio", duration_minutes: 45, price_cents: 9000, auto_approve: false, color: "#FF2D55" }).select("id").single(), "service B");
 
 writeState({
