@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   const email = <a className="inline-block py-1.5 text-accent underline" href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a>;
   return (
-    <LegalPage title="Privacy Policy" updated="October 15, 2026">
+    <LegalPage title="Privacy Policy">
       <p>
         {LEGAL.product} is an online scheduling service operated by {LEGAL.operator} (&ldquo;we&rdquo;, &ldquo;us&rdquo;). It lets
         businesses take bookings from their customers and manage their team&apos;s schedule. This policy explains what
@@ -32,8 +32,6 @@ export default function PrivacyPage() {
         <li><strong>Account information</strong>: name, email address and a password (stored only as a secure hash) for business users.</li>
         <li><strong>Business information</strong>: business name, address, services, prices, team members, working hours, schedules and settings.</li>
         <li><strong>Booking information</strong>: the customer&apos;s name, email address, optional phone number and optional notes, plus the service, time and staff member booked.</li>
-        <li><strong>Answers to a business&apos;s booking questions</strong>: a business can ask questions when you book a service (for example about allergies or preferences). The answers you give are stored with that booking and are visible to the business and its team. Answer only what you are comfortable sharing with the business.</li>
-        <li><strong>Website contact-form messages</strong>: when a business adds the {LEGAL.product} contact form to its website, a visitor who uses it sends their name, email address, optional phone number, the service they are interested in and their message. These go to that business, are stored in its {LEGAL.product} account, and create or update a customer record for that visitor.</li>
         <li><strong>Payment information</strong>: deposits are paid on Stripe&apos;s secure page. We never see or store card numbers; we keep only the payment status and a reference.</li>
         <li><strong>Calendar information</strong>: only if a team member chooses to connect a Google or Microsoft calendar (see below).</li>
         <li><strong>Technical information</strong>: basic logs such as IP address and browser type, used to keep the service secure and working.</li>
@@ -43,7 +41,6 @@ export default function PrivacyPage() {
       <UL>
         <li>To provide the service: show open times, create and manage bookings, and show businesses their schedules.</li>
         <li>To send confirmations, reminders, change notices and approval requests by email and, where enabled, by text message.</li>
-        <li>To pass a contact-form message to the business and its team (by email and app notification), and to send the visitor an automatic email confirming it was received, if the business has that message turned on. We use a contact-form visitor&apos;s details only to answer them, and never for our own marketing.</li>
         <li>To take deposits and process refunds through Stripe.</li>
         <li>To secure the service, prevent abuse and fix problems.</li>
       </UL>
@@ -89,7 +86,7 @@ export default function PrivacyPage() {
         <li>Google and Microsoft: calendar sync, only for people who connect a calendar.</li>
       </UL>
       <p>
-        A booking&apos;s details (including answers to its booking questions), and any contact-form message, are visible to the business they were sent to and to that business&apos;s team members, according to their roles.
+        A booking&apos;s details are visible to the business it was made with and to that business&apos;s team members, according to their roles.
         We may also disclose information if the law requires it.
       </p>
 
