@@ -10,6 +10,9 @@ export const env = {
   stripePriceBase: process.env.STRIPE_PRICE_BASE,
   stripePriceLocation: process.env.STRIPE_PRICE_EXTRA_LOCATION,
   stripePricePack: process.env.STRIPE_PRICE_STAFF_PACK,
+  // Tempo's OWN Customer Portal configuration (bpc_...). The Stripe account is shared with another product, so the
+  // account's Default portal configuration must never be used: without this, "Manage billing" fails closed.
+  stripePortalConfiguration: process.env.STRIPE_PORTAL_CONFIGURATION,
   // Set to "1" once Stripe Tax is configured in your Stripe account, to charge GST/HST on subscriptions.
   stripeBillingTax: process.env.STRIPE_BILLING_AUTOMATIC_TAX === "1",
   // Secret key for the trial-claim hashes (HMAC-SHA256). Server only; never stored in the database or in any file.

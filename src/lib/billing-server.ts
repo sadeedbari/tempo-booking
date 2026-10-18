@@ -217,8 +217,14 @@ export async function createCheckoutUrl(org: { id: string; name: string; slug: s
 /** The Stripe Customer Portal (card, invoices). */
 export async function createPortalUrl(org: { id: string; name: string; slug: string }, sub: Subscription, email: string | undefined): Promise<string> {
   const { stripe } = requireBilling();
+  // Fail closed: never fall back to the Stripe account's Default portal configuration (it belongs to another product).
+  const configuration = env.stripePortalConfiguration;
+  if (!configuration) {
+    console.error("Billing portal: STRIPE_PORTAL_CONFIGURATION is not set; refusing to use the account's Default portal configuration.");
+    throw new BillingUserError("Billing portal isn't set up yet. Please contact support.");
+  }
   const customer = await ensureCustomer(stripe, org, email, sub);
-  const session = await stripe.billingPortal.sessions.create({ customer, return_url: `${env.appUrl}/o/${encodeURIComponent(org.slug)}/settings/billing` });
+  const session = await stripe.billingPortal.sessions.create({ customer, configuration, return_url: `${env.appUrl}/o/${encodeURIComponent(org.slug)}/settings/billing` });
   return session.url;
 }
 

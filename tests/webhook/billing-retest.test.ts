@@ -145,6 +145,7 @@ const stripeApi = http.createServer((req, res) => {
       if (idem) refundsByKey[idem] = r;
       return send(200, r);
     }
+    if (url.pathname === "/v1/billing_portal/sessions" && req.method === "POST") return send(200, { id: "bps_1", object: "billing_portal.session", url: "https://billing.stripe.test/p/session" });
     if (url.pathname === "/v1/customers" && req.method === "POST") return send(200, { id: "cus_made", object: "customer" });
     if (url.pathname === "/v1/checkout/sessions" && req.method === "POST") {
       if (idem && idemSessions[idem]) return send(200, idemSessions[idem]);
@@ -178,6 +179,7 @@ before(async () => {
     SUPABASE_SERVICE_ROLE_KEY: "service",
     STRIPE_SECRET_KEY: "sk_test_dummy",
     STRIPE_BILLING_WEBHOOK_SECRET: SECRET,
+    STRIPE_PORTAL_CONFIGURATION: "bpc_test_tempo",
     STRIPE_PRICE_BASE: PRICES.base,
     STRIPE_PRICE_EXTRA_LOCATION: PRICES.location,
     STRIPE_PRICE_STAFF_PACK: PRICES.pack,
@@ -583,4 +585,28 @@ test("S-020: when the race winner is already dead at Stripe, the live loser is a
   assert.equal(sub().stripe_subscription_id, "sub_2", "the live subscription took over");
   assert.equal(sub().status, "active");
   assert.ok(!stripeCalls.some((c) => c.m === "DELETE"), "nothing live was cancelled");
+});
+
+/* ───────── Portal configuration (shared Stripe account: never use the Default configuration) ───────── */
+test("portal: Tempo's own configuration is passed to Stripe", async () => {
+  Object.assign(sub(), { stripe_customer_id: "cus_1" });
+  const url = await server.createPortalUrl(org, sub() as never, "o@x.test");
+  assert.equal(url, "https://billing.stripe.test/p/session");
+  const call = stripeCalls.find((c) => c.path === "/v1/billing_portal/sessions");
+  assert.ok(call, "portal session requested");
+  assert.equal(call.body.get("configuration"), "bpc_test_tempo");
+});
+
+test("portal: without STRIPE_PORTAL_CONFIGURATION it refuses with a friendly error and makes no Stripe call", async () => {
+  const { env } = await import("../../src/lib/env");
+  const saved = env.stripePortalConfiguration;
+  env.stripePortalConfiguration = undefined;
+  try {
+    await assert.rejects(server.createPortalUrl(org, sub() as never, "o@x.test"), (e: unknown) => {
+      assert.ok(e instanceof server.BillingUserError);
+      assert.match((e as Error).message, /Billing portal isn't set up yet/);
+      return true;
+    });
+    assert.equal(stripeCalls.length, 0, "no Stripe call (not even customer creation), so no Default-configuration portal");
+  } finally { env.stripePortalConfiguration = saved; }
 });

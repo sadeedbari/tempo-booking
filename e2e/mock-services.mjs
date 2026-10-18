@@ -91,6 +91,10 @@ http
       sent.stripe.push({ method: req.method, path, body, account: req.headers["stripe-account"] ?? null });
       const base = `http://127.0.0.1:${PORT}`;
       if (path === "/v1/customers" && req.method === "POST") return json(res, 200, { id: `cus_mock_${++n}`, object: "customer", metadata: { org_id: body["metadata[org_id]"] } });
+      if (path === "/v1/billing_portal/sessions" && req.method === "POST") {
+        // Tempo must always name its own portal configuration (the Stripe account is shared); reject a call that doesn't.
+        if (!/^bpc_/.test(body.configuration ?? "")) return json(res, 400, { error: { type: "invalid_request_error", message: "mock: portal configuration missing" } });
+      }
       if (path === "/v1/billing_portal/sessions" && req.method === "POST") return json(res, 200, { id: `bps_mock_${++n}`, object: "billing_portal.session", url: `${base}/portal/${body.customer}` });
       if (path === "/v1/checkout/sessions" && req.method === "POST" && body.mode === "subscription") {
         const id = `cs_mock_${++n}`;
