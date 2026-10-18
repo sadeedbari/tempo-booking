@@ -1,0 +1,29 @@
+R2 probes
+  PASS authenticated cannot call create_organization_as (impersonation) -> permission denied for function create_organization_as
+  PASS anon cannot call create_organization_as -> permission denied for function create_organization_as
+  PASS authenticated cannot call backfill -> permission denied for function backfill_trial_claims
+  PASS authenticated cannot call forget_trial_claim -> permission denied for function forget_trial_claim
+  PASS anon cannot call forget_trial_claim -> permission denied for function forget_trial_claim
+  PASS old create_organization gone -> function public.create_organization(unknown, unknown, unknown, unknown) does not exist
+  PASS private.claim_hash not callable by authenticated (hash oracle) -> permission denied for function claim_hash
+  PASS null secret fails closed -> Team creation is not available right now (server setup is incomplete).
+  PASS short secret fails closed -> Team creation is not available right now (server setup is incomplete).
+  PASS unknown uid refused -> Not authenticated
+  PASS no org created by failures
+  PASS no claims by failures
+  PASS GUCs cleared after success (session level check)
+  PASS dup slug fails -> duplicate key value violates unique constraint "organizations_slug_key"
+  PASS GUC cleared after failure
+  PASS failed dup-slug attempt rolled back its claims (user 2 not burned)
+  PASS secret not in any stored row
+  PASS secret not in function source
+  PASS backfill second run writes 0 (b1=0)
+  PASS kinds and secrets separate
+  PASS ROTATION: changing the secret re-grants a trial to a past user (documented)
+  user1 owners 3
+  PASS transfer: promote admin B (0 owned) to owner
+  PASS transfer: previous owner demotes self
+  PASS idempotent role writes ok
+  PASS owner updating own display name unaffected
+  re-promote ok
+25 pass 0 fail

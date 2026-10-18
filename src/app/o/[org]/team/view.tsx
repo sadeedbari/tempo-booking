@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { Check, Copy, Mail, UserPlus } from "lucide-react";
-import { PageHeader, Avatar, Badge, Notice } from "@/components/ui/misc";
+import { PageHeader, Avatar, Badge } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -9,6 +9,8 @@ import { Sheet } from "@/components/ui/sheet";
 import { List } from "@/components/ui/list";
 import { useToast } from "@/components/ui/toast";
 import { PALETTE } from "@/lib/utils";
+import { UpgradeNotice } from "@/components/app/upgrade-notice";
+import type { UpgradeOffer } from "@/lib/billing";
 import type { Invitation, Membership } from "@/lib/types";
 import { addTeamMember, inviteMember, removeMember, revokeInvite, updateMember } from "../actions";
 
@@ -92,9 +94,20 @@ function AddMemberSheet({ open, onClose, slug, onCopy }: { open: boolean; onClos
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [invite, setInvite] = useState(false);
+  const [offer, setOffer] = useState<UpgradeOffer | undefined>();
+  const [lastForm, setLastForm] = useState<FormData | null>(null);
   const toast = useToast();
 
-  const close = () => { setToken(null); setError(null); setInvite(false); onClose(); };
+  const close = () => { setToken(null); setError(null); setOffer(undefined); setInvite(false); onClose(); };
+  const run = (fd: FormData) => start(async () => {
+    setLastForm(fd);
+    const r = await addTeamMember(slug, fd);
+    if (r.error) { setOffer(r.upgrade); return setError(r.error); }
+    setError(null);
+    setOffer(undefined);
+    if (r.id) setToken(r.id);
+    else { toast("Team member added"); close(); }
+  });
 
   return (
     <Sheet open={open} onClose={close} title="Add a team member" subtitle="They don't need to sign in. You manage their hours and bookings for them.">
@@ -107,13 +120,7 @@ function AddMemberSheet({ open, onClose, slug, onCopy }: { open: boolean; onClos
         </div>
       ) : (
         <form
-          action={(fd) => start(async () => {
-            const r = await addTeamMember(slug, fd);
-            if (r.error) return setError(r.error);
-            setError(null);
-            if (r.id) setToken(r.id);
-            else { toast("Team member added"); close(); }
-          })}
+          action={run}
           className="space-y-4"
         >
           <Field label="Name"><Input name="name" placeholder="Jane Appleseed" required autoFocus /></Field>
@@ -135,7 +142,7 @@ function AddMemberSheet({ open, onClose, slug, onCopy }: { open: boolean; onClos
               </Select>
             </Field>
           )}
-          {error && <Notice>{error}</Notice>}
+          {error && <UpgradeNotice slug={slug} message={error} offer={offer} onUpgraded={() => lastForm && run(lastForm)} />}
           <Button type="submit" size="lg" pill className="w-full" loading={pending}>{invite ? "Add and send invitation" : "Add team member"}</Button>
         </form>
       )}
@@ -155,6 +162,16 @@ function MemberSheet({ slug, member, me, isAdmin, onClose, onCopy }: { slug: str
   const [inviteEmail, setInviteEmail] = useState(member.email ?? "");
   const [inviteRole, setInviteRole] = useState("member");
   const [sentToken, setSentToken] = useState<string | null>(null);
+  const [offer, setOffer] = useState<UpgradeOffer | undefined>();
+  const sendInvite = () =>
+    start(async () => {
+      const fd = new FormData();
+      fd.set("email", inviteEmail);
+      fd.set("role", inviteRole);
+      fd.set("member_id", member.id);
+      const r = await inviteMember(slug, fd);
+      if (r.error) { setOffer(r.upgrade); setError(r.error); } else { setError(null); setOffer(undefined); setSentToken(r.id!); }
+    });
 
   return (
     <Sheet open onClose={onClose} title={self ? "Your profile" : member.display_name}>
@@ -218,21 +235,7 @@ function MemberSheet({ slug, member, me, isAdmin, onClose, onCopy }: { slug: str
                   <option value="member">Staff</option>
                   <option value="admin">Admin</option>
                 </Select>
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={pending}
-                  onClick={() =>
-                    start(async () => {
-                      const fd = new FormData();
-                      fd.set("email", inviteEmail);
-                      fd.set("role", inviteRole);
-                      fd.set("member_id", member.id);
-                      const r = await inviteMember(slug, fd);
-                      if (r.error) setError(r.error); else { setError(null); setSentToken(r.id!); }
-                    })
-                  }
-                >
+                <Button type="button" size="sm" disabled={pending} onClick={sendInvite}>
                   <Mail className="size-3.5" /> Send invitation
                 </Button>
               </div>
@@ -242,7 +245,7 @@ function MemberSheet({ slug, member, me, isAdmin, onClose, onCopy }: { slug: str
           </div>
         )}
 
-        {error && <Notice>{error}</Notice>}
+        {error && <UpgradeNotice slug={slug} message={error} offer={offer} onUpgraded={sendInvite} />}
         <div className="flex gap-2">
           {(isAdmin || self) && (
             <Button type="button" variant="destructive" disabled={pending}

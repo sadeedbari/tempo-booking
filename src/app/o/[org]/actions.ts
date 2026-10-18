@@ -19,6 +19,8 @@ import { copyPairs, hasSameLocationOverlap, periodDays, type SchedulePeriod } fr
 import { normalizePhone } from "@/lib/phone";
 import { withUnit } from "@/lib/address";
 import { dayKey } from "@/lib/format";
+import { checkCapacity, getBillingStatus, planInactiveMessage } from "@/lib/billing-server";
+import type { UpgradeOffer } from "@/lib/billing";
 import type { BookingStatus, Organization, OrgRole } from "@/lib/types";
 
 export type ActionResult = {
@@ -34,6 +36,8 @@ export type ActionResult = {
   people?: number;
   /** How many sessions a change to a series covered. */
   sessions?: number;
+  /** The change would go beyond the plan: what to offer (the owner can add it in one click). */
+  upgrade?: UpgradeOffer;
 };
 
 /** The same time of day `weeks` weeks later in the business's time zone, even across a clock change. */
@@ -50,7 +54,20 @@ function withTimeOfDay(dateIso: string, timeSource: Date, timeZone: string) {
   return new Date(new TZDate(day.getFullYear(), day.getMonth(), day.getDate(), t.getHours(), t.getMinutes(), 0, timeZone).getTime());
 }
 
+/** The team and the signed-in person's place in it, for an action that changes something. */
 async function ctxFor(slug: string, adminOnly = false) {
+  const ctx = await ctxRead(slug, adminOnly);
+  // No active plan (trial over, cancelled, unpaid): the dashboard is read-only. The database refuses these writes
+  // as well; this gives the plain-words reason first.
+  const plan = await getBillingStatus(await createClient(), ctx.org.id);
+  if (plan && !plan.entitled) {
+    throw new Error(planInactiveMessage(ctx.isOwner));
+  }
+  return ctx;
+}
+
+/** Same, for actions that only read, or that must keep working without a plan (leaving, deleting the team). */
+async function ctxRead(slug: string, adminOnly = false) {
   const ctx = await getOrgContext(slug);
   if (adminOnly && !ctx.isAdmin) throw new Error("Only owners and admins can do that.");
   return ctx;
@@ -414,7 +431,7 @@ export interface SeriesSummary {
 /** Where a booking sits in its repeating series ("2 of 6, every week"), or null if it isn't part of one. */
 export async function getSeriesSummary(slug: string, bookingId: string): Promise<SeriesSummary | null> {
   try {
-    const { org } = await ctxFor(slug);
+    const { org } = await ctxRead(slug);
     const supabase = await createClient();
     const { data: b } = await supabase.from("bookings").select("series_id, starts_at").eq("id", bookingId).eq("org_id", org.id).single();
     if (!b?.series_id) return null;
@@ -552,7 +569,7 @@ export interface SessionAttendee {
 /** Who is in a session, for the roster. */
 export async function getSessionRoster(slug: string, sessionId: string): Promise<{ attendees: SessionAttendee[] } | null> {
   try {
-    const { org } = await ctxFor(slug);
+    const { org } = await ctxRead(slug);
     const supabase = await createClient();
     const { data: rows, error } = await supabase
       .from("bookings")
@@ -586,7 +603,7 @@ export async function getSessionRoster(slug: string, sessionId: string): Promise
 /** Where a session sits in its weekly series ("3 of 8"), and how many scheduled sessions come after it. Null if it stands alone. */
 export async function getSessionSeries(slug: string, sessionId: string): Promise<{ index: number; total: number; later: number } | null> {
   try {
-    const { org } = await ctxFor(slug);
+    const { org } = await ctxRead(slug);
     const supabase = await createClient();
     const { data: s } = await supabase.from("class_sessions").select("series_id, starts_at").eq("id", sessionId).eq("org_id", org.id).single();
     if (!s?.series_id) return null;
@@ -749,7 +766,7 @@ export interface MoveTarget {
 /** The other upcoming sessions of the same class that a person could be moved to, with how many spots each has taken. */
 export async function getMoveTargets(slug: string, sessionId: string): Promise<MoveTarget[]> {
   try {
-    const { org } = await ctxFor(slug);
+    const { org } = await ctxRead(slug);
     const supabase = await createClient();
     const { data: s } = await supabase.from("class_sessions").select("service_id").eq("id", sessionId).eq("org_id", org.id).single();
     if (!s) return [];
@@ -854,7 +871,7 @@ export interface WaitlistEntry {
 /** Who is waiting for a session, in the order they joined. */
 export async function getSessionWaitlist(slug: string, sessionId: string): Promise<WaitlistEntry[]> {
   try {
-    const { org } = await ctxFor(slug);
+    const { org } = await ctxRead(slug);
     const supabase = await createClient();
     const { data } = await supabase
       .from("class_waitlist")
@@ -1121,11 +1138,22 @@ const locationSchema = z.object({
 
 export async function saveLocation(slug: string, formData: FormData): Promise<ActionResult> {
   try {
-    const { org } = await ctxFor(slug, true);
+    const { org, isOwner } = await ctxFor(slug, true);
     const parsed = locationSchema.safeParse({ ...Object.fromEntries(formData), active: formData.get("active") === "on" });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const v = parsed.data;
     const supabase = await createClient();
+
+    // Beyond the plan? A new location, or turning a hidden one back on, uses up a place (hidden ones don't count).
+    let usesAPlace = Boolean(v.active) && !v.id;
+    if (v.id && v.active) {
+      const { data: before } = await supabase.from("locations").select("active").eq("id", v.id).eq("org_id", org.id).maybeSingle();
+      usesAPlace = before ? !before.active : false;
+    }
+    if (usesAPlace) {
+      const cap = await checkCapacity(supabase, org.id, "location", isOwner);
+      if (!cap.ok) return { error: cap.error, upgrade: cap.upgrade };
+    }
     const row = { org_id: org.id, name: v.name, address: v.address || null, phone: v.phone || null, active: v.active };
 
     let id = v.id || "";
@@ -1172,7 +1200,7 @@ export async function deleteLocation(slug: string, id: string): Promise<ActionRe
 /** Disconnects one of the signed-in member's own calendars. Events already created stay on their calendar. */
 export async function disconnectCalendar(slug: string, providerId: string): Promise<ActionResult> {
   try {
-    const { me } = await ctxFor(slug);
+    const { me } = await ctxRead(slug);
     const admin = createAdminClient();
     const { data: conn } = await admin.from("calendar_connections").select("id, refresh_token_enc").eq("member_id", me.id).eq("provider", providerId).maybeSingle();
     if (conn) {
@@ -1386,7 +1414,7 @@ const emailOk = (v: string) => z.string().email().max(254).safeParse(v).success;
  */
 export async function addTeamMember(slug: string, formData: FormData): Promise<ActionResult> {
   try {
-    const { org, members, me } = await ctxFor(slug, true);
+    const { org, members, me, isOwner } = await ctxFor(slug, true);
     const name = String(formData.get("name") || "").trim();
     const title = String(formData.get("title") || "").trim();
     const email = String(formData.get("email") || "").trim().toLowerCase();
@@ -1398,6 +1426,9 @@ export async function addTeamMember(slug: string, formData: FormData): Promise<A
     if (invite && !email) return { error: "Add their email address to send an invitation." };
 
     const supabase = await createClient();
+    // Every team member counts toward the plan's staff limit (the database enforces it too).
+    const cap = await checkCapacity(supabase, org.id, "staff", isOwner);
+    if (!cap.ok) return { error: cap.error, upgrade: cap.upgrade };
     const { data: memberId, error } = await supabase.rpc("add_team_member", {
       p_org: org.id,
       p_name: name,
@@ -1436,13 +1467,18 @@ async function createInvite(org: { id: string; name: string }, inviter: string, 
 /** Invites someone by email. With `member_id`, the invitation is for a team member who was added without a login. */
 export async function inviteMember(slug: string, formData: FormData): Promise<ActionResult> {
   try {
-    const { org, me } = await ctxFor(slug, true);
+    const { org, me, isOwner } = await ctxFor(slug, true);
     const email = String(formData.get("email") || "").trim().toLowerCase();
     const role = (formData.get("role") === "admin" ? "admin" : "member") as OrgRole;
     const memberId = String(formData.get("member_id") || "");
     if (!emailOk(email)) return { error: "Enter a valid email address." };
 
     const supabase = await createClient();
+    // Inviting a brand-new person will add a team member, so it needs a free staff place (invitations already sent count).
+    if (!memberId) {
+      const cap = await checkCapacity(supabase, org.id, "staff", isOwner);
+      if (!cap.ok) return { error: cap.error, upgrade: cap.upgrade };
+    }
     if (memberId) {
       const { data: m } = await supabase.from("memberships").select("id, user_id").eq("id", memberId).eq("org_id", org.id).single();
       if (!m) return { error: "Team member not found." };
@@ -1668,7 +1704,7 @@ export async function saveContactFormOptions(slug: string, formData: FormData): 
 }
 
 export async function deleteOrg(slug: string): Promise<ActionResult> {
-  const { org, isOwner } = await ctxFor(slug);
+  const { org, isOwner } = await ctxRead(slug);
   if (!isOwner) return { error: "Only owners can delete a team." };
   const supabase = await createClient();
   const { error } = await supabase.from("organizations").delete().eq("id", org.id);

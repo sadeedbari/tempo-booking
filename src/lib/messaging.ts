@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { env, features } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate, formatDateTime, formatDuration, formatMoney, formatTime } from "@/lib/format";
+import { isEntitled } from "@/lib/billing";
 import { normalizePhone } from "@/lib/phone";
 import { finalizeSms } from "@/lib/sms";
 import { renderEmail, renderText, type Vars } from "@/lib/templates";
@@ -354,6 +355,42 @@ export async function fireTrigger(b: BookingForMessage, trigger: Trigger) {
 
 const HOUR = 3600_000;
 
+const PLAN_LOOKUP_CHUNK = 100;
+const PLAN_COLUMNS = "org_id, status, trial_ends_at, current_period_end, cancel_at_period_end, past_due_since";
+
+/**
+ * Which of these businesses must not send timed messages because they have no active plan. The lookup is paged in chunks
+ * (a long `in (...)` list overflows the request URL, and one big answer can be cut off by the API's row limit). A business with no
+ * subscription row counts as paused (fail closed). If a chunk can't be read, it is logged and retried one business at a time,
+ * so only the businesses whose own lookup fails are paused for this run (they are retried next hour), never everyone (D-017).
+ */
+export async function findPausedOrgs(admin: ReturnType<typeof createAdminClient>, orgIds: string[], now: Date): Promise<Set<string>> {
+  const paused = new Set<string>();
+  const judge = (id: string, sub: unknown) => {
+    if (!sub || !isEntitled(sub as Parameters<typeof isEntitled>[0], now)) paused.add(id);
+  };
+  for (let i = 0; i < orgIds.length; i += PLAN_LOOKUP_CHUNK) {
+    const chunk = orgIds.slice(i, i + PLAN_LOOKUP_CHUNK);
+    const { data, error } = await admin.from("subscriptions").select(PLAN_COLUMNS).in("org_id", chunk);
+    if (!error && data) {
+      const byOrg = new Map((data as { org_id: string }[]).map((r) => [r.org_id, r]));
+      for (const id of chunk) judge(id, byOrg.get(id));
+      continue;
+    }
+    console.error(`[workflows] could not read the plans of ${chunk.length} businesses (${error?.message ?? "no data"}); trying them one by one`);
+    for (const id of chunk) {
+      const one = await admin.from("subscriptions").select(PLAN_COLUMNS).eq("org_id", id).maybeSingle();
+      if (one.error) {
+        console.error(`[workflows] could not read the plan of org ${id}; its timed messages wait until the next run: ${one.error.message}`);
+        paused.add(id);
+      } else {
+        judge(id, one.data);
+      }
+    }
+  }
+  return paused;
+}
+
 /**
  * Sends the "N before the appointment" and "N after it ends" messages that have come due.
  * Runs from the hourly job. Each message is claimed before sending, so overlapping runs never double-send.
@@ -373,7 +410,12 @@ export async function runTimedWorkflows(now = new Date(), onlyOrgs?: string[]) {
   let wq = admin.from("workflows").select(WORKFLOW_SELECT).eq("active", true).in("trigger", ["before_start", "after_end"]);
   if (onlyOrgs) wq = wq.in("org_id", onlyOrgs);
   const { data } = await wq;
+  // Businesses with no active plan (trial over, cancelled, unpaid) don't send timed messages: they cost the platform
+  // email/SMS fees. Messages about bookings that already happened (confirmations, cancellations) are unaffected.
+  const orgIds = [...new Set(((data ?? []) as { org_id: string }[]).map((w) => w.org_id))];
+  const paused = await findPausedOrgs(admin, orgIds, now);
   for (const w of (data ?? []) as unknown as LoadedWorkflow[]) {
+    if (paused.has(w.org_id)) continue;
     const steps = w.steps.filter((s) => s.enabled).sort((x, y) => x.position - y.position);
     if (!steps.length) continue;
     const offset = w.offset_minutes * 60_000;

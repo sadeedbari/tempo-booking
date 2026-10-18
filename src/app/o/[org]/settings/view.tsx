@@ -139,6 +139,18 @@ export function SettingsView({
 
         <ContactEmbedSection appUrl={appUrl} slug={org.slug} services={services} enabled={org.inquiries_enabled} successMessage={org.inquiry_success_message ?? ""} />
 
+        {isOwner && (
+          <Section title="Plan and billing" description="Your Tempo subscription: plan, usage, invoices and cancellation.">
+            <Link href={`/o/${slug}/settings/billing`} className="flex items-center gap-3 rounded-[16px] bg-surface p-4 shadow-sm hairline transition hover:shadow-md">
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-medium">Open billing</div>
+                <div className="text-[13px] text-label-2">See your trial or plan, what you use, change your plan, or manage your card.</div>
+              </div>
+              <ChevronRight className="size-4 shrink-0 text-label-3" />
+            </Link>
+          </Section>
+        )}
+
         <Section title="Payments" description="Take deposits when customers book. Funds go straight to your Stripe account.">
           <div className="flex flex-wrap items-center gap-4 rounded-[16px] bg-surface p-5 shadow-sm hairline">
             <div className="grid size-12 place-items-center rounded-[13px] bg-gradient-to-b from-[#7A73FF] to-[#635BFF] text-white"><CreditCard className="size-6" /></div>

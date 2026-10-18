@@ -1,0 +1,52 @@
+  PASS users cannot run forget_trial_claim -> permission denied for function forget_trial_claim
+  PASS backfill is idempotent: running it again adds nothing
+S-013: a changed verified email on one account does not renew the trial; the owner cap applies to promotions
+  PASS first team of a new account: trial
+  PASS same account, new verified email: no second trial
+  PASS ...and the new address is recorded as used too
+  PASS promoting a person who owns 3 teams to owner of a 4th is refused (guard_role_change path) -> That person already owns 3 teams, the most one person can own, so they can't be made an owner here.
+  PASS ...also when done by the server -> That person already owns 3 teams, the most one person can own, so they can't be made an owner here.
+  PASS inserting a new owner membership for them is refused too -> That person already owns 3 teams, the most one person can own, so they can't be made an owner here.
+  PASS never more than 3 owner memberships
+  PASS after one team is deleted the promotion works
+  PASS a membership that is already an owner can be edited (the cap only applies when it BECOMES owner)
+  PASS demoting is always allowed
+
+125 passed, 0 failed
+  PASS inactive plan on accept: error hint is billing
+  PASS move_class_session on a missing session says not found (no plan leak)
+  PASS expired: public booking refused
+B7. regression: recurring series and class waitlist on a plan, refused off it
+  PASS plan: a 3-week recurring series books
+  PASS plan: three bookings exist
+  PASS plan: join waitlist
+  PASS plan: cancel auto-promotes the waitlist
+  PASS expired: recurring series refused -> This business is not accepting bookings right now.
+  PASS expired: nothing partially created
+  PASS expired: customer can still cancel their series
+B5. generic audit: write policies without a billing policy (informational)
+   uncovered: organizations(DELETE), profiles(UPDATE), push_subscriptions(ALL)
+
+106 passed, 0 failed
+✔ S-008: two concurrent deliveries of one event id: one is processed, the other is a duplicate or told to retry (409) (25.5492ms)
+✔ S-008: an invoice without a subscription (a one-off invoice) does not start a grace period (14.0875ms)
+✔ D-012: a payment problem is announced once (when it starts), not on every retry; a new problem is announced again (22.9395ms)
+✔ S-008: direct applies (after Checkout, plan change, cancel) stamp last_stripe_event_at so an older snapshot can't overwrite them (9.8151ms)
+[billing] reconcile failed for org c2000000-0000-0000-0000-000000000002: boom
+✔ S-007: the hourly sweep re-reads paying businesses from Stripe (a lost webhook is repaired) and tolerates errors (1063.1989ms)
+✔ S-008: stripe_billing_events older than 90 days are purged by the sweep; recent ones stay (26.4391ms)
+[billing-webhook] customer.subscription.updated failed: could not save subscription: boom
+✔ processing failure: 500, event stays unprocessed, and Stripe's retry (same id) is processed (45.2833ms)
+✔ unrelated event types are acknowledged (10.0827ms)
+✔ hourly sweep: trial end, 7-day grace and cancel-at-period-end boundaries (26.6808ms)
+✔ hourly sweep scoped to some businesses leaves the others alone (29.0374ms)
+ℹ tests 45
+ℹ suites 0
+ℹ pass 45
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4035.3568
+
+[exited with code 0]

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { PublicContact } from "@/lib/types";
 import { ContactForm } from "@/components/contact/contact-form";
+import { BookingPaused } from "@/components/booking/paused";
 
 async function load(slug: string) {
   const supabase = await createClient();
@@ -21,5 +22,8 @@ export default async function ContactPage(props: PageProps<"/[slug]/contact">) {
   const sp = await props.searchParams;
   const data = await load(slug);
   if (!data) notFound();
+  // A business with no active plan doesn't take messages either.
+  const { data: open } = await (await createClient()).rpc("org_accepts_bookings", { p_org: data.org.id });
+  if (open === false) return <BookingPaused name={data.org.name} phone={data.org.phone} />;
   return <ContactForm data={data} initialService={typeof sp.service === "string" ? sp.service : undefined} />;
 }

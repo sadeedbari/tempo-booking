@@ -4,6 +4,10 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { RESERVED_SLUGS, slugify } from "@/lib/utils";
+import { MAX_OWNED_ORGS } from "@/lib/billing";
+import { getBillingStatus } from "@/lib/billing-server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { env } from "@/lib/env";
 
 export type OnboardingState = { error?: string } | undefined;
 
@@ -33,7 +37,19 @@ export async function createTeam(_: OnboardingState, formData: FormData): Promis
   if (RESERVED_SLUGS.has(slug)) return { error: "That link is reserved — try another." };
 
   const supabase = await createClient();
-  const { data: orgId, error } = await supabase.rpc("create_organization", {
+  // One person can own up to MAX_OWNED_ORGS teams (the database enforces it too; this gives the plain message first).
+  const { count: owned } = await supabase.from("memberships").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("role", "owner");
+  if ((owned ?? 0) >= MAX_OWNED_ORGS) return { error: `You can own up to ${MAX_OWNED_ORGS} teams. Delete one you no longer need first.` };
+  // Teams are created by the server on behalf of the signed-in person (the id comes from the verified session), because the
+  // database needs the secret key for the one-trial-per-person records and that key must never reach a browser or the database
+  // itself. Without it (or without the service-role key) nothing is created: fail closed.
+  if (!env.trialClaimSecret || !env.supabaseServiceKey) {
+    console.error("[onboarding] TRIAL_CLAIM_SECRET and SUPABASE_SERVICE_ROLE_KEY must both be set to create teams.");
+    return { error: "Creating a team isn't available right now. Please try again later." };
+  }
+  const { data: orgId, error } = await createAdminClient().rpc("create_organization_as", {
+    p_uid: user.id,
+    p_secret: env.trialClaimSecret,
     p_name: name,
     p_slug: slug,
     p_timezone: timezone,
@@ -46,7 +62,12 @@ export async function createTeam(_: OnboardingState, formData: FormData): Promis
 
   // Every row spells out every column: a bulk insert fills a missing key with NULL (not the default), which
   // used to make the whole insert fail for the starter services that had no deposit.
-  const { error: starterError } = await supabase.from("services").insert(
+  // A team that starts with no trial (this person already used theirs) is read-only until it subscribes, which would also
+  // refuse the starter services: those are added by the server instead, for this brand-new team only.
+  const plan = await getBillingStatus(supabase, orgId as string);
+  const trialless = plan !== null && !plan.entitled;
+  const writer = trialless && env.supabaseServiceKey ? createAdminClient() : supabase;
+  const { error: starterError } = await writer.from("services").insert(
     STARTERS[kind].map((s, i) => ({
       org_id: orgId,
       slug: slugify(s.name),
@@ -64,5 +85,6 @@ export async function createTeam(_: OnboardingState, formData: FormData): Promis
   // The team exists either way; if the starters couldn't be added the owner can create services themselves.
   if (starterError) console.error("[onboarding] starter services failed:", starterError.message);
 
-  redirect(`/o/${slug}/calendar?welcome=1`);
+  // No trial: send them to Billing, where the page explains it and they can choose a plan.
+  redirect(trialless ? `/o/${slug}/settings/billing?notice=no-trial` : `/o/${slug}/calendar?welcome=1`);
 }

@@ -1,13 +1,15 @@
 "use client";
 import { useState, useTransition } from "react";
 import { MapPin, Phone, Plus } from "lucide-react";
-import { Avatar, Badge, Notice } from "@/components/ui/misc";
+import { Avatar, Badge } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { UpgradeNotice } from "@/components/app/upgrade-notice";
+import type { UpgradeOffer } from "@/lib/billing";
 import type { Location, Membership } from "@/lib/types";
 import { deleteLocation, saveLocation } from "../actions";
 
@@ -80,15 +82,20 @@ function LocationEditor({
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>(staff);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [offer, setOffer] = useState<UpgradeOffer | undefined>();
+  const [lastForm, setLastForm] = useState<FormData | null>(null);
 
+  const run = (fd: FormData) =>
+    start(async () => {
+      setLastForm(fd);
+      const r = await saveLocation(slug, fd);
+      if (r.error) { setOffer(r.upgrade); setError(r.error); }
+      else { toast(location.id ? "Location updated" : "Location added"); onClose(); }
+    });
   const submit = (fd: FormData) => {
     fd.delete("staff");
     selected.forEach((id) => fd.append("staff", id));
-    start(async () => {
-      const r = await saveLocation(slug, fd);
-      if (r.error) setError(r.error);
-      else { toast(location.id ? "Location updated" : "Location added"); onClose(); }
-    });
+    run(fd);
   };
 
   const remove = () =>
@@ -133,7 +140,7 @@ function LocationEditor({
           <Switch name="active" defaultChecked={location.active ?? true} />
         </div>
 
-        {error && <Notice>{error}</Notice>}
+        {error && <UpgradeNotice slug={slug} message={error} offer={offer} onUpgraded={() => lastForm && run(lastForm)} />}
         <div className="flex gap-2">
           {location.id && (
             <Button type="button" variant="destructive" onClick={remove} disabled={pending}>
