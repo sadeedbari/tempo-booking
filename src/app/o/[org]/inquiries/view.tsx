@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Archive, CalendarPlus, Inbox, Mail, MessageSquareText, Phone, RotateCcw, Check, Trash2 } from "lucide-react";
 import { PageHeader, EmptyState, Badge, Notice } from "@/components/ui/misc";
@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { formatDateTime } from "@/lib/format";
 import type { Inquiry, InquiryStatus } from "@/lib/types";
 import { deleteInquiry, saveInquiryNote, setInquiryStatus } from "./actions";
+import { useSafeTransition } from "@/components/ui/use-server-action";
 
 const LABEL: Record<InquiryStatus, string> = { new: "New", handled: "Handled", archived: "Archived" };
 
@@ -61,7 +62,7 @@ export function InquiriesView({
 
 function InquiryCard({ i, slug, timezone, orgName, isAdmin }: { i: Inquiry; slug: string; timezone: string; orgName: string; isAdmin: boolean }) {
   const toast = useToast();
-  const [pending, start] = useTransition();
+  const [pending, start] = useSafeTransition((m) => toast(m, "error")); // a failed request becomes an inline message, not the crash page
   const [note, setNote] = useState(i.note ?? "");
   const [noteOpen, setNoteOpen] = useState(Boolean(i.note));
   const [confirmingDelete, setConfirmingDelete] = useState(false);

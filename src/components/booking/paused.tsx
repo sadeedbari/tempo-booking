@@ -15,7 +15,7 @@ export function BookingPaused({ name, phone, website, embed = false }: { name: s
           <p className="mt-3 text-[15px] text-label-2">
             {phone && <span>{phone}</span>}
             {phone && website && <span> · </span>}
-            {website && /^https?:\/\//i.test(website) && <a href={website} className="text-accent underline" rel="noopener noreferrer">{website.replace(/^https?:\/\//i, "")}</a>}
+            {website && /^https?:\/\//i.test(website) && <a href={website} className="text-accent-text underline" rel="noopener noreferrer">{website.replace(/^https?:\/\//i, "")}</a>}
           </p>
         )}
       </div>

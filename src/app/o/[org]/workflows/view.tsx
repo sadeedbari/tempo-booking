@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, MessageSquare, Plus, ChevronRight, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { PageHeader, EmptyState, Badge, Notice } from "@/components/ui/misc";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format";
 import { describeTrigger, STARTERS, type Channel, type Trigger } from "@/lib/workflow-defaults";
 import { setWorkflowActive } from "./actions";
+import { useSafeTransition } from "@/components/ui/use-server-action";
 
 export interface WorkflowSummary {
   id: string;
@@ -90,8 +91,9 @@ export function WorkflowsView({
 function WorkflowRow({ slug, w }: { slug: string; w: WorkflowSummary }) {
   const router = useRouter();
   const toast = useToast();
-  const [pending, start] = useTransition();
   const [active, setActive] = useState(w.active);
+  // A lost request puts the switch back to what the server last said, then tells the person.
+  const [pending, start] = useSafeTransition((m) => { setActive(w.active); toast(m, "error"); });
   const channels = [...new Set(w.steps.filter((s) => s.enabled).map((s) => s.channel))];
 
   return (

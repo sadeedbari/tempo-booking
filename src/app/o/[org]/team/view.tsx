@@ -1,5 +1,6 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import { useSafeTransition, submitForm } from "@/components/ui/use-server-action";
 import { Check, Copy, Mail, UserPlus } from "lucide-react";
 import { PageHeader, Avatar, Badge } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
@@ -24,8 +25,8 @@ export function TeamView({
 }) {
   const [editing, setEditing] = useState<Membership | null>(null);
   const [adding, setAdding] = useState(false);
-  const [pending, start] = useTransition();
   const toast = useToast();
+  const [pending, start] = useSafeTransition((m) => toast(m, "error")); // a failed request becomes an inline message, not the crash page
   const invitedIds = new Set(invites.map((i) => i.member_id).filter(Boolean) as string[]);
 
   const copyInvite = async (token: string) => {
@@ -90,8 +91,8 @@ export function TeamView({
 }
 
 function AddMemberSheet({ open, onClose, slug, onCopy }: { open: boolean; onClose: () => void; slug: string; onCopy: (t: string) => void }) {
-  const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useSafeTransition(setError); // a failed request becomes the inline error, not a crash page
   const [token, setToken] = useState<string | null>(null);
   const [invite, setInvite] = useState(false);
   const [offer, setOffer] = useState<UpgradeOffer | undefined>();
@@ -120,7 +121,7 @@ function AddMemberSheet({ open, onClose, slug, onCopy }: { open: boolean; onClos
         </div>
       ) : (
         <form
-          action={run}
+          onSubmit={submitForm(run)}
           className="space-y-4"
         >
           <Field label="Name"><Input name="name" placeholder="Jane Appleseed" required autoFocus /></Field>
@@ -151,8 +152,8 @@ function AddMemberSheet({ open, onClose, slug, onCopy }: { open: boolean; onClos
 }
 
 function MemberSheet({ slug, member, me, isAdmin, onClose, onCopy }: { slug: string; member: Membership; me: Membership; isAdmin: boolean; onClose: () => void; onCopy: (t: string) => void }) {
-  const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useSafeTransition(setError); // a failed request becomes the inline error, not a crash page
   const [color, setColor] = useState(member.color);
   const [confirm, setConfirm] = useState(false);
   const toast = useToast();
@@ -176,13 +177,13 @@ function MemberSheet({ slug, member, me, isAdmin, onClose, onCopy }: { slug: str
   return (
     <Sheet open onClose={onClose} title={self ? "Your profile" : member.display_name}>
       <form
-        action={(fd) => {
+        onSubmit={submitForm((fd) => {
           fd.set("color", color);
           start(async () => {
             const r = await updateMember(slug, fd);
             if (r.error) setError(r.error); else { toast("Saved"); onClose(); }
           });
-        }}
+        })}
         className="space-y-4"
       >
         <input type="hidden" name="id" value={member.id} />
@@ -216,7 +217,7 @@ function MemberSheet({ slug, member, me, isAdmin, onClose, onCopy }: { slug: str
             <div className="text-[15px] font-medium">Takes bookings</div>
             <div className="text-[13px] text-label-2">Appears on the calendar and booking page.</div>
           </div>
-          <Switch name="bookable" defaultChecked={member.bookable} />
+          <Switch name="bookable" defaultChecked={member.bookable} label="Takes bookings" />
         </div>
 
         {isAdmin && noLogin && (

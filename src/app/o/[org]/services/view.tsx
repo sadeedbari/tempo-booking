@@ -1,5 +1,6 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import { useSafeTransition, submitForm } from "@/components/ui/use-server-action";
 import { Clock, Link2, MapPin, Phone, Plus, Sparkles, Users, Video, Check } from "lucide-react";
 import { PageHeader, EmptyState, Avatar, Notice, Badge } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
@@ -115,8 +116,8 @@ function ServiceEditor({
   slug: string; org: Organization; service: Partial<Service>; staff: string[]; questions: ServiceQuestion[]; others: { id: string; name: string; questions: ServiceQuestion[] }[]; members: Membership[]; onClose: () => void;
 }) {
   const toast = useToast();
-  const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useSafeTransition(setError); // a failed request becomes the inline error, not a crash page
   const [kind, setKind] = useState<ServiceKind>(service.kind ?? "appointment");
   const [loc, setLoc] = useState<LocationType>(service.location_type ?? (kind === "meeting" ? "video" : "in_person"));
   const [color, setColor] = useState(service.color ?? PALETTE[0]);
@@ -151,7 +152,7 @@ function ServiceEditor({
 
   return (
     <Sheet open onClose={onClose} title={service.id ? "Edit service" : "New service"}>
-      <form action={submit} className="space-y-5">
+      <form onSubmit={submitForm(submit)} className="space-y-5">
         <input type="hidden" name="id" value={service.id ?? ""} />
         <Field label="Name"><Input name="name" defaultValue={service.name} placeholder="Haircut & style" required autoFocus={!service.id} /></Field>
         <Field label="Description"><Textarea name="description" defaultValue={service.description ?? ""} placeholder="What's included?" className="min-h-16" /></Field>
@@ -266,7 +267,7 @@ function ServiceEditor({
             <div className="text-[15px] font-medium">Bookable online</div>
             <div className="text-[13px] text-label-2">Show on your public booking page.</div>
           </div>
-          <Switch name="active" defaultChecked={service.active ?? true} />
+          <Switch name="active" defaultChecked={service.active ?? true} label="Bookable online" />
         </div>
 
         {error && <Notice>{error}</Notice>}

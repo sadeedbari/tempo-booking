@@ -1,11 +1,12 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { CalendarCheck, CalendarX2 } from "lucide-react";
 import { Badge, Notice } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { buttonClass } from "@/components/ui/button-class";
 import { useToast } from "@/components/ui/toast";
 import { disconnectCalendar } from "../actions";
+import { useSafeTransition } from "@/components/ui/use-server-action";
 
 type Conn = { email: string | null; needsReauth: boolean };
 
@@ -18,8 +19,8 @@ export function CalendarCard({
   result?: string;
 }) {
   const toast = useToast();
-  const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useSafeTransition(setError); // a failed request becomes an inline message, not the crash page
 
   return (
     <section className="max-w-3xl">

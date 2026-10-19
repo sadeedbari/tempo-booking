@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ForgotForm } from "./forgot-form";
 
-export const metadata: Metadata = { title: "Reset your password" };
+export const metadata: Metadata = { title: "Reset your password", robots: { index: false, follow: true } };
 
 export default async function ForgotPage(props: PageProps<"/forgot">) {
   const { error } = await props.searchParams;

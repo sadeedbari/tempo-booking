@@ -1,5 +1,6 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import { useSafeTransition, submitForm } from "@/components/ui/use-server-action";
 import Link from "next/link";
 import { Check, ChevronRight, CreditCard, Mail, MessageSquare, ExternalLink } from "lucide-react";
 import { PageHeader, Notice, Badge } from "@/components/ui/misc";
@@ -26,8 +27,8 @@ export function SettingsView({
   features: { payments: boolean; email: boolean; sms: boolean; push: boolean }; stripeStatus?: string; stripeReason?: string;
 }) {
   const toast = useToast();
-  const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useSafeTransition(setError); // a failed request becomes the inline error, not a crash page
   const [accent, setAccent] = useState(org.accent_color);
   const [confirmDelete, setConfirmDelete] = useState("");
 
@@ -49,13 +50,13 @@ export function SettingsView({
       <PageHeader title="Settings" subtitle="Your business, booking rules and integrations." />
       <div className="max-w-3xl space-y-10">
         <form
-          action={(fd) => {
+          onSubmit={submitForm((fd) => {
             fd.set("accent_color", accent);
             start(async () => {
               const r = await updateOrg(slug, fd);
               if (r?.error) setError(r.error); else { setError(null); toast("Settings saved"); }
             });
-          }}
+          })}
           className="space-y-10"
         >
           <Section title="Business" description="Shown on your booking page and in emails.">

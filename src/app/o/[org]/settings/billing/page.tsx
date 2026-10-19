@@ -4,7 +4,7 @@ import { getOrgContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { features } from "@/lib/env";
 import { PageHeader, Notice } from "@/components/ui/misc";
-import { effectiveStatus, isEntitled, parsePlan, trialDaysLeft } from "@/lib/billing";
+import { effectiveStatus, isEntitled, parsePlan, trialDaysLeft, trialEnded } from "@/lib/billing";
 import { confirmCheckout, getSubscription, getUsage } from "@/lib/billing-server";
 import { BillingView } from "./view";
 
@@ -66,6 +66,7 @@ export default async function BillingPage(props: PageProps<"/o/[org]/settings/bi
         extraLocations: sub.extra_locations,
         staffPacks: sub.staff_packs,
         hasCustomer: Boolean(sub.stripe_customer_id),
+        trialEnded: trialEnded(sub, now),
         live: Boolean(sub.stripe_subscription_id) && (sub.status === "active" || sub.status === "past_due"),
       }}
       usage={{ locations: usage.locations, staff: usage.staff, invites: usage.pendingInvites }}

@@ -135,6 +135,7 @@ test.describe("booking a repeating appointment online", () => {
     await box.getByLabel("How often").selectOption({ label: "Every week" });
     await expect(box.getByRole("list", { name: "Dates" })).toBeVisible();
     await page.getByRole("button", { name: /Back/ }).click();
+    await pickDay(page, 6); // Back shows the first open day again (D-032), so choose the same day as toDetails did; keeps the test independent of the time of day
     await pickTime(page, "11:00 AM");
     await expect(page.getByTestId("repeat-options").getByLabel("How often")).toHaveValue("0");
     await expect(page.getByRole("button", { name: "Confirm booking" })).toBeVisible();
@@ -239,7 +240,7 @@ test.describe("the team", () => {
     const page = await pageAs("ownerA");
     const w = watchErrors(page);
     const email = customerEmail("team");
-    const sheet = await addSeries(page, futureDay(40), "Tara Team", email, "Every 2 weeks", "3 appointments");
+    const sheet = await addSeries(page, futureDay(100), "Tara Team", email, "Every 2 weeks", "3 appointments");
     await sheet.getByRole("button", { name: "Add booking" }).click();
     const out = page.getByTestId("series-outcome");
     await expect(out.getByText("3 appointments were added to the calendar.")).toBeVisible();

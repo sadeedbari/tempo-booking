@@ -32,7 +32,7 @@ export function SessionPicker({
     return () => { live = false; };
   }, [org.id, service.id, key, fetchSessions]);
 
-  if (!state || state.key !== key) return <div className="flex justify-center py-16 text-label-3"><Spinner className="size-6" /></div>;
+  if (!state || state.key !== key) return <div className="flex justify-center py-16 text-label-2"><Spinner className="size-6" /></div>;
 
   const sessions = state.sessions.filter((s) => !locationId || !s.location_id || s.location_id === locationId);
   if (sessions.length === 0) {
@@ -72,17 +72,17 @@ export function SessionPicker({
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 text-[16px] font-semibold">
-                        <Clock className="size-4 text-label-3" />
+                        <Clock className="size-4 text-label-2" />
                         {formatTime(s.starts_at, tz)} – {formatTime(s.ends_at, tz)}
                       </div>
                       <div className="mt-1 flex flex-wrap gap-x-3 text-[13px] text-label-2">
                         {who && <span className="inline-flex items-center gap-1"><Users className="size-3.5" />{who}</span>}
                         {where && <span className="inline-flex items-center gap-1"><MapPin className="size-3.5" />{where}</span>}
                       </div>
-                      {s.notes && <p className="mt-1 line-clamp-2 text-[13px] text-label-3">{s.notes}</p>}
-                      {canWait && s.waiting > 0 && <p className="mt-1 text-[12px] text-label-3">{s.waiting} {s.waiting === 1 ? "person is" : "people are"} waiting</p>}
+                      {s.notes && <p className="mt-1 line-clamp-2 text-[13px] text-label-2">{s.notes}</p>}
+                      {canWait && s.waiting > 0 && <p className="mt-1 text-[12px] text-label-2">{s.waiting} {s.waiting === 1 ? "person is" : "people are"} waiting</p>}
                     </div>
-                    <span className={cn("shrink-0 rounded-full px-3 py-1 text-[13px] font-semibold", full ? "bg-surface-3 text-label-3" : left <= 3 ? "bg-orange/15 text-orange" : "bg-accent-soft text-accent")}>
+                    <span className={cn("shrink-0 rounded-full px-3 py-1 text-[13px] font-semibold", full ? "bg-surface-3 text-label-2" : left <= 3 ? "bg-orange/15 text-orange" : "bg-accent-soft text-accent-text")}>
                       {full ? (canWait ? "Full · join waitlist" : "Full") : `${left} ${left === 1 ? "spot" : "spots"} left`}
                     </span>
                   </button>

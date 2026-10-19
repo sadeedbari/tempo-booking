@@ -58,9 +58,9 @@ export function Field({
       {label && <span className="block text-[13px] font-medium text-label-2 px-1">{label}</span>}
       {children}
       {error ? (
-        <span className="block text-[12px] text-red px-1">{error}</span>
+        <span className="block text-[12px] text-red-text px-1">{error}</span>
       ) : hint ? (
-        <span className="block text-[12px] text-label-3 px-1">{hint}</span>
+        <span className="block text-[12px] text-label-2 px-1">{hint}</span>
       ) : null}
     </label>
   );

@@ -1,14 +1,15 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { Notice } from "@/components/ui/misc";
 import { cancelBooking } from "./actions";
+import { useSafeTransition, submitForm } from "@/components/ui/use-server-action";
 
 export function CancelBooking({ token }: { token: string }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
+  const [pending, start] = useSafeTransition(setError, { requireSession: false }); // a failed request becomes an inline message, not the crash page
 
   if (!open) {
     return <Button variant="destructive" size="lg" pill className="w-full" onClick={() => setOpen(true)}>Cancel booking</Button>;
@@ -16,7 +17,7 @@ export function CancelBooking({ token }: { token: string }) {
   return (
     <form
       className="space-y-3 rounded-[18px] bg-surface p-4 shadow-sm hairline animate-pop"
-      action={(fd) => start(async () => { const r = await cancelBooking(token, String(fd.get("reason") || "")); if (r?.error) setError(r.error); })}
+      onSubmit={submitForm((fd) => start(async () => { const r = await cancelBooking(token, String(fd.get("reason") || "")); if (r?.error) setError(r.error); }))}
     >
       <div className="text-[15px] font-semibold">Cancel this booking?</div>
       <Textarea name="reason" placeholder="Reason (optional)" className="min-h-16" />

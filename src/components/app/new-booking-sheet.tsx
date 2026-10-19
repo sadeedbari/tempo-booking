@@ -1,5 +1,6 @@
 "use client";
-import { useMemo, useState, useTransition } from "react";
+import { useSafeTransition, submitForm } from "@/components/ui/use-server-action";
+import { useMemo, useState } from "react";
 import { Repeat, Search } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -47,8 +48,8 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
   const tz = org.timezone;
   const toast = useToast();
   const initial = defaultStart ? splitInZone(defaultStart, tz) : { date: todayKey(tz), time: "09:00" };
-  const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useSafeTransition(setError); // a failed request becomes an inline message, not the crash page
   const [serviceId, setServiceId] = useState(services.find((s) => s.id === defaultServiceId)?.id ?? services[0]?.id ?? "");
   const [memberId, setMemberId] = useState(
     defaultMemberId && members.some((m) => m.id === defaultMemberId) ? defaultMemberId : members[0]?.id ?? "",
@@ -135,7 +136,7 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
 
   return (
     <Sheet open={open} onClose={onClose} title="New booking" subtitle="Add an appointment to the calendar.">
-      <form action={submit} className="space-y-5">
+      <form onSubmit={submitForm(submit)} className="space-y-5">
         <div className="space-y-2">
           <span className="px-1 text-[13px] font-medium text-label-2">Service</span>
           <div className="grid gap-2 p-0.5">
@@ -294,7 +295,7 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
             <div className="text-[15px] font-medium">Send confirmation</div>
             <div className="text-[13px] text-label-2">Email the customer the details.</div>
           </div>
-          <Switch name="notify" defaultChecked />
+          <Switch name="notify" defaultChecked label="Send confirmation" />
         </div>
 
         {error && <Notice>{error}</Notice>}

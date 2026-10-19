@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AlertTriangle, Ban, Info } from "lucide-react";
 import { GRACE_DAYS, formatDateLong, graceEndsAt, trialDaysLeft } from "@/lib/billing";
 import type { BillingStatus } from "@/lib/billing-server";
 
@@ -32,14 +33,16 @@ export function PlanBanner({ slug, status, isOwner, timeZone }: { slug: string; 
     text = `Your plan ends on ${date(status.current_period_end)}.`;
   }
   if (!text) return null;
-  const cls = { blue: "bg-accent-soft text-accent", orange: "bg-[color-mix(in_srgb,var(--orange)_15%,transparent)] text-orange", red: "bg-red-soft text-red" }[tone];
+  // AA-contrast text colours (globals.css). The icon differs per state too, so the state never rests on colour alone.
+  const cls = { blue: "bg-accent-soft text-accent-text", orange: "bg-[color-mix(in_srgb,var(--orange)_15%,transparent)] text-orange-text", red: "bg-red-soft text-red-text" }[tone];
+  const Icon = { blue: Info, orange: AlertTriangle, red: Ban }[tone];
   return (
     <div role="status" className={`mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[12px] px-4 py-2.5 text-[14px] font-medium ${cls}`}>
-      <span>{text}</span>
+      <span className="flex items-center gap-2"><Icon className="size-4 shrink-0" aria-hidden />{text}</span>
       {isOwner ? (
         <Link href={`/o/${slug}/settings/billing`} className="font-semibold underline underline-offset-2">Open billing</Link>
       ) : (
-        <span className="text-[13px] opacity-80">Ask the account owner to manage billing.</span>
+        <span className="text-[13px]">Ask the account owner to manage billing.</span>
       )}
     </div>
   );

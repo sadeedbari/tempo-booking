@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AuthForm } from "../auth-form";
 
-export const metadata: Metadata = { title: "Sign in" };
+export const metadata: Metadata = { title: "Sign in", robots: { index: false, follow: true } };
 
 export default async function LoginPage(props: PageProps<"/login">) {
   const { next, error } = await props.searchParams;
@@ -9,8 +9,9 @@ export default async function LoginPage(props: PageProps<"/login">) {
     <>
       <h1 className="text-[26px] font-bold">Welcome back</h1>
       <p className="mt-1 mb-6 text-[15px] text-label-2">Sign in to your Tempo account.</p>
-      {error === "browser" && <p className="mb-4 rounded-[12px] bg-accent-soft px-3.5 py-2.5 text-[14px] text-accent">Your email is confirmed. Sign in below to continue. (The link was opened in a different browser than the one you signed up in, so we couldn&apos;t sign you in automatically.)</p>}
-      {error && error !== "browser" && <p className="mb-4 rounded-[12px] bg-red-soft px-3.5 py-2.5 text-[14px] text-red">That link has expired or was already used. If you already confirmed your email, just sign in below. Otherwise sign up again and we&apos;ll send a fresh link.</p>}
+      {error === "browser" && <p className="mb-4 rounded-[12px] bg-accent-soft px-3.5 py-2.5 text-[14px] text-accent-text">Your email is confirmed. Sign in below to continue. (The link was opened in a different browser than the one you signed up in, so we couldn&apos;t sign you in automatically.)</p>}
+      {error === "session" && <p role="status" className="mb-4 rounded-[12px] bg-accent-soft px-3.5 py-2.5 text-[14px] text-accent-text">Your session has ended. Please sign in again to continue.</p>}
+      {error && error !== "browser" && error !== "session" && <p className="mb-4 rounded-[12px] bg-red-soft px-3.5 py-2.5 text-[14px] text-red-text">That link has expired or was already used. If you already confirmed your email, just sign in below. Otherwise sign up again and we&apos;ll send a fresh link.</p>}
       <AuthForm mode="login" next={typeof next === "string" ? next : undefined} />
     </>
   );

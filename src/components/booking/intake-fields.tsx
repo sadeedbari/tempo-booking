@@ -45,7 +45,7 @@ function Question({ q }: { q: ServiceQuestion }) {
   return (
     <fieldset className="space-y-2">
       <legend className="px-1 text-[13px] font-medium text-label-2">{q.type === "agree" ? "" : label}</legend>
-      {q.help_text && q.type !== "agree" && <p className="px-1 text-[12px] text-label-3">{q.help_text}</p>}
+      {q.help_text && q.type !== "agree" && <p className="px-1 text-[12px] text-label-2">{q.help_text}</p>}
       {q.type === "multi" && (
         <div className="grid gap-1.5 sm:grid-cols-2">
           {q.options.map((o) => (
@@ -59,7 +59,7 @@ function Question({ q }: { q: ServiceQuestion }) {
       {q.type === "yes_no" && (
         <div className="flex gap-2">
           {["Yes", "No"].map((o) => (
-            <label key={o} className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-[11px] bg-surface-2 px-3.5 text-[15px] has-[:checked]:bg-accent has-[:checked]:text-white">
+            <label key={o} className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-[11px] bg-surface-2 px-3.5 text-[15px] has-[:checked]:bg-accent-fill has-[:checked]:text-white">
               <input type="radio" name={name} value={o} required={q.required} className="sr-only" />
               {o}
             </label>
@@ -71,8 +71,8 @@ function Question({ q }: { q: ServiceQuestion }) {
           <input type="checkbox" name={name} value="on" required={q.required} className="mt-0.5 size-[18px] shrink-0 accent-[var(--accent)]" />
           <span>
             {q.label}
-            {!q.required && <span className="text-label-3"> (optional)</span>}
-            {q.help_text && <span className="mt-0.5 block text-[12px] text-label-3">{q.help_text}</span>}
+            {!q.required && <span className="text-label-2"> (optional)</span>}
+            {q.help_text && <span className="mt-0.5 block text-[12px] text-label-2">{q.help_text}</span>}
           </span>
         </label>
       )}

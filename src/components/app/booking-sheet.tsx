@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { CalendarClock, ClipboardList, Mail, MapPin, Phone, Repeat, StickyNote, User, Users, CreditCard, CheckCircle2, UserX, XCircle } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import type { Booking, BookingStatus, Location, Membership, Organization, Servic
 import { approveBooking, cancelSeriesFollowing, declineBooking, editSeriesFollowing, getSeriesSummary, rescheduleBooking, setBookingStatus, type SeriesSummary } from "@/app/o/[org]/actions";
 import { Segmented } from "@/components/ui/segmented";
 import { joinInZone, splitInZone, TIME_OPTIONS } from "./datetime";
+import { useSafeTransition } from "@/components/ui/use-server-action";
 
 interface SheetProps {
   booking: Booking | null;
@@ -33,8 +34,8 @@ function BookingSheetInner({ booking, onClose, slug, org, members, service, memb
   const tz = org.timezone;
   const toast = useToast();
   const initial = splitInZone(booking.starts_at, tz);
-  const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useSafeTransition(setError); // a failed request becomes an inline message, not the crash page
   const [editing, setEditing] = useState(false);
   const [date, setDate] = useState(initial.date);
   const [time, setTime] = useState(initial.time);

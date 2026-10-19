@@ -1,5 +1,6 @@
 "use client";
-import { useMemo, useState, useTransition } from "react";
+import { useSafeTransition, submitForm } from "@/components/ui/use-server-action";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Contact, Download, MessageSquareText, Plus, Search } from "lucide-react";
 import { PageHeader, EmptyState, Avatar, Notice } from "@/components/ui/misc";
@@ -22,7 +23,7 @@ export function CustomersView({
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<Partial<Customer> | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
+  const [pending, start] = useSafeTransition(setError); // a failed request becomes an inline message, not the crash page
   const [confirmDelete, setConfirmDelete] = useState(false);
   const toast = useToast();
 
@@ -82,13 +83,13 @@ export function CustomersView({
       <Sheet open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? editing.name : "New customer"}>
         {editing && (
           <form
-            action={(fd) =>
+            onSubmit={submitForm((fd) =>
               start(async () => {
                 const r = await saveCustomer(slug, fd);
                 if (r.error) setError(r.error);
                 else { toast("Customer saved"); setEditing(null); }
               })
-            }
+            )}
             className="space-y-4"
           >
             <input type="hidden" name="id" value={editing.id ?? ""} />

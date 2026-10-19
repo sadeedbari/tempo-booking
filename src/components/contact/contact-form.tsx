@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { Notice } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,8 @@ import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { sendInquiry } from "@/app/[slug]/contact/actions";
 import type { PublicContact } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useSafeTransition } from "@/components/ui/use-server-action";
+import { readableOn } from "@/lib/color";
 
 /**
  * The "ask us a question" form: on the business's hosted contact page, and inside the pop-up / inline
@@ -19,7 +21,7 @@ export function ContactForm({ data, embed, initialService }: { data: PublicConta
   const [serviceId, setServiceId] = useState(services.find((s) => s.slug === initialService)?.id ?? "");
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
-  const [pending, start] = useTransition();
+  const [pending, start] = useSafeTransition(setError, { requireSession: false }); // a failed request becomes an inline message, not the crash page
 
   // Inside a frame on another website, tell the page how tall the form is so an inline form can grow to fit.
   useEffect(() => {
@@ -80,7 +82,7 @@ export function ContactForm({ data, embed, initialService }: { data: PublicConta
             // eslint-disable-next-line @next/next/no-img-element
             <img src={org.logo_url} alt="" className="size-12 rounded-[14px] object-cover" />
           ) : (
-            <div className="grid size-12 place-items-center rounded-[14px] text-[20px] font-bold text-white shadow-sm" style={{ background: `linear-gradient(180deg, ${accent}bb, ${accent})` }}>
+            <div className="grid size-12 place-items-center rounded-[14px] text-[20px] font-bold shadow-sm" style={{ background: `linear-gradient(180deg, ${accent}bb, ${accent})`, color: readableOn(accent) }}>
               {org.name[0]?.toUpperCase()}
             </div>
           )}

@@ -128,6 +128,26 @@ export function effectiveStatus(sub: Parameters<typeof isEntitled>[0], now = new
   return sub.status;
 }
 
+/**
+ * Did this business have a free trial that has run out, and never subscribe? ("Your trial has ended" rather than the
+ * plain "No active plan".) Two rows look alike once the status is "expired", so the difference is read from the data:
+ *  - a trial that ran out: status "trial" past its end (not yet swept), or "expired" later by the hourly sweep, which
+ *    stamps trial_ended_email_sent_at AFTER trial_ends_at (or leaves it empty while the email is still to be sent);
+ *  - a team created WITHOUT a trial (a person's second team) is inserted already expired with trial_ended_email_sent_at
+ *    equal to trial_ends_at (both now(), see private.organizations_start_trial), so it never reads as "ended".
+ * A Stripe subscription at any point means it is not a plain ended trial (cancelled / unpaid have their own wording).
+ */
+export function trialEnded(
+  sub: Pick<Subscription, "status" | "trial_ends_at" | "stripe_subscription_id" | "trial_ended_email_sent_at">,
+  now = new Date(),
+): boolean {
+  if (sub.stripe_subscription_id) return false;
+  if (sub.status === "trial") return new Date(sub.trial_ends_at).getTime() <= now.getTime();
+  if (sub.status !== "expired") return false;
+  if (!sub.trial_ended_email_sent_at) return true;
+  return new Date(sub.trial_ended_email_sent_at).getTime() - new Date(sub.trial_ends_at).getTime() > 1000;
+}
+
 /** Whole days left in the trial (rounded up, never negative). */
 export function trialDaysLeft(trialEndsAt: string, now = new Date()): number {
   return Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - now.getTime()) / 86_400_000));

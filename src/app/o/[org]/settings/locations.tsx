@@ -1,5 +1,6 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import { useSafeTransition, submitForm } from "@/components/ui/use-server-action";
 import { MapPin, Phone, Plus } from "lucide-react";
 import { Avatar, Badge } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
@@ -78,8 +79,8 @@ function LocationEditor({
   slug: string; location: Partial<Location>; staff: string[]; members: Membership[]; onClose: () => void;
 }) {
   const toast = useToast();
-  const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useSafeTransition(setError); // a failed request becomes the inline error, not a crash page
   const [selected, setSelected] = useState<string[]>(staff);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [offer, setOffer] = useState<UpgradeOffer | undefined>();
@@ -108,7 +109,7 @@ function LocationEditor({
 
   return (
     <Sheet open onClose={onClose} title={location.id ? "Edit location" : "New location"}>
-      <form action={submit} className="space-y-5">
+      <form onSubmit={submitForm(submit)} className="space-y-5">
         <input type="hidden" name="id" value={location.id ?? ""} />
         <Field label="Name"><Input name="name" defaultValue={location.name} placeholder="Downtown studio" required autoFocus={!location.id} /></Field>
         <Field label="Address"><Input name="address" defaultValue={location.address ?? ""} placeholder="214 Queen St W, Toronto" /></Field>
@@ -137,7 +138,7 @@ function LocationEditor({
             <div className="text-[15px] font-medium">Bookable online</div>
             <div className="text-[13px] text-label-2">Show on your public booking page.</div>
           </div>
-          <Switch name="active" defaultChecked={location.active ?? true} />
+          <Switch name="active" defaultChecked={location.active ?? true} label="Bookable online" />
         </div>
 
         {error && <UpgradeNotice slug={slug} message={error} offer={offer} onUpgraded={() => lastForm && run(lastForm)} />}

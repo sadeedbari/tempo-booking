@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, CalendarClock, ChevronLeft, ChevronRight, Copy, Download, Plus, Trash2, Wand2 } from "lucide-react";
 import { PageHeader, Avatar, Notice } from "@/components/ui/misc";
@@ -16,6 +16,7 @@ import { crossLocationOverlaps, shiftPeriod, type SchedulePeriod } from "@/lib/s
 import { TIME_OPTIONS } from "@/components/app/datetime";
 import type { Location, Membership, Organization, Shift } from "@/lib/types";
 import { copySchedule, fillFromWeeklyHours, saveDayShifts, setScheduleMode } from "../actions";
+import { useSafeTransition } from "@/components/ui/use-server-action";
 
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -46,12 +47,13 @@ interface Props {
 export function ScheduleView(p: Props) {
   const router = useRouter();
   const toast = useToast();
-  const [pending, start] = useTransition();
   const [scope, setScope] = useState<"me" | "all">(p.isAdmin ? "all" : "me");
   const [editing, setEditing] = useState<{ member: Membership; day: string } | null>(null);
   const [copying, setCopying] = useState(false);
   const [useShifts, setUseShifts] = useState(p.org.schedule_mode === "shifts");
   const [error, setError] = useState<string | null>(null);
+  // A lost request also puts the mode switch back to what the server last said.
+  const [pending, start] = useSafeTransition((m) => { setError(m); setUseShifts(p.org.schedule_mode === "shifts"); });
 
   const inLocation = p.locationId !== "all";
   const locQuery = inLocation ? `&location=${p.locationId}` : "";
@@ -144,7 +146,7 @@ export function ScheduleView(p: Props) {
                 : "Off: online booking follows each person's recurring weekly hours. Turn on once your schedule is ready."}
             </div>
           </div>
-          <Switch checked={useShifts} onChange={toggleMode} disabled={pending} />
+          <Switch checked={useShifts} onChange={toggleMode} disabled={pending} label="Use this schedule for online booking" />
         </div>
       )}
       {error && <div className="mb-4"><Notice>{error}</Notice></div>}
@@ -298,8 +300,8 @@ function DaySheet({
   slug: string; member: Membership; day: string; shifts: Shift[]; locations: Location[]; scopeLocation: string | null; onClose: () => void;
 }) {
   const toast = useToast();
-  const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useSafeTransition(setError); // a failed request becomes an inline message, not the crash page
   type Item = { start: string; end: string; location_id: string | null };
   const toItem = (s: Shift): Item => ({ start: s.start_time.slice(0, 5), end: s.end_time.slice(0, 5), location_id: s.location_id });
 
@@ -396,9 +398,9 @@ function CopySheet({
   slug: string; period: SchedulePeriod; start: string; label: string; locationId?: string; locationName: string; onClose: () => void;
 }) {
   const toast = useToast();
-  const [pending, run] = useTransition();
   const [replace, setReplace] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pending, run] = useSafeTransition(setError); // a failed request becomes an inline message, not the crash page
 
   const submit = () =>
     run(async () => {

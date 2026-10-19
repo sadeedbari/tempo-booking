@@ -1,14 +1,15 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/misc";
 import { leaveWaitlist } from "./actions";
+import { useSafeTransition } from "@/components/ui/use-server-action";
 
 /** "Leave the waitlist", with a second tap to confirm. */
 export function LeaveWaitlist({ token }: { token: string }) {
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
+  const [pending, start] = useSafeTransition(setError, { requireSession: false }); // a failed request becomes an inline message, not the crash page
   return (
     <div className="space-y-3">
       {error && <Notice>{error}</Notice>}

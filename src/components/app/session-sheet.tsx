@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowRightLeft, CalendarClock, Hourglass, CheckCircle2, ClipboardList, Mail, MapPin, Phone, Repeat, Search, StickyNote, UserPlus, UserX, Users, XCircle } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
   removeWaitlistEntry, setBookingStatus, updateSession, type MoveTarget, type SessionAttendee, type WaitlistEntry,
 } from "@/app/o/[org]/actions";
 import { joinInZone, splitInZone, TIME_OPTIONS } from "./datetime";
+import { useSafeTransition } from "@/components/ui/use-server-action";
 
 interface Props {
   session: ClassSession | null;
@@ -43,8 +44,8 @@ type Outcome = { title: string; lines: string[]; skipped: { startsAt: string; re
 function Inner({ session, onClose, slug, org, service, member, location, customers, members }: Props & { session: ClassSession }) {
   const tz = org.timezone;
   const toast = useToast();
-  const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useSafeTransition(setError); // a failed request becomes an inline message, not the crash page
   const [roster, setRoster] = useState<SessionAttendee[] | null>(null);
   const [waiting, setWaiting] = useState<WaitlistEntry[]>([]);
   const [series, setSeries] = useState<{ index: number; total: number; later: number } | null>(null);

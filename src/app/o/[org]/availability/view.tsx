@@ -1,5 +1,6 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useSafeTransition, submitForm } from "@/components/ui/use-server-action";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, Plane, X } from "lucide-react";
 import { PageHeader, Avatar, Notice } from "@/components/ui/misc";
@@ -25,8 +26,8 @@ export function AvailabilityView({
 }) {
   const router = useRouter();
   const toast = useToast();
-  const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useSafeTransition(setError); // a failed request becomes an inline message, not the crash page
   const [offOpen, setOffOpen] = useState(false);
   const [week, setWeek] = useState<Record<number, Block[]>>(() => {
     const w: Record<number, Block[]> = {};
@@ -160,15 +161,15 @@ export function AvailabilityView({
 }
 
 function TimeOffSheet({ open, onClose, slug, memberId, tz }: { open: boolean; onClose: () => void; slug: string; memberId: string; tz: string }) {
-  const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useSafeTransition(setError); // a failed request becomes an inline message, not the crash page
   const [allDay, setAllDay] = useState(true);
   const toast = useToast();
   return (
     <Sheet open={open} onClose={onClose} title="Add time off" subtitle="Customers won't be able to book during this time.">
       <form
         className="space-y-4"
-        action={(fd) => {
+        onSubmit={submitForm((fd) => {
           const sd = String(fd.get("start_date")), ed = String(fd.get("end_date") || sd);
           const st = allDay ? "00:00" : String(fd.get("start_time")), et = allDay ? "23:59" : String(fd.get("end_time"));
           fd.set("starts_at", joinInZone(sd, st, tz));
@@ -178,12 +179,12 @@ function TimeOffSheet({ open, onClose, slug, memberId, tz }: { open: boolean; on
             const r = await addTimeOff(slug, fd);
             if (r.error) setError(r.error); else { toast("Time off added"); onClose(); }
           });
-        }}
+        })}
       >
         <Field label="Reason (optional)"><Input name="reason" placeholder="Vacation, appointment…" /></Field>
         <div className="flex items-center justify-between rounded-[12px] bg-surface-2 px-4 py-3">
           <span className="text-[15px] font-medium">All day</span>
-          <Switch checked={allDay} onChange={setAllDay} />
+          <Switch checked={allDay} onChange={setAllDay} label="All day" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="From"><Input type="date" name="start_date" required /></Field>

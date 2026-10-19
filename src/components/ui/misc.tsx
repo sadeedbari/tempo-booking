@@ -36,10 +36,11 @@ export function Avatar({
 
 const tones = {
   gray: "bg-surface-2 text-label-2",
-  blue: "bg-accent-soft text-accent",
-  green: "bg-[color-mix(in_srgb,var(--green)_15%,transparent)] text-green",
-  orange: "bg-[color-mix(in_srgb,var(--orange)_15%,transparent)] text-orange",
-  red: "bg-red-soft text-red",
+  // The text colours are the AA-contrast variants (globals.css); the tints behind them are unchanged.
+  blue: "bg-accent-soft text-accent-text",
+  green: "bg-[color-mix(in_srgb,var(--green)_15%,transparent)] text-green-text",
+  orange: "bg-[color-mix(in_srgb,var(--orange)_15%,transparent)] text-orange-text",
+  red: "bg-red-soft text-red-text",
   purple: "bg-[color-mix(in_srgb,var(--purple)_15%,transparent)] text-purple",
 };
 
@@ -113,7 +114,15 @@ export function Card({ children, className }: { children: ReactNode; className?:
   return <div className={cn("rounded-[18px] bg-surface p-5 shadow-sm hairline", className)}>{children}</div>;
 }
 
-export function Notice({ tone = "red", children }: { tone?: "red" | "blue" | "green"; children: ReactNode }) {
-  const t = { red: "bg-red-soft text-red", blue: "bg-accent-soft text-accent", green: tones.green }[tone];
-  return <div className={cn("rounded-[12px] px-3.5 py-2.5 text-[14px] font-medium", t)}>{children}</div>;
+/**
+ * A message box. With `live` it is a live region, so a screen reader announces it when it appears: errors (red) as an alert,
+ * everything else (blue, green) politely as a status. Opt in with `live` for a message that appears after something happened
+ * (a failed button, a result banner); a note that is simply part of the page stays a plain box.
+ */
+export function Notice({ tone = "red", children, live }: { tone?: "red" | "blue" | "green"; children: ReactNode; live?: boolean }) {
+  const t = { red: tones.red, blue: tones.blue, green: tones.green }[tone];
+  // Error (red) boxes are announced by default, so every form error reaches screen readers; pass live={false} for a static one.
+  const isLive = live ?? tone === "red";
+  const role = isLive ? (tone === "red" ? "alert" : "status") : undefined;
+  return <div role={role} className={cn("rounded-[12px] px-3.5 py-2.5 text-[14px] font-medium", t)}>{children}</div>;
 }

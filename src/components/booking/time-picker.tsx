@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { addDaysToKey, formatTime, startOfDayInZone, timeZoneLabel, todayKey, weekdayOfKey } from "@/lib/format";
+import { addDaysToKey, dayKey, formatTime, startOfDayInZone, timeZoneLabel, todayKey, weekdayOfKey } from "@/lib/format";
 import { addMonthsToKey, monthStartKey, periodDays } from "@/lib/schedule";
 import { slotsForDay, type Slot } from "@/lib/slots";
 import type { AvailabilityRule, BusyInterval, PublicOrg, PublicService } from "@/lib/types";
@@ -34,8 +34,10 @@ export function TimePicker({
 }) {
   const tz = org.timezone;
   const today = todayKey(tz);
-  const [month, setMonth] = useState(monthStartKey(today));
-  const [pickedDay, setPickedDay] = useState<string | null>(null);
+  // Coming back from the details step: start on the month and day of the time already chosen (D-032).
+  const chosenDay = selected ? dayKey(selected.start, tz) : null;
+  const [month, setMonth] = useState(monthStartKey(chosenDay ?? today));
+  const [pickedDay, setPickedDay] = useState<string | null>(chosenDay);
   const [hour12, setHour12] = useState(true);
   const [cache, setCache] = useState<Record<string, AvailabilityWindow>>({});
 
@@ -99,10 +101,10 @@ export function TimePicker({
             {monthLabel.split(" ")[0]} <span className="font-normal text-label-2">{monthLabel.split(" ")[1]}</span>
           </h3>
           <div className="flex gap-1">
-            <button disabled={!canGoBack} onClick={() => { setMonth(addMonthsToKey(month, -1)); setPickedDay(null); }} className="grid size-10 place-items-center rounded-full text-accent transition hover:bg-accent-soft disabled:text-label-4 disabled:hover:bg-transparent" aria-label="Previous month">
+            <button disabled={!canGoBack} onClick={() => { setMonth(addMonthsToKey(month, -1)); setPickedDay(null); }} className="grid size-10 place-items-center rounded-full text-accent-text transition hover:bg-accent-soft disabled:text-label-4 disabled:hover:bg-transparent" aria-label="Previous month">
               <ChevronLeft className="size-5" />
             </button>
-            <button disabled={!canGoForward} onClick={() => { setMonth(addMonthsToKey(month, 1)); setPickedDay(null); }} className="grid size-10 place-items-center rounded-full text-accent transition hover:bg-accent-soft disabled:text-label-4 disabled:hover:bg-transparent" aria-label="Next month">
+            <button disabled={!canGoForward} onClick={() => { setMonth(addMonthsToKey(month, 1)); setPickedDay(null); }} className="grid size-10 place-items-center rounded-full text-accent-text transition hover:bg-accent-soft disabled:text-label-4 disabled:hover:bg-transparent" aria-label="Next month">
               <ChevronRight className="size-5" />
             </button>
           </div>
@@ -110,7 +112,7 @@ export function TimePicker({
 
         <div className="grid grid-cols-7 gap-1.5 text-center">
           {WEEKDAYS.map((w) => (
-            <div key={w} className="pb-1 text-[11px] font-semibold tracking-wide text-label-3">{w}</div>
+            <div key={w} className="pb-1 text-[11px] font-semibold tracking-wide text-label-2">{w}</div>
           ))}
           {Array.from({ length: weekdayOfKey(month) }, (_, i) => <div key={`pad${i}`} />)}
           {days.map((d) => {
@@ -125,7 +127,7 @@ export function TimePicker({
                 aria-label={d}
                 className={cn(
                   "relative grid aspect-square place-items-center rounded-[12px] text-[15px] font-semibold transition",
-                  sel ? "bg-accent text-white shadow-md" : isOpen ? "bg-surface-2 hover:bg-accent-soft hover:text-accent" : "text-label-3",
+                  sel ? "bg-accent-fill text-white shadow-md" : isOpen ? "bg-surface-2 hover:bg-accent-soft hover:text-accent-text" : "text-label-2",
                 )}
               >
                 {Number(d.slice(8))}
@@ -134,12 +136,12 @@ export function TimePicker({
             );
           })}
         </div>
-        <p className="mt-3 text-[12px] text-label-3">Times shown in {tz.replace(/_/g, " ")} ({timeZoneLabel(tz)}).</p>
+        <p className="mt-3 text-[12px] text-label-2">Times shown in {tz.replace(/_/g, " ")} ({timeZoneLabel(tz)}).</p>
       </div>
 
       <div className="min-h-40">
         {!win ? (
-          <div className="flex justify-center py-16 text-label-3"><Spinner className="size-6" /></div>
+          <div className="flex justify-center py-16 text-label-2"><Spinner className="size-6" /></div>
         ) : !anyOpen ? (
           <div className="py-8 text-center">
             <p className="text-[14px] text-label-2">No times available in {monthLabel.split(" ")[0]}.</p>
@@ -155,7 +157,7 @@ export function TimePicker({
               <div className="text-[16px] font-semibold">{dayLabel}</div>
               <div className="inline-flex rounded-[9px] bg-surface-2 p-0.5 text-[12px] font-semibold">
                 {[true, false].map((h) => (
-                  <button key={String(h)} type="button" onClick={() => setHour12(h)} className={cn("h-9 rounded-[7px] px-3 sm:h-7 sm:px-2.5 transition", hour12 === h ? "bg-surface shadow-sm" : "text-label-3")}>
+                  <button key={String(h)} type="button" onClick={() => setHour12(h)} className={cn("h-9 rounded-[7px] px-3 sm:h-7 sm:px-2.5 transition", hour12 === h ? "bg-surface shadow-sm" : "text-label-2")}>
                     {h ? "12h" : "24h"}
                   </button>
                 ))}
@@ -169,7 +171,7 @@ export function TimePicker({
                   onClick={() => onPick(s)}
                   className={cn(
                     "h-11 rounded-[12px] text-[15px] font-semibold transition active:scale-95",
-                    selected?.start === s.start ? "bg-accent text-white" : "bg-accent-soft text-accent hover:bg-accent hover:text-white",
+                    selected?.start === s.start ? "bg-accent-fill text-white" : "bg-accent-soft text-accent-text hover:bg-accent-fill hover:text-white",
                   )}
                 >
                   {formatTime(s.start, tz, hour12)}

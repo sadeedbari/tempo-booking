@@ -2,6 +2,7 @@
 import { friendlyDbError } from "@/lib/db-errors";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { friendlyZodMessage } from "@/lib/zod-message";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext, getUser } from "@/lib/auth";
 import { planBlockMessage } from "@/lib/billing-server";
@@ -65,7 +66,7 @@ export async function saveWorkflow(slug: string, input: EditableWorkflow): Promi
   try {
     const { org } = await adminCtx(slug);
     const parsed = schema.safeParse(input);
-    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    if (!parsed.success) return { error: friendlyZodMessage(parsed.error) };
     const v = parsed.data;
     const problem = checkSteps(v.steps);
     if (problem) return { error: problem };

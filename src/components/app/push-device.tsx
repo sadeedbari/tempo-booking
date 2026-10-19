@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { Bell, BellOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { removePushSubscription, savePushSubscription } from "@/app/push-actions";
+import { useSafeTransition } from "@/components/ui/use-server-action";
 
 type State = "loading" | "unsupported" | "needs-install" | "blocked" | "off" | "on";
 
@@ -16,8 +17,8 @@ function keyBytes(b64: string) {
 /** Notification state for this phone/browser, plus turn on / turn off. */
 function usePush(vapidKey: string) {
   const [state, setState] = useState<State>("loading");
-  const [pending, start] = useTransition();
   const toast = useToast();
+  const [pending, start] = useSafeTransition((m) => toast(m, "error")); // a failed request becomes an inline message, not the crash page
 
   useEffect(() => {
     let alive = true;

@@ -4,7 +4,7 @@ import { getUser } from "@/lib/auth";
 import { buttonClass } from "@/components/ui/button-class";
 import { ResetForm } from "./reset-form";
 
-export const metadata: Metadata = { title: "Choose a new password" };
+export const metadata: Metadata = { title: "Choose a new password", robots: { index: false, follow: true } };
 
 export default async function ResetPage() {
   const user = await getUser(); // the emailed link signs the person in before sending them here

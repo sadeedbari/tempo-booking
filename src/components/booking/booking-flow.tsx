@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -18,6 +18,8 @@ import { TimePicker } from "./time-picker";
 import { SessionPicker } from "./session-picker";
 import { collectAnswers, IntakeFields } from "./intake-fields";
 import { AddressInput } from "@/components/ui/address-input";
+import { useSafeTransition } from "@/components/ui/use-server-action";
+import { readableOn } from "@/lib/color";
 
 type Step = "location" | "service" | "staff" | "time" | "details";
 const LOC = { in_person: { icon: MapPin, label: "In person" }, video: { icon: Video, label: "Video call" }, phone: { icon: Phone, label: "Phone call" } };
@@ -73,7 +75,7 @@ export function BookingFlow({
   const maxSpots = session ? Math.min(6, waitlist ? session.capacity : spotsLeft) : 1;
   const [error, setError] = useState<string | null>(null);
   const [hasPhone, setHasPhone] = useState(false);
-  const [pending, start] = useTransition();
+  const [pending, start] = useSafeTransition(setError, { requireSession: false }); // a failed request becomes an inline message, not the crash page
   // Repeating appointment: 0 = it doesn't repeat; otherwise every N weeks, this many times.
   const [repeatWeeks, setRepeatWeeks] = useState(0);
   const [repeatCount, setRepeatCount] = useState(4);
@@ -224,7 +226,7 @@ export function BookingFlow({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={org.logo_url} alt="" className="size-14 rounded-[16px] object-cover" />
             ) : (
-              <div className="grid size-14 place-items-center rounded-[16px] text-[24px] font-bold text-white shadow-sm" style={{ background: `linear-gradient(180deg, ${accent}bb, ${accent})` }}>
+              <div className="grid size-14 place-items-center rounded-[16px] text-[24px] font-bold shadow-sm" style={{ background: `linear-gradient(180deg, ${accent}bb, ${accent})`, color: readableOn(accent) }}>
                 {org.name[0]?.toUpperCase()}
               </div>
             )}
@@ -275,7 +277,7 @@ export function BookingFlow({
         {/* Steps */}
         <main className={cn("min-w-0", embed ? "p-5 sm:p-7" : "rounded-[24px] bg-surface p-5 shadow-md hairline sm:p-7")}>
           {(step !== "service" || multiLocation) && step !== "location" && (
-            <button onClick={back} className="mb-3 -ml-1 inline-flex min-h-10 items-center gap-1 text-[15px] font-medium text-accent">
+            <button onClick={back} className="mb-3 -ml-1 inline-flex min-h-10 items-center gap-1 text-[15px] font-medium text-accent-text">
               <ArrowLeft className="size-4" /> Back
             </button>
           )}
@@ -291,12 +293,12 @@ export function BookingFlow({
                     onClick={() => chooseLocation(l.id)}
                     className="group flex w-full items-center gap-4 rounded-[16px] bg-surface-2/60 p-4 text-left transition hover:bg-surface-2 active:scale-[0.99]"
                   >
-                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-accent-soft text-accent"><MapPin className="size-5" /></span>
+                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-text"><MapPin className="size-5" /></span>
                     <div className="min-w-0 flex-1">
                       <div className="text-[16px] font-semibold">{l.name}</div>
                       {l.address && <div className="mt-0.5 text-[14px] text-label-2">{l.address}</div>}
                     </div>
-                    <ChevronRight className="size-5 text-label-4 transition group-hover:translate-x-0.5 group-hover:text-label-3" />
+                    <ChevronRight className="size-5 text-label-4 transition group-hover:translate-x-0.5 group-hover:text-label-2" />
                   </button>
                 ))}
               </div>
@@ -322,7 +324,7 @@ export function BookingFlow({
                         <div className="min-w-0 flex-1">
                           <div className="text-[16px] font-semibold">{s.name}</div>
                           {s.description && <div className="mt-0.5 line-clamp-2 text-[14px] text-label-2">{s.description}</div>}
-                          <div className="mt-1.5 flex flex-wrap gap-x-3 text-[13px] text-label-3">
+                          <div className="mt-1.5 flex flex-wrap gap-x-3 text-[13px] text-label-2">
                             <span className="inline-flex items-center gap-1"><Clock className="size-3.5" />{formatDuration(s.duration_minutes)}</span>
                             <span className="inline-flex items-center gap-1"><L.icon className="size-3.5" />{L.label}</span>
                             {s.is_class && <span className="inline-flex items-center gap-1"><Users className="size-3.5" />Group class</span>}
@@ -331,7 +333,7 @@ export function BookingFlow({
                         <div className="text-right">
                           <div className="text-[15px] font-semibold">{formatMoney(s.price_cents, org.currency)}</div>
                         </div>
-                        <ChevronRight className="size-5 text-label-4 transition group-hover:translate-x-0.5 group-hover:text-label-3" />
+                        <ChevronRight className="size-5 text-label-4 transition group-hover:translate-x-0.5 group-hover:text-label-2" />
                       </button>
                     );
                   })}
@@ -469,7 +471,7 @@ export function BookingFlow({
                           <div className="space-y-2" role="status">
                             <ul className="space-y-1" aria-label="Dates">
                               {preview.dates.map((d) => (
-                                <li key={d.startsAt} className={cn("flex items-start gap-2 text-[14px]", !d.available && "text-label-3")}>
+                                <li key={d.startsAt} className={cn("flex items-start gap-2 text-[14px]", !d.available && "text-label-2")}>
                                   {d.available ? <Check className="mt-0.5 size-4 shrink-0 text-green" /> : <X className="mt-0.5 size-4 shrink-0 text-red" />}
                                   <span>
                                     {formatDate(d.startsAt, tz)} at {formatTime(d.startsAt, tz)}
@@ -498,12 +500,12 @@ export function BookingFlow({
                     : !service.auto_approve ? (service.is_class ? "Request a spot" : "Request booking") : service.is_class ? (spots > 1 ? `Reserve ${spots} spots` : "Reserve my spot") : repeatWeeks > 0 ? `Confirm ${preview && preview !== "loading" && preview.ok ? preview.dates.filter((d) => d.available).length : repeatCount} appointments` : "Confirm booking"}
                 </Button>
                 {!service.auto_approve && (
-                  <p className="text-center text-[12px] text-label-3">
+                  <p className="text-center text-[12px] text-label-2">
                     {org.name} confirms each booking personally. You&apos;ll get an email once it&apos;s approved
                     {service.deposit_cents > 0 && org.payments_enabled ? ", and your deposit is refunded if it isn't." : "."}
                   </p>
                 )}
-                <p className="text-center text-[12px] text-label-3">
+                <p className="text-center text-[12px] text-label-2">
                   {org.cancellation_window_hours > 0
                     ? `Free cancellation up to ${org.cancellation_window_hours} hours before.`
                     : "You can cancel any time before your appointment."}
@@ -515,7 +517,7 @@ export function BookingFlow({
       </div>
 
       <footer className={cn("text-center", embed ? "pb-4" : "pb-10")}>
-        <Link href="/" className="inline-flex min-h-10 items-center gap-1.5 text-[12px] font-medium text-label-3 hover:text-label-2">
+        <Link href="/" className="inline-flex min-h-10 items-center gap-1.5 text-[12px] font-medium text-label-2 hover:text-label-2">
           <LogoMark className="size-4" /> Powered by Tempo
         </Link>
       </footer>
@@ -526,7 +528,7 @@ export function BookingFlow({
 function StepTitle({ n, title }: { n: number; title: string }) {
   return (
     <div className="mb-5">
-      <div className="text-[13px] font-semibold text-accent">Step {n}</div>
+      <div className="text-[13px] font-semibold text-accent-text">Step {n}</div>
       <h2 className="text-[24px] font-bold">{title}</h2>
     </div>
   );
@@ -535,7 +537,7 @@ function StepTitle({ n, title }: { n: number; title: string }) {
 function SummaryRow({ icon: Icon, children }: { icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-3 text-[14px] text-label-2">
-      <Icon className="mt-0.5 size-4 shrink-0 text-label-3" />
+      <Icon className="mt-0.5 size-4 shrink-0 text-label-2" />
       <div>{children}</div>
     </div>
   );
@@ -549,7 +551,7 @@ function StaffCard({
   return (
     <button onClick={onClick} className="flex items-center gap-3.5 rounded-[16px] bg-surface-2/60 p-4 text-left transition hover:bg-surface-2 active:scale-[0.98]">
       {any ? (
-        <span className="grid size-12 place-items-center rounded-full text-white" style={{ background: `linear-gradient(180deg, ${accent}bb, ${accent})` }}>
+        <span className="grid size-12 place-items-center rounded-full" style={{ background: `linear-gradient(180deg, ${accent}bb, ${accent})`, color: readableOn(accent) }}>
           <Users className="size-5" />
         </span>
       ) : (

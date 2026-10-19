@@ -1,5 +1,6 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useSafeTransition, submitForm } from "@/components/ui/use-server-action";
+import { useState } from "react";
 import Link from "next/link";
 import { Check, Copy } from "lucide-react";
 import { Field, Select, Textarea } from "@/components/ui/input";
@@ -17,8 +18,8 @@ export function ContactEmbedSection({
 }: {
   appUrl: string; slug: string; services: { id: string; slug: string; name: string; contact_form: boolean }[]; enabled: boolean; successMessage: string;
 }) {
-  const [pending, startSave] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [pending, startSave] = useSafeTransition(setSaveError); // a failed request becomes an inline message, not the crash page
   const toast = useToast();
   const [kind, setKind] = useState<Kind>("popup");
   const [service, setService] = useState("");
@@ -53,13 +54,13 @@ export function ContactEmbedSection({
           </p>
         )}
         <form
-          action={(fd) =>
+          onSubmit={submitForm((fd) =>
             startSave(async () => {
               const r = await saveContactFormOptions(slug, fd);
               if (r.error) setSaveError(r.error);
               else { setSaveError(null); toast("Contact form options saved"); }
             })
-          }
+          )}
           className="space-y-4 border-b border-separator pb-5"
         >
           <h3 className="text-[15px] font-semibold">What visitors see</h3>

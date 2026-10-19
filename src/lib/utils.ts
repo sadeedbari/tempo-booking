@@ -25,6 +25,7 @@ export const RESERVED_SLUGS = new Set([
   "api", "app", "o", "login", "signup", "logout", "auth", "onboarding", "invite", "booking",
   "settings", "admin", "dashboard", "waitlist", "help", "support", "pricing", "about", "terms", "privacy",
   "blog", "docs", "preview", "static", "_next", "favicon", "tempo", "www", "mail", "embed",
+  "forgot", "reset", "sitemap", "robots", "manifest", "icon", "icons", "opengraph-image", "twitter-image",
 ]);
 
 export const PALETTE = [

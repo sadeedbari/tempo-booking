@@ -1,9 +1,10 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { buttonClass } from "@/components/ui/button-class";
 import { Notice } from "@/components/ui/misc";
+import { useServerAction } from "@/components/ui/use-server-action";
 import { money, type UpgradeOffer } from "@/lib/billing";
 import { addOnForLimit } from "@/app/o/[org]/settings/billing/actions";
 
@@ -13,12 +14,13 @@ import { addOnForLimit } from "@/app/o/[org]/settings/billing/actions";
  * else is told to ask the owner. A business still on its trial goes to the Billing page to pick a plan.
  */
 export function UpgradeNotice({ slug, message, offer, onUpgraded }: { slug: string; message: string; offer?: UpgradeOffer; onUpgraded: () => void }) {
-  const [pending, start] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  if (!offer) return <Notice>{message}</Notice>;
+  const { run, pending, error: requestError } = useServerAction();
+  const [actionError, setError] = useState<string | null>(null);
+  const error = requestError ?? actionError; // a lost connection shows here too, instead of the whole page failing
+  if (!offer) return <Notice live>{message}</Notice>;
   const billing = `/o/${slug}/settings/billing?locations=${offer.plan.extraLocations}&packs=${offer.plan.staffPacks}`;
   return (
-    <div role="alert" className="space-y-3 rounded-[12px] bg-accent-soft px-3.5 py-3 text-[14px] font-medium text-accent">
+    <div role="alert" className="space-y-3 rounded-[12px] bg-accent-soft px-3.5 py-3 text-[14px] font-medium text-accent-text">
       <p>{message}</p>
       {offer.canBuy && !offer.needsCheckout && (
         <Button
@@ -27,8 +29,7 @@ export function UpgradeNotice({ slug, message, offer, onUpgraded }: { slug: stri
           pill
           loading={pending}
           onClick={() =>
-            start(async () => {
-              const r = await addOnForLimit(slug, offer.kind);
+            run(() => addOnForLimit(slug, offer.kind), (r) => {
               if (r.error) setError(r.error);
               else { setError(null); onUpgraded(); }
             })
@@ -38,7 +39,7 @@ export function UpgradeNotice({ slug, message, offer, onUpgraded }: { slug: stri
         </Button>
       )}
       {offer.canBuy && offer.needsCheckout && <Link href={billing} className={buttonClass("filled", "sm", true)}>Choose a plan</Link>}
-      {error && <p className="text-red">{error}</p>}
+      {error && <p className="text-red-text">{error}</p>}
     </div>
   );
 }

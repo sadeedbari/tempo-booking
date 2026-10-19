@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { friendlyZodMessage } from "@/lib/zod-message";
 import { TZDate } from "@date-fns/tz";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/auth";
@@ -109,7 +110,7 @@ export async function saveService(slug: string, formData: FormData): Promise<Act
       allow_series: formData.get("allow_series") === "on",
       is_class: formData.get("is_class") === "on",
     });
-    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    if (!parsed.success) return { error: friendlyZodMessage(parsed.error) };
     const v = parsed.data;
     const price_cents = Math.round(v.price * 100);
     const deposit_cents = Math.round(v.deposit * 100);
@@ -198,7 +199,7 @@ async function syncQuestions(supabase: Awaited<ReturnType<typeof createClient>>,
   let list: unknown;
   try { list = JSON.parse(raw); } catch { return { error: "Your questions couldn't be read. Please try again." }; }
   const parsed = z.array(questionSchema).max(12, "A service can have at most 12 questions.").safeParse(list);
-  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  if (!parsed.success) return { error: friendlyZodMessage(parsed.error) };
   const questions = parsed.data;
   for (const [i, q] of questions.entries()) {
     if (q.type === "choice" || q.type === "multi") {
@@ -278,7 +279,7 @@ export async function createManualBooking(slug: string, formData: FormData): Pro
   try {
     const { org, isAdmin } = await ctxFor(slug);
     const parsed = manualBookingSchema.safeParse({ ...Object.fromEntries(formData), notify: formData.get("notify") === "on", sms_consent: formData.get("sms_consent") === "on" });
-    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    if (!parsed.success) return { error: friendlyZodMessage(parsed.error) };
     const v = parsed.data;
     const supabase = await createClient();
     const { data: userData } = await supabase.auth.getUser();
@@ -496,7 +497,7 @@ export async function createSessions(slug: string, formData: FormData): Promise<
   try {
     const { org } = await ctxFor(slug);
     const parsed = sessionSchema.safeParse(Object.fromEntries(formData));
-    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    if (!parsed.success) return { error: friendlyZodMessage(parsed.error) };
     const v = parsed.data;
     const supabase = await createClient();
     const { data: userData } = await supabase.auth.getUser();
@@ -641,7 +642,7 @@ export async function updateSession(slug: string, sessionId: string, input: { ca
   try {
     const { org } = await ctxFor(slug);
     const parsed = sessionSchema.pick({ capacity: true, notes: true }).safeParse(input);
-    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    if (!parsed.success) return { error: friendlyZodMessage(parsed.error) };
     const supabase = await createClient();
     const scope = await sessionScope(supabase, org.id, sessionId, !!input.applyToLater);
     if (!scope) return { error: "Session not found." };
@@ -1140,7 +1141,7 @@ export async function saveLocation(slug: string, formData: FormData): Promise<Ac
   try {
     const { org, isOwner } = await ctxFor(slug, true);
     const parsed = locationSchema.safeParse({ ...Object.fromEntries(formData), active: formData.get("active") === "on" });
-    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    if (!parsed.success) return { error: friendlyZodMessage(parsed.error) };
     const v = parsed.data;
     const supabase = await createClient();
 
@@ -1642,7 +1643,7 @@ export async function updateOrg(slug: string, formData: FormData): Promise<Actio
   try {
     const { org } = await ctxFor(slug, true);
     const parsed = orgSchema.safeParse(Object.fromEntries(formData));
-    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    if (!parsed.success) return { error: friendlyZodMessage(parsed.error) };
     const v = parsed.data;
     if (v.slug !== org.slug && RESERVED_SLUGS.has(v.slug)) return { error: "That link is reserved." };
     const supabase = await createClient();
@@ -1678,7 +1679,7 @@ export async function saveContactFormOptions(slug: string, formData: FormData): 
   try {
     const { org } = await ctxFor(slug, true);
     const parsed = contactOptionsSchema.safeParse({ success_message: formData.get("success_message") ?? "" });
-    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    if (!parsed.success) return { error: friendlyZodMessage(parsed.error) };
     const listed = formData.getAll("service_ids").map(String).filter((v) => /^[0-9a-f-]{36}$/i.test(v));
     const supabase = await createClient();
     const { error: e1 } = await supabase.from("organizations").update({ inquiry_success_message: parsed.data.success_message || null }).eq("id", org.id);

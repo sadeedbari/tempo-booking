@@ -1,15 +1,16 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { Notice } from "@/components/ui/misc";
 import { cancelSeriesFollowing } from "./actions";
+import { useSafeTransition, submitForm } from "@/components/ui/use-server-action";
 
 /** "Cancel this and all later appointments" for a repeating appointment. */
 export function CancelSeries({ token, count }: { token: string; count: number }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
+  const [pending, start] = useSafeTransition(setError, { requireSession: false }); // a failed request becomes an inline message, not the crash page
 
   if (!open) {
     return <Button variant="destructive" size="lg" pill className="w-full" onClick={() => setOpen(true)}>Cancel this and all later ones ({count})</Button>;
@@ -17,7 +18,7 @@ export function CancelSeries({ token, count }: { token: string; count: number })
   return (
     <form
       className="space-y-3 rounded-[18px] bg-surface p-4 shadow-sm hairline animate-pop"
-      action={(fd) => start(async () => { const r = await cancelSeriesFollowing(token, String(fd.get("reason") || "")); if (r?.error) setError(r.error); })}
+      onSubmit={submitForm((fd) => start(async () => { const r = await cancelSeriesFollowing(token, String(fd.get("reason") || "")); if (r?.error) setError(r.error); }))}
     >
       <div className="text-[15px] font-semibold">Cancel {count} appointments?</div>
       <p className="text-[13px] text-label-2">This appointment and every later one in the series will be cancelled. Earlier ones stay as they are.</p>

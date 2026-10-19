@@ -1,13 +1,26 @@
 "use client";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
  * Modal sheet — slides up as a bottom sheet on phones and floats as a
- * centered card on larger screens, over a frosted backdrop.
+ * centered card on larger screens, over a frosted backdrop. It is a named modal dialog (named by its title): focus moves
+ * into it when it opens, Tab stays inside it, and focus returns to what opened it when it closes.
  */
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+// The last element outside any dialog that had focus: what opened the sheet. (A field with autoFocus takes focus before the
+// sheet's effect runs, so document.activeElement at that point is already inside the dialog.)
+let lastOutside: HTMLElement | null = null;
+if (typeof document !== "undefined") {
+  document.addEventListener("focusin", (e) => {
+    const t = e.target as HTMLElement | null;
+    if (t && !t.closest("[role=dialog]")) lastOutside = t;
+  });
+}
+
 export function Sheet({
   open,
   onClose,
@@ -25,9 +38,34 @@ export function Sheet({
   footer?: ReactNode;
   className?: string;
 }) {
+  const titleId = useId();
+  const panel = useRef<HTMLDivElement>(null);
+
+  // Focus: in on open (unless something inside already took it, like an autoFocus field), back to the opener on close.
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const opener = lastOutside;
+    const box = panel.current;
+    if (box && !box.contains(document.activeElement)) {
+      (box.querySelector<HTMLElement>(FOCUSABLE) ?? box).focus();
+    }
+    return () => { if (opener?.isConnected) opener.focus(); };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") return onClose();
+      // Keep Tab / Shift+Tab inside the dialog.
+      if (e.key !== "Tab" || !panel.current) return;
+      const items = Array.from(panel.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.offsetParent !== null);
+      if (!items.length) return e.preventDefault();
+      const first = items[0], last = items[items.length - 1];
+      const at = document.activeElement;
+      if (!panel.current.contains(at)) { e.preventDefault(); first.focus(); }
+      else if (e.shiftKey && at === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
+    };
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -40,11 +78,13 @@ export function Sheet({
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6" role="dialog" aria-modal>
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined} aria-label={title ? undefined : "Dialog"}>
       <div className="absolute inset-0 bg-black/25 backdrop-blur-[3px] animate-fade" onClick={onClose} />
       <div
+        ref={panel}
+        tabIndex={-1}
         className={cn(
-          "relative flex max-h-[92dvh] w-full flex-col overflow-hidden glass-strong hairline shadow-lg animate-sheet",
+          "relative flex outline-none max-h-[92dvh] w-full flex-col overflow-hidden glass-strong hairline shadow-lg animate-sheet",
           "rounded-t-[22px] sm:max-w-lg sm:rounded-[22px]",
           className,
         )}
@@ -53,7 +93,7 @@ export function Sheet({
         {(title || subtitle) && (
           <div className="flex items-start gap-3 px-5 pt-4 pb-3 sm:px-6 sm:pt-6">
             <div className="min-w-0 flex-1">
-              {title && <h2 className="text-[20px] font-semibold leading-tight">{title}</h2>}
+              {title && <h2 id={titleId} className="text-[20px] font-semibold leading-tight">{title}</h2>}
               {subtitle && <p className="mt-1 text-[14px] text-label-2">{subtitle}</p>}
             </div>
             <button

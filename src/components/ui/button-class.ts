@@ -4,11 +4,11 @@ export type Variant = "filled" | "tinted" | "gray" | "plain" | "destructive" | "
 export type Size = "sm" | "md" | "lg";
 
 const variants: Record<Variant, string> = {
-  filled: "bg-accent text-white hover:bg-accent-hover shadow-[0_1px_2px_rgba(0,0,0,0.12)]",
-  tinted: "bg-accent-soft text-accent hover:brightness-95",
+  filled: "bg-accent-fill text-white hover:bg-accent-fill-hover shadow-[0_1px_2px_rgba(0,0,0,0.12)]",
+  tinted: "bg-accent-soft text-accent-text hover:brightness-95",
   gray: "bg-surface-2 text-label hover:bg-surface-3",
-  plain: "bg-transparent text-accent hover:bg-accent-soft",
-  destructive: "bg-red-soft text-red hover:brightness-95",
+  plain: "bg-transparent text-accent-text hover:bg-accent-soft",
+  destructive: "bg-red-soft text-red-text hover:brightness-95",
   glass: "glass hairline text-label hover:bg-surface",
 };
 

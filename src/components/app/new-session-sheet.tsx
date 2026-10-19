@@ -1,5 +1,6 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import { useSafeTransition } from "@/components/ui/use-server-action";
 import { Repeat } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -37,8 +38,8 @@ function Inner({ open, onClose, slug, org, members, locations, classes, defaultS
   const tz = org.timezone;
   const toast = useToast();
   const initial = defaultStart ? splitInZone(defaultStart, tz) : { date: todayKey(tz), time: "18:00" };
-  const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useSafeTransition(setError); // a failed request becomes the inline error, not a crash page
   const [serviceId, setServiceId] = useState(classes.find((s) => s.id === defaultServiceId)?.id ?? classes[0]?.id ?? "");
   const service = classes.find((s) => s.id === serviceId) ?? null;
   const [capacity, setCapacity] = useState(String(service?.class_capacity ?? 10));

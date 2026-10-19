@@ -1,0 +1,15 @@
+# Tempo
+
+> Tempo is online booking software for service businesses such as salons, clinics, studios, classes, consultants and mobile services. Customers book from a page you share. You run the calendar, team and payments in one place.
+
+## Facts
+- Price: $15 CAD per month (plus applicable taxes where required). Includes 1 location and 5 staff.
+- Extra location: +$15 CAD per month. Extra staff pack (5 more staff): +$5 CAD per month.
+- Free trial: 14 days, no credit card required.
+- Features: online booking page, group classes with waitlist, deposits with Stripe, email and text reminders, multiple locations, website contact form and booking pop-up.
+- Tempo is a scheduling tool, not a medical records system.
+
+## Pages
+- Home and pricing: https://tempo.sulosystems.com/
+- Privacy Policy: https://tempo.sulosystems.com/privacy
+- Terms of Service: https://tempo.sulosystems.com/terms

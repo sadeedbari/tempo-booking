@@ -107,3 +107,70 @@ export async function cleanup() {
 
 export const readState = () => JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
 export const writeState = (s) => fs.writeFileSync(STATE_FILE, JSON.stringify(s, null, 2));
+
+/* ---------- billing states for the browser specs ---------- */
+export const MOCK_URL = "http://127.0.0.1:4010";
+export const MOCK_PRICE = { base: "price_mock_base", location: "price_mock_location", pack: "price_mock_pack" };
+const DAY = 86_400_000;
+
+/**
+ * Puts a test team's subscription row into a known state (service role, like the billing webhook would). States:
+ *   trial            { days = 14 }                  trial with that many days left (whole days shown)
+ *   trial-ended      { }                            trial that ended yesterday (reads as expired)
+ *   none             { }                            a team with no trial and no plan (a second team of the same person)
+ *   active           { extraLocations, staffPacks, periodDays = 30, cancelAtPeriodEnd }   paying; a matching subscription is created in the stand-in Stripe
+ *   past-due         { extraLocations, staffPacks, daysAgo = 2 }    first failed payment `daysAgo` days ago (grace is 7)
+ *   cancelled        { }                            subscription ended
+ * Returns the row. Only ever used on teams the harness created.
+ */
+export async function setPlanState(orgId, state, o = {}) {
+  const base = { stripe_customer_id: null, stripe_subscription_id: null, cancel_at_period_end: false, past_due_since: null, current_period_end: null, extra_locations: 0, staff_packs: 0, last_stripe_event_at: null, trial_reminder_sent_at: null, trial_ended_email_sent_at: null, stripe_missing_at: null, updated_at: new Date().toISOString() };
+  let patch;
+  if (state === "trial") patch = { ...base, status: "trial", trial_ends_at: new Date(Date.now() + ((o.days ?? 14) - 0.5) * DAY).toISOString() };
+  else if (state === "trial-ended") patch = { ...base, status: "trial", trial_ends_at: new Date(Date.now() - DAY).toISOString() };
+  else if (state === "none") {
+    // Like private.organizations_start_trial() for a second team: inserted already expired, trial_ended_email_sent_at = trial_ends_at (so the page says "No active plan", not "Your trial has ended").
+    const t = new Date(Date.now() - DAY).toISOString();
+    patch = { ...base, status: "expired", trial_ends_at: t, trial_ended_email_sent_at: t };
+  }
+  else if (state === "cancelled") patch = { ...base, status: "cancelled", trial_ends_at: new Date(Date.now() - 20 * DAY).toISOString() };
+  else if (state === "active" || state === "past-due") {
+    const extra = o.extraLocations ?? 0;
+    const packs = o.staffPacks ?? 0;
+    const customer = `cus_e2e_${orgId.slice(0, 8)}`;
+    const items = [{ price: MOCK_PRICE.base, quantity: 1 }, ...(extra ? [{ price: MOCK_PRICE.location, quantity: extra }] : []), ...(packs ? [{ price: MOCK_PRICE.pack, quantity: packs }] : [])];
+    const r = await fetch(`${MOCK_URL}/__subscription`, { method: "POST", body: JSON.stringify({ customer, items, org: orgId, replace: true, status: state === "past-due" ? "past_due" : "active", cancel_at_period_end: Boolean(o.cancelAtPeriodEnd) }) });
+    if (!r.ok) throw new Error("the stand-in Stripe (e2e/mock-services.mjs) is not running");
+    const sub = await r.json();
+    patch = {
+      ...base, status: state === "active" ? "active" : "past_due", trial_ends_at: new Date(Date.now() - 20 * DAY).toISOString(),
+      extra_locations: extra, staff_packs: packs, stripe_customer_id: customer, stripe_subscription_id: sub.id,
+      current_period_end: new Date(Date.now() + (o.periodDays ?? 30) * DAY).toISOString(),
+      cancel_at_period_end: Boolean(o.cancelAtPeriodEnd),
+      past_due_since: state === "past-due" ? new Date(Date.now() - (o.daysAgo ?? 2) * DAY).toISOString() : null,
+    };
+  } else throw new Error(`unknown plan state ${state}`);
+  const { data, error } = await admin.from("subscriptions").update(patch).eq("org_id", orgId).select("*").single();
+  if (error) throw new Error(`setPlanState ${state}: ${error.message}`);
+  return data;
+}
+
+/** Test-made rows that would otherwise change what the next test sees: extra team members, locations and pending invitations. */
+export async function removeTestExtras(orgId) {
+  await admin.from("invitations").delete().eq("org_id", orgId).is("accepted_at", null);
+  await admin.from("memberships").delete().eq("org_id", orgId).is("user_id", null);
+  await admin.from("locations").delete().eq("org_id", orgId).like("name", "E2E%");
+}
+
+/** Deletes the harness's own teams whose link starts with `prefix` (must start with "e2e"), and forgets a test person's one-trial record. */
+export async function deleteTestOrgs(prefix) {
+  if (!prefix.startsWith(SLUG_PREFIX.replace("-", ""))) throw new Error("only e2e teams may be deleted here");
+  const { data } = await admin.from("organizations").select("id").like("slug", `${prefix}%`);
+  for (const o of data ?? []) await admin.from("organizations").delete().eq("id", o.id);
+  return data?.length ?? 0;
+}
+export async function forgetTrialClaimOf(person) {
+  if (!person.email.endsWith(`@${EMAIL_DOMAIN}`)) throw new Error("only test people");
+  if (!secrets.trialClaim) return;
+  await admin.rpc("forget_trial_claim", { p_secret: secrets.trialClaim, p_user: person.id, p_email: person.email });
+}

@@ -4,6 +4,10 @@ import type { NextConfig } from "next";
 // Everything else — the dashboard, sign-in, settings — can only be framed by Tempo itself,
 // which stops click-jacking.
 const nextConfig: NextConfig = {
+  // D-035: send title, description, canonical, robots and og tags in <head> for every visitor and crawler (documented
+  // option "htmlLimitedBots: /.*/" disables streaming metadata). Only pages with an async generateMetadata (the booking
+  // page) are affected; the cost is that they wait for the business lookup, which the page needs anyway.
+  htmlLimitedBots: /.*/,
   async headers() {
     return [
       {

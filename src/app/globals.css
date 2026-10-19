@@ -41,6 +41,15 @@
   --teal: #30b0c7;
   --indigo: #5856d6;
 
+  /* Accessible text/fill colours (WCAG AA 4.5:1; checked by tests/contrast.test.ts). The brighter system colours above are
+     for icons, bars and fills; use these for TEXT on tinted notices/badges and for the filled button. */
+  --accent-text: #005ec2;
+  --accent-fill: #0062cc;
+  --accent-fill-hover: #0055b3;
+  --green-text: #1a6e33;
+  --orange-text: #8f4400;
+  --red-text: #b3221a;
+
   /* Elevation */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 1px rgba(0, 0, 0, 0.03);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.05);
@@ -77,6 +86,13 @@
   --pink: #ff375f;
   --teal: #40c8e0;
   --indigo: #5e5ce6;
+
+  --accent-text: #5eadff;
+  --accent-fill: #0a64d0;
+  --accent-fill-hover: #0a58b8;
+  --green-text: #30d158;
+  --orange-text: #ff9f0a;
+  --red-text: #ff7a70;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.45);
@@ -116,6 +132,13 @@
     --teal: #40c8e0;
     --indigo: #5e5ce6;
 
+    --accent-text: #5eadff;
+    --accent-fill: #0a64d0;
+    --accent-fill-hover: #0a58b8;
+    --green-text: #30d158;
+    --orange-text: #ff9f0a;
+    --red-text: #ff7a70;
+
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.45);
     --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.6);
@@ -147,6 +170,12 @@
   --color-pink: var(--pink);
   --color-teal: var(--teal);
   --color-indigo: var(--indigo);
+  --color-accent-text: var(--accent-text);
+  --color-accent-fill: var(--accent-fill);
+  --color-accent-fill-hover: var(--accent-fill-hover);
+  --color-green-text: var(--green-text);
+  --color-orange-text: var(--orange-text);
+  --color-red-text: var(--red-text);
 
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter Variable", "Segoe UI", system-ui, sans-serif;
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter Variable", "Segoe UI", system-ui, sans-serif;

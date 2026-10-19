@@ -47,3 +47,42 @@ Each spec assumes a freshly seeded world, so re-run `seed.mjs` between runs of t
 | Click-everything "monkey" pass for every role | `specs/10` |
 | Invitations, forgot/reset password, sign-up errors | `specs/11` |
 | Phone-sized layout checks | `specs/12` |
+
+## Billing screens (specs 23-29)
+
+| Area | Where |
+| --- | --- |
+| Billing page as owner: trial, plan chooser and live price, Checkout (stand-in) success / cancelled / processing, active plan, plan change up and down, cancel and resume, Manage billing, tampered quantities | `specs/23` |
+| Plan strip for every state and role, the billing page for admin and staff, billing actions refused for non-owners, strip contrast | `specs/24` |
+| Plan limits and the upgrade prompt: 6th person, 2nd location, invitations holding seats, hidden locations | `specs/25` |
+| No active plan: paused booking page / embed / contact form, existing customer bookings, read-only dashboard, exports, subscribing again | `specs/26` |
+| First team trial, second and third team without one, the 3-team cap | `specs/27` |
+| Error paths: Stripe failing, unpaid subscription, billing not set up (a second server on ports 3001/3002), lost connection, expired session | `specs/28` |
+| Accessibility: headings, labels, keyboard only, focus, contrast, 375px, optional axe-core scan | `specs/29` |
+
+Billing specs put a team into a plan state with `setPlan()` (`specs/billing-helpers.ts`, backed by `setPlanState()` in `lib.mjs`) and
+use the stand-in Stripe:
+
+- `GET /pay/<session>` is a stand-in Checkout page (links "Pay" and "Cancel" that go to the success / cancel URL of the real session).
+- `GET /portal/<customer>?return=...` is a stand-in Customer Portal with a link back.
+- `POST /__mode {"checkout":"fail"}` (also `portal`, and `subupdate` = `fail` or `card`) makes Stripe fail with raw text that must never reach a browser.
+- `POST /__subscription {..., "replace": true}` puts one subscription on a customer (what `setPlan` uses).
+- Idempotency keys are honoured like Stripe's, and recorded in `GET /__sent` (`idem`).
+
+`node e2e/counts.mjs` prints row counts (read-only) to prove a run left real data alone. For the optional axe scan install
+`@axe-core/playwright` OUTSIDE the repo and run with `E2E_AXE_DIR=<that folder>`. Spec 28 starts a second copy of the built app
+(ports 3001 and 3002) with billing settings removed; it needs `npm run build` to have run (dev-server.sh does that).
+
+## Failed requests, SEO and landing retests (specs 30-39)
+
+| Area | Where |
+| --- | --- |
+| Failed requests (connection lost / HTTP 500) on signed-in screens and on public pages and embeds (never a redirect to /login for a customer) | `specs/35`, `specs/38` |
+| Keep typed values after a failed Save | `specs/31-keep-values`, `32`, `33` |
+| robots, sitemap, metadata, share images, booking page indexing | `specs/34` |
+| Landing page layout, large text, header, toast announcements, FAQ | `specs/31-landing-page`, `36`, `39` |
+| Back keeps the chosen day, booking page contrast, custom accent colour | `specs/39` |
+| Screenshots for `project/marketing/landing-screenshots/` (landing and booking page) | `specs/37` |
+
+The built app has been seen to exit silently under a long run; restart it (a small loop that runs `next start` again is enough).
+

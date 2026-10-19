@@ -1,0 +1,60 @@
+<!doctype html>
+<!-- Source for src/app/opengraph-image.png (1200x630). Re-render with: node scripts/build-og-image.mjs
+     Colours come from the site's design tokens in src/app/globals.css. No network: Inter is the bundled variable font. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face {
+    font-family: "InterOG";
+    src: url("../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2");
+    font-weight: 100 900;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    position: relative;
+    background: #f5f5f7; /* --canvas */
+    font-family: "InterOG", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: #1d1d1f; /* --label */
+  }
+  /* Same soft blue / purple / green glow as the landing page hero. */
+  .glow {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(40% 55% at 22% 38%, rgba(0,122,255,0.22), transparent),
+      radial-gradient(35% 50% at 82% 25%, rgba(175,82,222,0.17), transparent),
+      radial-gradient(32% 45% at 62% 90%, rgba(52,199,89,0.14), transparent);
+  }
+  .wrap { position: relative; height: 100%; padding: 72px 88px; display: flex; flex-direction: column; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 22px; }
+  .brand svg { width: 84px; height: 84px; }
+  .brand span { font-size: 54px; font-weight: 700; letter-spacing: -0.02em; }
+  h1 { font-size: 110px; line-height: 1.04; font-weight: 800; letter-spacing: -0.035em; max-width: 1000px; }
+  h1 em { font-style: normal; color: #0062cc; /* --accent-fill */ }
+  .line { font-size: 38px; font-weight: 500; color: #3c3c43; }
+  .line strong { font-weight: 700; color: #1d1d1f; }
+</style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="wrap">
+    <div class="brand">
+      <!-- Same mark as brand/tempo-mark.svg -->
+      <svg viewBox="0 0 512 512" aria-hidden="true">
+        <defs>
+          <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4AA3FF"/><stop offset="1" stop-color="#0A5FE0"/></linearGradient>
+          <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.22"/><stop offset="0.55" stop-color="#fff" stop-opacity="0"/></linearGradient>
+        </defs>
+        <rect width="512" height="512" rx="136" fill="url(#bg)"/>
+        <rect width="512" height="512" rx="136" fill="url(#sheen)"/>
+        <circle cx="256" cy="256" r="136" fill="none" stroke="#fff" stroke-width="38"/>
+        <path d="M256 179v77l51 35" fill="none" stroke="#fff" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Tempo</span>
+    </div>
+    <h1>Booking, made <em>effortless.</em></h1>
+    <p class="line"><strong>From $15/month.</strong> 14-day free trial, no credit card.</p>
+  </div>
+</body>
+</html>

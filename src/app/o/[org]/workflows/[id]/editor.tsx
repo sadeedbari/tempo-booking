@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Mail, MessageSquare, Plus, Send, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { finalizeSms, smsInfo } from "@/lib/sms";
 import { renderEmail, renderText, sampleVars, VARIABLES } from "@/lib/templates";
 import { describeTrigger, isTimed, LIMITS, TRIGGERS, type EditableStep, type EditableWorkflow } from "@/lib/workflow-defaults";
 import { deleteWorkflow, restoreDefault, saveWorkflow, sendTestEmail } from "../actions";
+import { useSafeTransition } from "@/components/ui/use-server-action";
 
 type Business = { name: string; phone: string | null; accent: string };
 type Focus = { step: number; field: "subject" | "body" };
@@ -35,9 +36,9 @@ export function WorkflowEditor({
 }) {
   const router = useRouter();
   const toast = useToast();
-  const [pending, start] = useTransition();
   const [w, setW] = useState<EditableWorkflow>(initial);
   const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useSafeTransition(setError); // a failed request becomes an inline message, not the crash page
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [offset, setOffset] = useState(splitOffset(initial.offset_minutes));
   const focus = useRef<Focus>({ step: 0, field: "body" });
@@ -238,7 +239,7 @@ function StepCard({
   onRemove: () => void;
 }) {
   const toast = useToast();
-  const [sending, start] = useTransition();
+  const [sending, start] = useSafeTransition((m) => toast(m, "error")); // a failed request becomes an inline message, not the crash page
   const isEmail = step.channel === "email";
   const vars = useMemo(() => ({ ...sampleVars(), business_name: business.name, business_phone: business.phone ?? "" }), [business]);
 

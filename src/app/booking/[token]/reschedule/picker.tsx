@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -11,6 +11,7 @@ import type { BusyInterval, PublicOrg, PublicService } from "@/lib/types";
 import { getWindow } from "@/app/[slug]/actions";
 import { TimePicker } from "@/components/booking/time-picker";
 import { rescheduleBooking } from "../actions";
+import { useSafeTransition } from "@/components/ui/use-server-action";
 
 export function ReschedulePicker({
   token, data, service, currentStart, currentMemberId, locationId,
@@ -30,7 +31,7 @@ export function ReschedulePicker({
   const [reload, setReload] = useState(0);
   const [slot, setSlot] = useState<Slot | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
+  const [pending, start] = useSafeTransition(setError, { requireSession: false }); // a failed request becomes an inline message, not the crash page
 
   // This booking's own block must not make its neighbouring times look taken.
   const filterBusy = useCallback(
