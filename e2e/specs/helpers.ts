@@ -87,7 +87,12 @@ export async function fillDetails(page: Page, w: Who) {
   await page.getByLabel("Full name").fill(w.name ?? "Test Customer");
   await page.getByLabel("Email").fill(w.email);
   if (w.phone !== undefined) await page.getByLabel("Phone").fill(w.phone);
-  if (w.phone && w.consent === false) await page.getByRole("checkbox").uncheck();
+  // The text-message box starts unticked: tick it unless the test says the customer said no.
+  if (w.phone) {
+    const box = page.getByRole("checkbox", { name: /Text me about this booking/ });
+    if (w.consent === false) await box.uncheck();
+    else await box.check();
+  }
   if (w.address) await page.getByLabel(/^Address/).fill(w.address);
   if (w.unit) await page.getByLabel(/Unit/).fill(w.unit);
   if (w.notes) await page.getByLabel("Anything we should know?").fill(w.notes);

@@ -23,7 +23,7 @@ export function initials(name: string) {
 /** Slugs that can't be used for teams because they collide with app routes. */
 export const RESERVED_SLUGS = new Set([
   "api", "app", "o", "login", "signup", "logout", "auth", "onboarding", "invite", "booking",
-  "settings", "admin", "dashboard", "waitlist", "help", "support", "pricing", "about", "terms", "privacy",
+  "settings", "admin", "dashboard", "waitlist", "sms", "help", "support", "pricing", "about", "terms", "privacy",
   "blog", "docs", "preview", "static", "_next", "favicon", "tempo", "www", "mail", "embed",
   "forgot", "reset", "sitemap", "robots", "manifest", "icon", "icons", "opengraph-image", "twitter-image",
 ]);

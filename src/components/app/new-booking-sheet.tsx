@@ -276,7 +276,7 @@ function NewBookingSheetInner({ open, onClose, slug, org, defaultStart, defaultM
               <Input name="customer_email" type="email" placeholder="Email" />
               <Input name="customer_phone" type="tel" placeholder="Phone (optional)" />
               <label className="flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug text-label-2 sm:col-span-2">
-                <input type="checkbox" name="sms_consent" defaultChecked className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" />
+                <input type="checkbox" name="sms_consent" className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" />
                 <span>The customer agreed to receive text messages about this booking.</span>
               </label>
             </div>

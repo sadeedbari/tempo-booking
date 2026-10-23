@@ -45,7 +45,7 @@ test.describe("booking page, start to finish", () => {
     await page.getByRole("button", { name: /Olivia Owner/ }).click();
     await pickDay(page, 3);
     await pickTime(page, "11:00 AM");
-    await expect(page.getByRole("checkbox")).toHaveCount(0); // appears once a phone number is typed
+    await expect(page.getByRole("checkbox", { name: /Text me about this booking/ })).not.toBeChecked(); // shown from the start, never pre-ticked
     await fillDetails(page, { email: customerEmail("nosms"), phone: "416 555 0188", consent: false });
     await page.getByRole("button", { name: "Confirm booking" }).click();
     await page.waitForURL(/\/booking\//);

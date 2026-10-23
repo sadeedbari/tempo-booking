@@ -74,7 +74,6 @@ export function BookingFlow({
   const spotsLeft = session ? Math.max(0, session.capacity - session.booked) : 0;
   const maxSpots = session ? Math.min(6, waitlist ? session.capacity : spotsLeft) : 1;
   const [error, setError] = useState<string | null>(null);
-  const [hasPhone, setHasPhone] = useState(false);
   const [pending, start] = useSafeTransition(setError, { requireSession: false }); // a failed request becomes an inline message, not the crash page
   // Repeating appointment: 0 = it doesn't repeat; otherwise every N weeks, this many times.
   const [repeatWeeks, setRepeatWeeks] = useState(0);
@@ -407,16 +406,22 @@ export function BookingFlow({
                   <Field label="Full name" className="sm:col-span-2"><Input name="name" autoComplete="name" required autoFocus /></Field>
                   <Field label="Email"><Input name="email" type="email" autoComplete="email" required /></Field>
                   <Field label="Phone" hint="Optional.">
-                    <Input name="phone" type="tel" autoComplete="tel" onChange={(e) => setHasPhone(e.target.value.trim().length > 0)} />
+                    <Input name="phone" type="tel" autoComplete="tel" />
                   </Field>
-                  {hasPhone && (
-                    <label className="flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug text-label-2 sm:col-span-2">
-                      <input type="checkbox" name="sms_consent" defaultChecked className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" />
+                  {/* Always shown and never ticked for the customer: text messages need their own, clearly worded yes. */}
+                  <div className="sm:col-span-2" data-testid="sms-consent">
+                    <label className="flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug text-label-2">
+                      <input type="checkbox" name="sms_consent" className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" />
                       <span>
-                        Text me a confirmation and reminder about this booking. Message and data rates may apply. Reply STOP to opt out.
+                        Text me about this booking. I agree to receive text messages from {org.name}: confirmations, reminders and changes. Message frequency varies.
+                        Message and data rates may apply. Reply STOP to opt out or HELP for help. Agreeing is not required to book.
                       </span>
                     </label>
-                  )}
+                    <p className="mt-1 pl-[26px] text-[12px] text-label-3">
+                      <a href="/sms" target="_blank" rel="noopener noreferrer" className="text-accent-text underline">Text message terms</a>{" · "}
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-accent-text underline">Privacy policy</a>
+                    </p>
+                  </div>
                   {service.address_mode !== "off" && (
                     <Field
                       label={service.address_mode === "required" ? "Address" : "Address (optional)"}

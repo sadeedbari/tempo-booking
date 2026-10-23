@@ -5,7 +5,7 @@ import { S } from "./helpers";
 const base = `/o/${S.orgA.slug}`;
 test.use({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true });
 
-const PUBLIC = ["/", "/login", "/signup", "/forgot", "/privacy", "/terms", `/${S.orgA.slug}`, `/${S.orgA.slug}?service=haircut`, `/embed/${S.orgA.slug}`, `/${S.orgA.slug}/contact`, `/embed/${S.orgA.slug}/contact`];
+const PUBLIC = ["/", "/login", "/signup", "/forgot", "/privacy", "/terms", "/sms", `/${S.orgA.slug}`, `/${S.orgA.slug}?service=haircut`, `/embed/${S.orgA.slug}`, `/${S.orgA.slug}/contact`, `/embed/${S.orgA.slug}/contact`];
 const APP = ["dashboard", "calendar", "bookings", "schedule", "customers", "inquiries", "services", "workflows", "workflows/new?starter=second-reminder", "team", "availability", "settings"];
 
 async function audit(page: import("@playwright/test").Page) {
