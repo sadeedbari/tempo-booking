@@ -257,6 +257,9 @@ Link text under the FAQ: **Still unsure? Email us at info@sulosystems.com.**
 
 ## 4. Claim to code evidence
 
+> 2026-10-22: the features section is now four big benefit blocks (booking, classes and waitlist, deposits and reminders, your website) with a described illustration each, then one compact "And everything else" list (Grow your team, Run the business). The wording of every line below is unchanged; only where it appears moved. The four h3 headings keep their search phrases.
+
+
 Paths are relative to the repo root. "Read" means I opened and read the file for the claim.
 
 | Claim on the page | Evidence checked |

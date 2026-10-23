@@ -28,8 +28,12 @@ test.describe("landing page content", () => {
     for (const name of ["Everything you need to run your day.", "Simple pricing in Canadian dollars.", "Questions, answered.", "Ready for calmer bookings?"]) {
       await expect(page.getByRole("heading", { level: 2, name })).toBeVisible();
     }
-    for (const name of ["Online booking for appointments", "Class booking with a waitlist", "Grow your team", "Deposits and reminders", "A booking page for your website", "Run the business"]) {
+    // Four big benefits, then one compact list for everything else (with its two sub-headings).
+    for (const name of ["Online booking for appointments", "Class booking with a waitlist", "Deposits and reminders", "A booking page for your website", "And everything else"]) {
       await expect(page.getByRole("heading", { level: 3, name })).toBeVisible();
+    }
+    for (const name of ["Grow your team", "Run the business"]) {
+      await expect(page.getByRole("heading", { level: 4, name })).toBeVisible();
     }
     // Heading levels never skip downwards (h1 -> h2 -> h3 -> h4).
     const levels = await page.locator("h1,h2,h3,h4,h5,h6").evaluateAll((els) => els.map((e) => Number(e.tagName[1])));
@@ -37,9 +41,9 @@ test.describe("landing page content", () => {
     await expect(page.locator("#features")).toBeVisible();
     await expect(page.locator("#pricing")).toBeVisible();
     await expect(page.locator("#faq")).toBeVisible();
-    // Feature coverage spot checks across all groups.
+    // Feature coverage spot checks across all groups: each is named exactly once, as a bold lead-in.
     for (const t of ["A calendar you'll enjoy", "Automatic waitlist", "Staff without a login", "Deposits with Stripe", "Website contact form", "Install on your phone", "Calendar sync", "Excel export"]) {
-      await expect(page.getByRole("heading", { level: 4, name: t })).toHaveCount(1);
+      await expect(page.locator("#features").getByText(`${t}.`, { exact: true })).toHaveCount(1);
     }
     await expect(page.locator("#faq details")).toHaveCount(8);
     await expect(page.getByText("not a medical records system")).toHaveCount(1);
@@ -236,12 +240,29 @@ test.describe("responsive layout", () => {
     await expect(page.getByText("Tuesday, 14")).toBeVisible();
   });
 
-  test("feature cards are one column on phones and several on desktop", async ({ page }) => {
+  test("each benefit's picture sits under its text on phones and beside it on desktop, and the extras list goes from one column to two", async ({ page }) => {
     await open(page, 375);
-    const xs = async () => page.locator("#features ul").first().locator("li").evaluateAll((els) => new Set(els.map((e) => Math.round(e.getBoundingClientRect().left))).size);
-    expect(await xs()).toBe(1);
+    const layout = () => page.evaluate(() => {
+      const b = document.querySelector("[data-benefit=book]")!;
+      const t = b.children[0].getBoundingClientRect();
+      const p = b.children[1].getBoundingClientRect();
+      const team = document.getElementById("group-team")!.getBoundingClientRect();
+      const run = document.getElementById("group-run")!.getBoundingClientRect();
+      return { beside: p.left >= t.right - 1, below: p.top >= t.bottom - 1, extrasTwoColumns: Math.abs(team.left - run.left) > 40, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    });
+    const phone = await layout();
+    expect(phone).toMatchObject({ beside: false, below: true, extrasTwoColumns: false });
+    expect(phone.overflow).toBeLessThanOrEqual(0);
     await page.setViewportSize({ width: 1280, height: 900 });
-    expect(await xs()).toBe(3);
+    expect(await layout()).toMatchObject({ beside: true, extrasTwoColumns: true });
+  });
+
+  test("each benefit has one described picture and no images to load", async ({ page }) => {
+    await open(page);
+    const pictures = page.locator("#features [data-benefit] > [role=img]");
+    await expect(pictures).toHaveCount(4);
+    for (let i = 0; i < 4; i++) await expect(pictures.nth(i)).toHaveAttribute("aria-label", /^Illustration of /);
+    await expect(page.locator("#features img")).toHaveCount(0);
   });
 
   for (const width of [375, 1280]) {
