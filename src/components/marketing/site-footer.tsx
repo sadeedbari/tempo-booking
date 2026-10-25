@@ -12,6 +12,10 @@ export function SiteFooter() {
         <a href={`mailto:${LEGAL.contactEmail}`} className={link}>Contact</a>
       </nav>
       <p className="px-4">&copy; {new Date().getFullYear()} Tempo, by {LEGAL.operator}. Made with care.</p>
+      <p className="px-4">
+        Designed and built by{" "}
+        <a href="https://sulosystems.com" className="inline-flex min-h-11 items-center font-medium text-label-2 underline hover:text-accent-text">sulosystems.com</a>
+      </p>
     </footer>
   );
 }
