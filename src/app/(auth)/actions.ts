@@ -41,7 +41,7 @@ export async function signUp(_: AuthState, formData: FormData): Promise<AuthStat
     },
   });
   if (error) return { error: friendlyAuthError(error) };
-  if (!data.session) return { message: `We sent a confirmation link to ${email}. Open it to continue.` };
+  if (!data.session) return { message: `If ${email} is new to Tempo, we've sent a confirmation link to it. Open it to continue.` };
   redirect(next);
 }
 

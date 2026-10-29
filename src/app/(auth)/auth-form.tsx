@@ -15,6 +15,14 @@ export function AuthForm({ mode, next }: { mode: "login" | "signup"; next?: stri
       <div className="space-y-4 text-center">
         <div className="mx-auto grid size-14 place-items-center rounded-full bg-accent-soft text-[26px]">✉️</div>
         <p className="text-[15px] text-label-2">{state.message}</p>
+        {mode === "signup" && (
+          <p className="text-[14px] text-label-2" data-testid="signup-existing-account">
+            No email after a few minutes? Check your spam folder. If you already have an account,{" "}
+            <Link href={`/login${nextQs}`} className="inline-block py-2 font-medium text-accent">sign in</Link>
+            {" or "}
+            <Link href="/forgot" className="inline-block py-2 font-medium text-accent">reset your password</Link>.
+          </p>
+        )}
       </div>
     );
   }

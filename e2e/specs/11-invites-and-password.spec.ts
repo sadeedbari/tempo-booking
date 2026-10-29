@@ -119,6 +119,19 @@ test.describe("signing up", () => {
     await expect(page.locator("form, div").filter({ hasText: /confirmation link|wait a few minutes|already exists|too many|couldn.t reach/i }).first()).toBeVisible({ timeout: 20_000 });
     await expect(page.locator("body")).not.toContainText(/over_email_send_rate_limit|AuthApiError|email rate limit exceeded/);
   });
+
+  test("after sign-up the message points an existing account to sign in or reset, without saying who has one", async ({ page }) => {
+    await page.goto("/signup");
+    await page.getByLabel("Your name").fill("E2E Signup");
+    await page.getByLabel("Email").fill("e2e.signup.hint@tempo-e2e.test");
+    await page.getByLabel("Password").fill("A-Long-Enough-Pass-1!");
+    await page.getByRole("button", { name: /create account/i }).click();
+    const hint = page.getByTestId("signup-existing-account");
+    test.skip(!(await hint.isVisible({ timeout: 20_000 }).catch(() => false)), "sign-up was rate limited, so the confirmation message did not show");
+    await expect(page.locator("body")).toContainText("is new to Tempo");
+    await expect(hint.getByRole("link", { name: "sign in" })).toHaveAttribute("href", "/login");
+    await expect(hint.getByRole("link", { name: "reset your password" })).toHaveAttribute("href", "/forgot");
+  });
 });
 
 test.describe("email links (confirm and reset)", () => {
