@@ -1185,7 +1185,8 @@ export async function saveLocation(slug: string, formData: FormData): Promise<Ac
 
 export async function deleteLocation(slug: string, id: string): Promise<ActionResult> {
   try {
-    const { org } = await ctxFor(slug, true);
+    // ctxRead: deleting only lowers usage, so it works without an active plan (needed to fit a smaller plan).
+    const { org } = await ctxRead(slug, true);
     const supabase = await createClient();
     const { error } = await supabase.from("locations").delete().eq("id", id).eq("org_id", org.id);
     if (error) return { error: friendly(error) };
@@ -1541,7 +1542,8 @@ export async function updateMember(slug: string, formData: FormData): Promise<Ac
 
 export async function removeMember(slug: string, id: string): Promise<ActionResult> {
   try {
-    const { org, me } = await ctxFor(slug);
+    // ctxRead: removing someone only lowers usage, so it works without an active plan (needed to fit a smaller plan).
+    const { org, me } = await ctxRead(slug);
     const supabase = await createClient();
     const { error } = await supabase.from("memberships").delete().eq("id", id).eq("org_id", org.id);
     if (error) return { error: friendly(error) };

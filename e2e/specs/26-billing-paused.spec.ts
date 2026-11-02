@@ -155,6 +155,26 @@ test.describe("the dashboard is read-only without a plan", () => {
     w.assertNone();
   });
 
+  test("owner can still delete a location without a plan (it only lowers usage, and a smaller plan needs it), but not rename one", async ({ pageAs }) => {
+    await setPlan(A(), "active", { extraLocations: 3 }); // adding a location is itself refused without a plan, so add it first
+    const { data: extra } = await raw().from("locations").insert({ org_id: A(), name: "E2E Shrink Place", active: true, position: 98 }).select("id").single();
+    await setPlan(A(), "trial-ended");
+    try {
+      const page = await pageAs("ownerA");
+      await page.goto(`/o/${slug}/settings`);
+      await page.getByRole("button", { name: /E2E Shrink Place/ }).click();
+      await page.getByRole("dialog").getByLabel("Name").fill("E2E Shrink Renamed");
+      await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+      await expect(page.getByText(OWNER_MSG)).toBeVisible(); // changing is still off
+      expect((await raw().from("locations").select("name").eq("id", extra!.id).single()).data!.name).toBe("E2E Shrink Place");
+      await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Tap to confirm" }).click();
+      await expect.poll(async () => (await raw().from("locations").select("id").eq("id", extra!.id)).data!.length, { timeout: 15_000 }).toBe(0);
+    } finally {
+      await raw().from("locations").delete().eq("id", extra!.id);
+    }
+  });
+
   for (const role of ["adminA"] as const) {
     test(`${role}: the same attempts say 'ask the account owner'`, async ({ pageAs }) => {
       await setPlan(A(), "trial-ended");
