@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { PrimaryCta, TrialNote } from "./cta";
+import { VideoShowcase } from "./video-showcase";
 import { buttonClass } from "@/components/ui/button-class";
 import { TRIAL_DAYS } from "@/lib/billing";
 
@@ -72,6 +73,7 @@ export function Hero({ signedIn }: { signedIn: boolean }) {
         ))}
       </ul>
 
+      <VideoShowcase />
       <ProductPreview />
     </section>
   );

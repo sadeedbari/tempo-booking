@@ -461,3 +461,34 @@ test.describe("search and sharing metadata", () => {
     for (const p of ["/login", "/signup"]) expect(sm).not.toContain(`${p}</loc>`);
   });
 });
+
+test.describe("the 'What is Tempo?' video", () => {
+  test("sits under the hero, loads nothing from YouTube until played, then plays the no-cookie embed", async ({ page }) => {
+    const external: string[] = [];
+    page.on("request", (r) => { if (/youtube|ytimg/.test(new URL(r.url()).host)) external.push(r.url()); });
+    await open(page);
+    await page.waitForLoadState("networkidle");
+    const play = page.getByRole("button", { name: "Play video: What is Tempo?" });
+    await expect(play).toBeVisible();
+    const hero = await page.getByRole("link", { name: "Get started free" }).first().boundingBox();
+    const video = await play.boundingBox();
+    expect(video!.y, "the video comes after the hero buttons").toBeGreaterThan(hero!.y);
+    const features = await page.getByRole("heading", { level: 2, name: "Everything you need to run your day." }).boundingBox();
+    expect(video!.y, "and is above the features").toBeLessThan(features!.y);
+    expect(external, "nothing from YouTube before play").toEqual([]);
+    expect(await page.getByRole("link", { name: "Watch on YouTube" }).getAttribute("href")).toBe("https://www.youtube.com/watch?v=0Tv0MdWdJRw");
+    await play.click();
+    const frame = page.locator('iframe[title="What is Tempo?"]');
+    await expect(frame).toBeVisible();
+    expect(await frame.getAttribute("src")).toContain("https://www.youtube-nocookie.com/embed/0Tv0MdWdJRw");
+  });
+
+  test("fits every phone width without sideways scrolling", async ({ page }) => {
+    for (const w of WIDTHS) {
+      await open(page, w);
+      await expect(page.getByRole("button", { name: "Play video: What is Tempo?" })).toBeVisible();
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow, `${w}px`).toBeLessThanOrEqual(0);
+    }
+  });
+});
